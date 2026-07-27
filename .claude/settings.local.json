@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(xargs grep -lE \"DashboardOverlay|RacingScene\")",
+      "Bash(grep \":$\")",
+      "Bash(xargs ls -la)",
+      "PowerShell(docker --version)",
+      "Bash(docker compose up *)",
+      "Bash(docker compose ps *)",
+      "Bash(git init *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git config *)"
+    ]
+  }
+}

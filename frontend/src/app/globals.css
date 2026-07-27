@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #0b0c10;
+    color: #c5c6c7;
+    font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* Custom scrollbar for pro pit wall dashboard look */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0f1115;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1f2833;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #66fcf1;
+  }
+}
+
+@layer utilities {
+  .neon-border-red {
+    box-shadow: 0 0 10px rgba(225, 6, 0, 0.2);
+    border: 1px solid rgba(225, 6, 0, 0.4);
+  }
+  .neon-border-cyan {
+    box-shadow: 0 0 10px rgba(102, 252, 241, 0.2);
+    border: 1px solid rgba(102, 252, 241, 0.4);
+  }
+  .neon-text-cyan {
+    color: #66fcf1;
+    text-shadow: 0 0 5px rgba(102, 252, 241, 0.6);
+  }
+  .neon-text-red {
+    color: #e10600;
+    text-shadow: 0 0 5px rgba(225, 6, 0, 0.6);
+  }
+  .neon-text-purple {
+    color: #b026ff;
+    text-shadow: 0 0 5px rgba(176, 38, 255, 0.6);
+  }
+  .neon-text-green {
+    color: #00ff66;
+    text-shadow: 0 0 5px rgba(0, 255, 102, 0.6);
+  }
+  .glass-panel {
+    background: rgba(15, 17, 21, 0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+}
+
+/* Carbon fiber micro-pattern for premium aesthetics */
+.bg-carbon {
+  background-color: #0b0c10;
+  background-image: 
+    radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 0),
+    radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 0);
+  background-size: 8px 8px;
+  background-position: 0 0, 4px 4px;
+}
+
+/* Timing Board Font classes */
+.font-mono-f1 {
+  font-family: 'SF Mono', 'Courier New', Courier, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Animations */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.animate-status-blink {
+  animation: blink 1.5s infinite;
+}
