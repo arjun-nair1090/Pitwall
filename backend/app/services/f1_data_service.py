@@ -416,7 +416,17 @@ class F1DataService:
     async def get_live_telemetry(self, driver_code: str) -> Dict[str, Any]:
         """Fetch live telemetry for single driver (polls OpenF1 or returns drifting fallback)."""
         session_key = await self.get_latest_session_key()
-        car_data = await self.fetch_openf1_async("car_data", {"session_key": session_key, "driver_number": 33})
+        
+        # Resolve driver_code to driver_number
+        drivers = await self.get_drivers(session_key)
+        driver_entry = next((d for d in drivers if d["code"] == driver_code), None)
+        
+        if not driver_entry:
+            raise ValueError(f"Driver code {driver_code} not found for the current session")
+            
+        driver_number = driver_entry["driver_number"]
+        
+        car_data = await self.fetch_openf1_async("car_data", {"session_key": session_key, "driver_number": driver_number})
         if car_data and isinstance(car_data, list):
             latest = car_data[-1]
             telemetry_point = {

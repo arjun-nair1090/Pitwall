@@ -18,14 +18,20 @@ class SessionModel(Base):
 class DriverModel(Base):
     __tablename__ = "drivers"
 
-    driver_number = Column(Integer, primary_key=True, index=True)
-    code = Column(String(3), unique=True, nullable=False, index=True)
+    id = Column(Integer, primary_key=True, index=True)
+    session_key = Column(Integer, ForeignKey("sessions.session_key", ondelete="CASCADE"), nullable=False)
+    driver_number = Column(Integer, nullable=False, index=True)
+    code = Column(String(3), nullable=False, index=True)
     first_name = Column(String(100), nullable=False)
     last_name = Column(String(100), nullable=False)
     full_name = Column(String(200), nullable=False)
     team_name = Column(String(100), nullable=False)
     team_color = Column(String(10), nullable=False)
     country_code = Column(String(3), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("session_key", "driver_number", name="uq_driver_session"),
+    )
 
 class LapModel(Base):
     __tablename__ = "laps"
