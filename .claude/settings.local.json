@@ -13,7 +13,12 @@
       "Bash(git commit *)",
       "Bash(git config *)",
       "Bash(git remote *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(pytest backend/app/tests/test_websocket.py)",
+      "Bash(pip list *)",
+      "Bash(python -m pytest backend/app/tests/test_websocket.py)",
+      "Bash(python *)",
+      "Bash(pip install *)"
     ]
   }
 }

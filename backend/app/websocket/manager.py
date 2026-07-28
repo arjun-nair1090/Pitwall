@@ -18,7 +18,7 @@ class ConnectionManager:
 
     async def send_personal_message(self, message: str, client_id: str):
         if client_id in self.active_connections:
-            await self.active_connections[client_id].send_text(pattern=message)
+            await self.active_connections[client_id].send_text(message)
 
     async def broadcast(self, message: str):
         """Broadcasts a message to all connected clients."""
