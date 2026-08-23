@@ -1,31 +1,38 @@
-# F1 Pit Wall Platform: Architecture Blueprint
+# F1 Pit Wall Historical Telemetry Platform
 
 ## Overview
-The F1 Pit Wall Platform is an ultra-high-performance, real-time telemetry and strategy engine designed to replicate the professional environments of top-tier Formula 1 teams.
+The F1 Pit Wall Platform is an ultra-high-performance historical telemetry and strategy visualization engine. Designed to replicate the professional environments of top-tier Formula 1 teams, this application allows users to deeply analyze past races, compare driver telemetry, and watch historical race replays.
 
-## System Architecture
+## Key Features
 
-### 1. High-Level Topology
-A distributed, microservice-oriented architecture optimized for low-latency data streaming and heavy computational workloads (ML/AI).
+### 🏁 Track Map & Mini Race Replay
+- **Professional Aesthetics:** Modern, sleek circuit maps styled like real F1 broadcast graphics, utilizing high-performance SVG rendering.
+- **Auto-Lap Progression:** Sit back and watch an entire race unfold. The replay engine automatically fetches and progresses to the next lap when a driver crosses the finish line, pausing gracefully at the end of the race.
+- **Playback Controls:** Fully integrated telemetry player with adjustable playback speeds (1x, 2x, 5x, 10x) and scrubbers.
 
-- **Frontend (The Command Center)**: Next.js 15 application utilizing React 19 for high-frequency UI updates. It leverages WebSockets for live telemetry streams and Three.js/R3F for 3D track visualizations.
-- **Backend (The Engine Room)**: FastAPI-based Python service cluster handling complex data processing from FastF1 and OpenF1 APIs.
-- **Data Layer**: 
-    - **PostgreSQL**: Persistent storage for historical race results, driver profiles, and session metadata.
-    - **Redis**: High-speed caching layer for real-time telemetry, live position tracking, and WebSocket pub/sub.
-    - **ChromaDB**: Vector database powering the RAG (Retrieval-Augmented Generation) architecture for the AI Race Engineer.
-- **AI Layer**: LangChain/LangGraph orchestration managing interactions between Claude/OpenAI models and the telemetry datasets.
+### 🏎️ Telemetry Head-to-Head Comparison
+- **High-Fidelity Telemetry:** Compare any two drivers across 6 metrics (Speed, Throttle, Brake, Gear, RPM, DRS) using full 60Hz high-resolution data pulled from FastF1.
+- **Custom Lap Selection:** Compare the fastest laps of the session automatically, or specify exact laps for detailed stint analysis.
+- **Smooth Visuals:** Recharts-powered graphs using `basis` curve interpolation for buttery-smooth, continuous telemetry curves that look straight off an engineer's monitor.
+- **Synchronized Tooltips:** Hover over a braking zone in one chart to instantly see the exact RPM, Gear, Speed, and Throttle the driver was using at that exact moment across all charts.
 
-### 2. Data Flow Pipeline
-1.  **Ingestion**: Python workers poll OpenF1 (real-time) and FastF1 (historical) APIs.
-2.  **Processing**: Real-time data is parsed, normalized, and enriched with ML-based predictive models (e.g., tire degradation).
-3.  **Distribution**: Processed telemetry is pushed to Redis. A WebSocket gateway broadcasts these updates to all connected frontend clients.
-4.  **Consumption**: Next.js components react to incoming WebSocket frames to update UI elements (gap times, sector splits) and 3D car positions instantaneously.
+### 📚 Historical Archive
+- **Race Calendar Filtering:** Actively filters the season calendar to only show completed races up to the current date.
+- **Dynamic Session Loading:** Easily switch between FP1, FP2, FP3, Qualifying, Sprint, and Race sessions.
 
-### 3. Tech Stack Detail
-- **Frontend**: React 19, Next.js 15, TypeScript, Tailwind CSS, Framer Motion, Three.js, React Three Fiber, Shadcn UI, Zustand.
-- **Backend**: Python 3.12, FastAPI, SQLAlchemy, Pydantic v2, WebSockets, LangChain, LangGraph.
-- **Infrastructure**: Docker, Docker Compose, Redis, PostgreSQL, ChromaDB.
+## Tech Stack
+- **Frontend**: Next.js 14, React, Tailwind CSS, Recharts, Lucide React.
+- **Backend**: Python 3.12, FastAPI, FastF1 (Data Engine).
+- **Infrastructure**: Docker, Docker Compose.
 
-## Directory Structure
-See the initialized directory tree in the project root.
+## Running Locally
+
+Requirements: Docker and Docker Compose.
+
+```bash
+# Build and start the containers
+docker compose up --build -d
+
+# The frontend will be available at http://localhost:3000
+# The backend API will be available at http://localhost:8000
+```

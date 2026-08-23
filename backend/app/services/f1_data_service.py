@@ -73,7 +73,7 @@ class F1DataService:
         if sessions and isinstance(sessions, list):
             sessions_sorted = sorted(sessions, key=lambda x: x.get("date_start", ""), reverse=True)
             return sessions_sorted[0]["session_key"]
-        return 9506  # Fallback: Spa GP 2024
+        return 9999  # Fallback: Current FastF1 Event
 
     async def sync_session_metadata(self, session_key: int) -> Optional[Dict[str, Any]]:
         """Fetch session details or fallback to historical Belgian GP 2024 metadata."""
@@ -101,17 +101,35 @@ class F1DataService:
                     date_end=end_time
                 )
             else:
-                # API restricted fallback: Spa GP 2024
+                # API restricted fallback: Get current FastF1 event
+                import fastf1
+                import datetime
+                
+                now = datetime.datetime.now()
+                schedule = fastf1.get_event_schedule(now.year)
+                # Find events that have occurred up to today or slightly into the future
+                past_events = schedule[schedule['EventDate'] <= now + datetime.timedelta(days=7)]
+                if not past_events.empty:
+                    current_event = past_events.iloc[-1]
+                else:
+                    current_event = schedule.iloc[0]
+                    
+                start_utc = current_event["Session5DateUtc"] if pd.notna(current_event["Session5DateUtc"]) else now
+                
+                # FastF1 dates might be naive datetime objects or already timezone-aware
+                if start_utc.tzinfo is None:
+                    start_utc = start_utc.replace(tzinfo=datetime.timezone.utc)
+                
                 db_session = SessionModel(
                     session_key=session_key,
-                    year=2024,
-                    location="Spa-Francorchamps",
-                    country="Belgium",
-                    circuit_name="Circuit de Spa-Francorchamps",
-                    circuit_short_name="Spa",
+                    year=current_event["EventDate"].year,
+                    location=current_event["Location"],
+                    country=current_event["Country"],
+                    circuit_name=current_event["EventName"],
+                    circuit_short_name=current_event["EventName"],
                     session_name="Race",
-                    date_start=datetime.fromisoformat("2024-07-28T13:00:00+00:00"),
-                    date_end=datetime.fromisoformat("2024-07-28T15:00:00+00:00")
+                    date_start=start_utc,
+                    date_end=start_utc + datetime.timedelta(hours=2)
                 )
 
             db.add(db_session)
@@ -138,14 +156,15 @@ class F1DataService:
         }
 
     async def get_drivers(self, session_key: int) -> List[Dict[str, Any]]:
-        """Return drivers list (OpenF1 or cached pre-pop fallback)."""
+        """Return drivers list (OpenF1 or cached pre-pop fallback), filtered by session_key."""
         db = SessionLocal()
         try:
-            db_drivers = db.query(DriverModel).all()
+            # Filter by session_key so different sessions don't bleed into each other
+            db_drivers = db.query(DriverModel).filter(DriverModel.session_key == session_key).all()
             if db_drivers:
                 return [self._serialize_driver(d) for d in db_drivers]
             
-            drivers_data = await self.fetch_openf1_async("drivers", {"session_key": session_key})
+            drivers_data = await self.fetch_openf1_async("drivers", {"session_key": session_key, "limit": 100})
             if not drivers_data or not isinstance(drivers_data, list):
                 drivers_data = FALLBACK_2024_DRIVERS
 
@@ -155,6 +174,7 @@ class F1DataService:
                     team_color = f"#{team_color}"
                 
                 db_driver = DriverModel(
+                    session_key=session_key,  # required FK — was missing, caused IntegrityError
                     driver_number=d["driver_number"],
                     code=d.get("code") or d.get("name_acronym", "UNK"),
                     first_name=d.get("first_name", ""),
@@ -167,7 +187,7 @@ class F1DataService:
                 db.add(db_driver)
             db.commit()
             
-            db_drivers = db.query(DriverModel).all()
+            db_drivers = db.query(DriverModel).filter(DriverModel.session_key == session_key).all()
             return [self._serialize_driver(d) for d in db_drivers]
         except Exception as e:
             print(f"Error fetching drivers: {e}")
@@ -189,7 +209,7 @@ class F1DataService:
 
     async def get_live_timing(self, session_key: int) -> Dict[str, Any]:
         """Load live timing gaps (polls OpenF1 or loads FastF1 Belgian GP 2024)."""
-        laps_data = await self.fetch_openf1_async("laps", {"session_key": session_key})
+        laps_data = await self.fetch_openf1_async("laps", {"session_key": session_key, "limit": 5000})
         
         if laps_data and isinstance(laps_data, list):
             drivers_laps = {}
@@ -206,12 +226,37 @@ class F1DataService:
                     "s1": lap.get("duration_sector_1"),
                     "s2": lap.get("duration_sector_2"),
                     "s3": lap.get("duration_sector_3"),
-                    "compound": "MEDIUM",
-                    "tyre_age": 5,
+                    "compound": None,
+                    "tyre_age": None,
                     "is_pit": lap.get("lap_duration") is None
                 }
+
+            # Fetch real tyre compound and age from OpenF1 /stints endpoint
+            stints_data = await self.fetch_openf1_async("stints", {"session_key": session_key, "limit": 2000})
+            if stints_data and isinstance(stints_data, list):
+                # For each driver, find the most recent stint
+                latest_stints: Dict[str, Any] = {}
+                for stint in stints_data:
+                    num = str(stint.get("driver_number", ""))
+                    if not num:
+                        continue
+                    existing = latest_stints.get(num)
+                    if existing is None or stint.get("stint_number", 0) > existing.get("stint_number", 0):
+                        latest_stints[num] = stint
+                for num, stint in latest_stints.items():
+                    if num in leaderboard:
+                        leaderboard[num]["compound"] = stint.get("compound")
+                        tyre_age_at_end = stint.get("tyre_age_at_end")
+                        # lap_end/lap_start can be JSON null (Python None) even when key exists,
+                        # so `or 0` is required — .get(key, 0) only helps when key is absent
+                        lap_end = stint.get("lap_end") or 0
+                        lap_start = stint.get("lap_start") or 0
+                        leaderboard[num]["tyre_age"] = (
+                            tyre_age_at_end if tyre_age_at_end is not None
+                            else max(0, lap_end - lap_start)
+                        )
             
-            intervals = await self.fetch_openf1_async("intervals", {"session_key": session_key})
+            intervals = await self.fetch_openf1_async("intervals", {"session_key": session_key, "limit": 5000})
             if intervals and isinstance(intervals, list):
                 for item in intervals:
                     num = str(item["driver_number"])
@@ -219,7 +264,7 @@ class F1DataService:
                         leaderboard[num]["gap_to_leader"] = item.get("gap_to_leader")
                         leaderboard[num]["gap_to_next"] = item.get("interval")
 
-            positions = await self.fetch_openf1_async("position", {"session_key": session_key})
+            positions = await self.fetch_openf1_async("position", {"session_key": session_key, "limit": 5000})
             if positions and isinstance(positions, list):
                 pos_sorted = sorted(positions, key=lambda x: x.get("date", ""))
                 for pos in pos_sorted:
@@ -276,7 +321,7 @@ class F1DataService:
             return {}
 
     async def get_live_weather(self, session_key: int) -> Optional[Dict[str, Any]]:
-        """Load weather (polls OpenF1 or returns standard fallback)."""
+        """Load weather (polls OpenF1 or returns None when no live data is available)."""
         weather_data = await self.fetch_openf1_async("weather", {"session_key": session_key})
         if weather_data and isinstance(weather_data, list):
             latest = sorted(weather_data, key=lambda x: x.get("date", ""), reverse=True)[0]
@@ -287,20 +332,14 @@ class F1DataService:
                 "rainfall": latest.get("rainfall"),
                 "wind_speed": latest.get("wind_speed"),
                 "wind_direction": latest.get("wind_direction"),
-                "timestamp": latest.get("date")
+                "timestamp": latest.get("date"),
+                "live_signal": True
             }
-        return {
-            "air_temperature": 21.4,
-            "track_temperature": 32.5,
-            "humidity": 45,
-            "rainfall": 0,
-            "wind_speed": 2.1,
-            "wind_direction": 180,
-            "timestamp": datetime.now().isoformat()
-        }
+        # No live weather data — return explicit sentinel rather than fabricated values
+        return {"live_signal": False, "message": "No live weather data available from OpenF1."}
 
     async def get_live_race_control(self, session_key: int) -> List[Dict[str, Any]]:
-        """Load messages."""
+        """Load race control messages (returns empty list when no live data — never fabricates)."""
         rc_data = await self.fetch_openf1_async("race_control", {"session_key": session_key})
         if rc_data and isinstance(rc_data, list):
             sorted_rc = sorted(rc_data, key=lambda x: x.get("date", ""), reverse=True)
@@ -312,12 +351,8 @@ class F1DataService:
                     "flag": item.get("flag")
                 } for item in sorted_rc[:20]
             ]
-        now = datetime.now()
-        return [
-            {"timestamp": now.isoformat(), "category": "Flag", "message": "DRS ENABLED", "flag": "GREEN"},
-            {"timestamp": now.isoformat(), "category": "Status", "message": "PIT LANE OPEN", "flag": None},
-            {"timestamp": now.isoformat(), "category": "Safety", "message": "TRACK STABLE - ALL CLEAR", "flag": "GREEN"}
-        ]
+        # No live race control data — return empty list, never fabricate messages
+        return []
 
     async def get_live_radios(self, session_key: int) -> List[Dict[str, Any]]:
         radio_data = await self.fetch_openf1_async("team_radio", {"session_key": session_key})
@@ -379,31 +414,43 @@ class F1DataService:
             session = fastf1.get_session(year, gp, 'Race')
             session.load(telemetry=True, laps=True, weather=False)
             
-            lap1 = session.laps.pick_drivers(driver1).pick_fastest()
-            lap2 = session.laps.pick_drivers(driver2).pick_fastest()
+            laps1 = session.laps.pick_drivers(driver1)
+            laps2 = session.laps.pick_drivers(driver2)
+            
+            if laps1.empty:
+                return {"error": f"No lap data found for driver {driver1} in {year} {gp}"}
+            if laps2.empty:
+                return {"error": f"No lap data found for driver {driver2} in {year} {gp}"}
+
+            lap1 = laps1.pick_fastest()
+            lap2 = laps2.pick_fastest()
             
             tel1 = lap1.get_telemetry()
             tel2 = lap2.get_telemetry()
             
+            # FastF1 uses "LapTime" (Timedelta) — not lap.lap_time
+            lt1 = lap1["LapTime"]
+            lt2 = lap2["LapTime"]
+            
             return {
                 "driver1": {
                     "code": driver1,
-                    "lap_time": lap1.lap_time.total_seconds(),
+                    "lap_time": lt1.total_seconds() if pd.notna(lt1) else None,
                     "distance": tel1["Distance"].tolist(),
                     "speed": tel1["Speed"].tolist(),
                     "throttle": tel1["Throttle"].tolist(),
-                    "brake": tel1["Brake"].tolist(),
+                    "brake": [int(b) for b in tel1["Brake"].tolist()],
                     "gear": tel1["nGear"].tolist(),
                     "rpm": tel1["RPM"].tolist(),
                     "drs": tel1["DRS"].tolist()
                 },
                 "driver2": {
                     "code": driver2,
-                    "lap_time": lap2.lap_time.total_seconds(),
+                    "lap_time": lt2.total_seconds() if pd.notna(lt2) else None,
                     "distance": tel2["Distance"].tolist(),
                     "speed": tel2["Speed"].tolist(),
                     "throttle": tel2["Throttle"].tolist(),
-                    "brake": tel2["Brake"].tolist(),
+                    "brake": [int(b) for b in tel2["Brake"].tolist()],
                     "gear": tel2["nGear"].tolist(),
                     "rpm": tel2["RPM"].tolist(),
                     "drs": tel2["DRS"].tolist()
@@ -413,8 +460,108 @@ class F1DataService:
             print(f"Error in historical comparison: {e}")
             return {"error": str(e)}
 
+    def _get_historical_replay_sync(self, year: int, gp: str, lap_number: Optional[int] = None) -> Dict[str, Any]:
+        """Synchronously load FastF1 telemetry coordinates for a full session replay."""
+        try:
+            session = fastf1.get_session(year, gp, 'Race')
+            session.load(laps=True, telemetry=True, weather=False, messages=False)
+            
+            total_laps = int(session.laps['LapNumber'].max()) if not session.laps.empty else 1
+            if lap_number is None or pd.isna(lap_number):
+                lap_number = 1
+                
+            lap_data = session.laps[session.laps['LapNumber'] == lap_number]
+            
+            replay_data = {
+                "total_laps": total_laps,
+                "current_lap": lap_number,
+                "leaderboard": {},
+                "drivers": []
+            }
+            
+            # Extract leaderboard for the specific lap
+            lap_data_sorted = lap_data.sort_values(by='Position')
+            leader_time = lap_data_sorted.iloc[0]['Time'] if not lap_data_sorted.empty else None
+            prev_time = None
+            
+            for i, row in lap_data_sorted.iterrows():
+                num = str(row['DriverNumber'])
+                time = row['Time']
+                leaderboard_entry = {
+                    "position": int(row['Position']) if pd.notna(row['Position']) else None,
+                    "lap_number": lap_number,
+                    "lap_time": row['LapTime'].total_seconds() if pd.notna(row['LapTime']) else None,
+                    "s1": row['Sector1Time'].total_seconds() if pd.notna(row['Sector1Time']) else None,
+                    "s2": row['Sector2Time'].total_seconds() if pd.notna(row['Sector2Time']) else None,
+                    "s3": row['Sector3Time'].total_seconds() if pd.notna(row['Sector3Time']) else None,
+                    "compound": row['Compound'] if pd.notna(row['Compound']) else None,
+                    "tyre_age": int(row['TyreLife']) if pd.notna(row['TyreLife']) else None,
+                    "is_pit": pd.notna(row['PitInTime']) or pd.notna(row['PitOutTime'])
+                }
+                
+                if pd.notna(time) and pd.notna(leader_time):
+                    leaderboard_entry["gap_to_leader"] = (time - leader_time).total_seconds()
+                    if prev_time is not None:
+                        leaderboard_entry["gap_to_next"] = (time - prev_time).total_seconds()
+                    prev_time = time
+                
+                replay_data["leaderboard"][num] = leaderboard_entry
+            
+            # Extract telemetry for all drivers in that lap
+            drivers_to_process = lap_data["Driver"].unique()
+            
+            for driver_code in drivers_to_process:
+                drv_lap = lap_data[lap_data['Driver'] == driver_code]
+                if drv_lap.empty:
+                    continue
+                
+                try:
+                    tel = drv_lap.iloc[0].get_telemetry()
+                except Exception as e:
+                    print(f"Error fetching telemetry for {driver_code}: {e}")
+                    continue
+                    
+                if tel.empty:
+                    continue
+                    
+                # Downsample (take every 4th point for smoothness vs performance)
+                tel = tel.iloc[::4]
+                
+                coords = [{"x": float(x), "y": float(y)} for x, y in zip(tel["X"], tel["Y"])]
+                telemetry = [{
+                    "speed": float(s),
+                    "throttle": float(t),
+                    "brake": float(b),
+                    "gear": int(g),
+                    "rpm": int(r),
+                    "drs": int(d)
+                } for s, t, b, g, r, d in zip(tel["Speed"], tel["Throttle"], tel["Brake"], tel["nGear"], tel["RPM"], tel["DRS"])]
+                
+                # Fetch color from fallback if available
+                color = "#ffffff"
+                for fallback_driver in FALLBACK_2024_DRIVERS:
+                    if fallback_driver["code"] == driver_code:
+                        color = fallback_driver["team_color"]
+                        break
+                
+                replay_data["drivers"].append({
+                    "driver_number": int(drv_lap.iloc[0]['DriverNumber']),
+                    "code": driver_code,
+                    "color": color,
+                    "coords": coords,
+                    "telemetry": telemetry
+                })
+                
+            return replay_data
+        except Exception as e:
+            print(f"Error fetching historical replay: {e}")
+            return {"error": str(e)}
+
+    async def get_historical_replay(self, year: int, gp: str, lap_number: Optional[int] = None) -> Dict[str, Any]:
+        return await asyncio.to_thread(self._get_historical_replay_sync, year, gp, lap_number)
+
     async def get_live_telemetry(self, driver_code: str) -> Dict[str, Any]:
-        """Fetch live telemetry for single driver (polls OpenF1 or returns drifting fallback)."""
+        """Fetch live telemetry for single driver (polls OpenF1; returns live_signal:False sentinel when no live data)."""
         session_key = await self.get_latest_session_key()
         
         # Resolve driver_code to driver_number
@@ -437,31 +584,29 @@ class F1DataService:
                 "brake": latest.get("brake", 0.0),
                 "gear": latest.get("n_gear", 0),
                 "rpm": latest.get("rpm", 0),
-                "drs": latest.get("drs", 0) in [12, 14]
+                "drs": latest.get("drs", 0) in [12, 14],
+                "live_signal": True
             }
             await redis_service.publish("telemetry:live", telemetry_point)
             return telemetry_point
         else:
-            import random
-            telemetry_point = {
+            # No live car data from OpenF1 — publish explicit sentinel, never fabricate values
+            sentinel = {
                 "driver": driver_code,
-                "driver_number": 1,
-                "timestamp": datetime.now().isoformat(),
-                "speed": 280.0 + random.uniform(-10.0, 10.0),
-                "throttle": 100.0 if random.random() > 0.1 else 0.0,
-                "brake": 0.0 if random.random() > 0.1 else 100.0,
-                "gear": random.choice([6, 7, 8]),
-                "rpm": 11500 + random.randint(-500, 500),
-                "drs": 1 if random.random() > 0.5 else 0,
-                "x": 1250.0 + random.uniform(-5.0, 5.0),
-                "y": -3420.0 + random.uniform(-5.0, 5.0),
-                "z": 10.0
+                "live_signal": False,
+                "message": "No live telemetry available from OpenF1.",
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
-            await redis_service.publish("telemetry:live", telemetry_point)
-            return telemetry_point
+            await redis_service.publish("telemetry:live", sentinel)
+            return sentinel
 
     async def stream_live_telemetry(self, session_key: int):
-        """Streams live positioning coordinates for the entire grid (OpenF1 or replayed FastF1 Spa layout)."""
+        """Streams live positioning coordinates for the entire grid from OpenF1.
+        
+        When no live data is available, publishes a single live_signal:False sentinel
+        rather than generating synthetic values — the frontend should display a
+        'No Live Signal' banner in this case.
+        """
         car_data = await self.fetch_openf1_async("car_data", {"session_key": session_key})
         locations = await self.fetch_openf1_async("location", {"session_key": session_key})
         
@@ -492,46 +637,129 @@ class F1DataService:
                     "drs": tel.get("drs", 0),
                     "x": loc.get("x", 0.0),
                     "y": loc.get("y", 0.0),
-                    "z": loc.get("z", 0.0)
+                    "z": loc.get("z", 0.0),
+                    "live_signal": True
                 }
                 await redis_service.publish(f"telemetry:live:{num}", merged)
                 await redis_service.publish("telemetry:live", merged)
         else:
-            # Replay FastF1 layout coordinates for Spa
-            import random
-            timing = await self.get_live_timing(session_key)
-            coords = self._get_fallback_coords()
-            num_coords = len(coords)
-            now_sec = datetime.now().timestamp()
+            # No live session data from OpenF1 — publish sentinel once, never fabricate telemetry
+            sentinel = {
+                "live_signal": False,
+                "message": "No live session active. Awaiting OpenF1 data.",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            await redis_service.publish("telemetry:live", sentinel)
+
+    def _get_season_standings_sync(self, year: int) -> Dict[str, Any]:
+        try:
+            from fastf1.ergast import Ergast
+            ergast = Ergast()
+            driver_standings = ergast.get_driver_standings(season=year)
+            constructor_standings = ergast.get_constructor_standings(season=year)
             
-            for drv_str, t in timing.items():
-                num = int(drv_str)
-                pos = t.get("position", 10)
+            # Format driver standings
+            drivers = []
+            if driver_standings.content and not driver_standings.content[0].empty:
+                for _, row in driver_standings.content[0].iterrows():
+                    drivers.append({
+                        "position": int(row['position']),
+                        "points": float(row['points']),
+                        "wins": int(row['wins']),
+                        "driver_name": f"{row['givenName']} {row['familyName']}",
+                        "driver_code": row.get('driverCode', row['familyName'][:3].upper()),
+                        "driver_number": int(row['driverNumber']) if pd.notna(row['driverNumber']) else None,
+                        "team_name": row['constructorNames'][0] if row['constructorNames'] else "Unknown"
+                    })
+                    
+            # Format constructor standings
+            constructors = []
+            if constructor_standings.content and not constructor_standings.content[0].empty:
+                for _, row in constructor_standings.content[0].iterrows():
+                    constructors.append({
+                        "position": int(row['position']),
+                        "points": float(row['points']),
+                        "wins": int(row['wins']),
+                        "team_name": row['constructorName']
+                    })
+                    
+            return {
+                "year": year,
+                "driver_standings": drivers,
+                "constructor_standings": constructors
+            }
+        except Exception as e:
+            print(f"Error fetching season standings: {e}")
+            return {"error": str(e)}
+
+    async def get_season_standings(self, year: int) -> Dict[str, Any]:
+        return await asyncio.to_thread(self._get_season_standings_sync, year)
+
+    def _get_head_to_head_telemetry_sync(self, year: int, gp: str, session_name: str, driver1: str, driver2: str, driver1_lap: Optional[int] = None, driver2_lap: Optional[int] = None) -> Dict[str, Any]:
+        try:
+            import fastf1
+            session = fastf1.get_session(year, gp, session_name)
+            session.load(telemetry=True, laps=True, weather=False)
+            
+            laps_d1 = session.laps.pick_driver(driver1)
+            laps_d2 = session.laps.pick_driver(driver2)
+            
+            if laps_d1.empty or laps_d2.empty:
+                return {"error": "Drivers not found in session."}
                 
-                # Calculate unique, staggered coordinate index along the actual track loop
-                speed_modifier = 1.0 - (pos * 0.004)
-                idx = int((now_sec * 8 * speed_modifier + pos * (num_coords / 20)) % num_coords)
-                x_val, y_val = coords[idx]
+            if driver1_lap:
+                target_lap_d1 = laps_d1[laps_d1['LapNumber'] == driver1_lap]
+                if target_lap_d1.empty:
+                    return {"error": f"Driver {driver1} did not complete lap {driver1_lap}."}
+                fastest_d1 = target_lap_d1.iloc[0]
+            else:
+                fastest_d1 = laps_d1.pick_fastest()
                 
-                # Small micro-jitter simulation
-                x_val += random.uniform(-2, 2)
-                y_val += random.uniform(-2, 2)
-                
-                merged = {
-                    "driver_number": num,
-                    "timestamp": datetime.now().isoformat(),
-                    "speed": 310.0 - pos * 5 + random.uniform(-5, 5),
-                    "throttle": 100.0 if random.random() > 0.15 else 0.0,
-                    "brake": 0.0 if random.random() > 0.15 else 100.0,
-                    "gear": random.choice([6, 7, 8]),
-                    "rpm": 12000 + random.randint(-400, 400),
-                    "drs": 1 if pos % 3 == 0 else 0,
-                    "x": x_val,
-                    "y": y_val,
-                    "z": 15.0
+            if driver2_lap:
+                target_lap_d2 = laps_d2[laps_d2['LapNumber'] == driver2_lap]
+                if target_lap_d2.empty:
+                    return {"error": f"Driver {driver2} did not complete lap {driver2_lap}."}
+                fastest_d2 = target_lap_d2.iloc[0]
+            else:
+                fastest_d2 = laps_d2.pick_fastest()
+            
+            tel_d1 = fastest_d1.get_telemetry()
+            tel_d2 = fastest_d2.get_telemetry()
+            
+            # Removed subsampling to provide high-fidelity, smooth data
+            
+            def parse_telemetry(tel):
+                return [{
+                    "distance": float(d) if pd.notna(d) else 0.0,
+                    "speed": float(s) if pd.notna(s) else 0.0,
+                    "throttle": float(t) if pd.notna(t) else 0.0,
+                    "brake": float(b) if pd.notna(b) else 0.0,
+                    "gear": int(g) if pd.notna(g) else 0,
+                    "rpm": int(r) if pd.notna(r) else 0,
+                    "drs": int(drs) if pd.notna(drs) else 0,
+                    "time": float(time.total_seconds()) if pd.notna(time) else 0.0
+                } for d, s, t, b, g, r, drs, time in zip(tel["Distance"], tel["Speed"], tel["Throttle"], tel["Brake"], tel["nGear"], tel["RPM"], tel["DRS"], tel["Time"])]
+            
+            return {
+                "driver1": {
+                    "code": driver1,
+                    "lap_time": fastest_d1['LapTime'].total_seconds() if pd.notna(fastest_d1['LapTime']) else None,
+                    "compound": fastest_d1['Compound'] if pd.notna(fastest_d1['Compound']) else "Unknown",
+                    "telemetry": parse_telemetry(tel_d1)
+                },
+                "driver2": {
+                    "code": driver2,
+                    "lap_time": fastest_d2['LapTime'].total_seconds() if pd.notna(fastest_d2['LapTime']) else None,
+                    "compound": fastest_d2['Compound'] if pd.notna(fastest_d2['Compound']) else "Unknown",
+                    "telemetry": parse_telemetry(tel_d2)
                 }
-                await redis_service.publish(f"telemetry:live:{num}", merged)
-                await redis_service.publish("telemetry:live", merged)
+            }
+        except Exception as e:
+            print(f"Error fetching H2H telemetry: {e}")
+            return {"error": str(e)}
+
+    async def get_head_to_head_telemetry(self, year: int, gp: str, session_name: str, driver1: str, driver2: str) -> Dict[str, Any]:
+        return await asyncio.to_thread(self._get_head_to_head_telemetry_sync, year, gp, session_name, driver1, driver2)
 
 # Global instance
 f1_service = F1DataService()

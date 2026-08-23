@@ -54,5 +54,19 @@ services:
     ports:
       - "6379:6379"
 
+  # Vector Database for AI Race Engineer RAG
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: f1-pitwall-chromadb
+    restart: always
+    ports:
+      - "8001:8000"
+    volumes:
+      - chromadb_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+
 volumes:
   postgres_data:
+  chromadb_data:
