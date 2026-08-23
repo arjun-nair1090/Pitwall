@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import json
+from app.core.config import settings
 from app.websocket.manager import manager
 from app.services.f1_data_service import f1_service
 from app.services.redis_service import redis_service

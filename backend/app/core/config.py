@@ -34,7 +34,9 @@ class Settings(BaseModel):
     if not SECRET_KEY:
         raise ValueError("SECRET_KEY must be set in environment variables")
 
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")TYPE: str = os.getenv("FASTF1_SESSION_TYPE", "Race")
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    FASTF1_SESSION_TYPE: str = os.getenv("FASTF1_SESSION_TYPE", "Race")
     FASTF1_YEAR: int = int(os.getenv("FASTF1_YEAR", "2024"))
     FASTF1_CACHE_DIR: str = os.getenv("FASTF1_CACHE_DIR", "data/fastf1_cache")
 

@@ -18,7 +18,12 @@
       "Bash(pip list *)",
       "Bash(python -m pytest backend/app/tests/test_websocket.py)",
       "Bash(python *)",
-      "Bash(pip install *)"
+      "Bash(pip install *)",
+      "PowerShell(docker-compose *)",
+      "Bash(docker-compose up *)",
+      "Bash(docker *)",
+      "Bash(docker-compose *)",
+      "Bash(npm --version)"
     ]
   }
 }
