@@ -742,15 +742,25 @@ class F1DataService:
                     "y": float(y) if pd.notna(y) else 0.0
                 } for d, s, t, b, g, r, drs, time, x, y in zip(tel["Distance"], tel["Speed"], tel["Throttle"], tel["Brake"], tel["nGear"], tel["RPM"], tel["DRS"], tel["Time"], tel["X"], tel["Y"])]
             
+            color_d1 = "#ffffff"
+            color_d2 = "#ffffff"
+            for fallback_driver in FALLBACK_2024_DRIVERS:
+                if fallback_driver["code"] == driver1:
+                    color_d1 = fallback_driver["team_color"]
+                if fallback_driver["code"] == driver2:
+                    color_d2 = fallback_driver["team_color"]
+
             return {
                 "driver1": {
                     "code": driver1,
+                    "color": color_d1,
                     "lap_time": fastest_d1['LapTime'].total_seconds() if pd.notna(fastest_d1['LapTime']) else None,
                     "compound": fastest_d1['Compound'] if pd.notna(fastest_d1['Compound']) else "Unknown",
                     "telemetry": parse_telemetry(tel_d1)
                 },
                 "driver2": {
                     "code": driver2,
+                    "color": color_d2,
                     "lap_time": fastest_d2['LapTime'].total_seconds() if pd.notna(fastest_d2['LapTime']) else None,
                     "compound": fastest_d2['Compound'] if pd.notna(fastest_d2['Compound']) else "Unknown",
                     "telemetry": parse_telemetry(tel_d2)

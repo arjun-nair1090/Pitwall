@@ -299,8 +299,8 @@ export default function ComparePage() {
                     labelStyle={{ display: 'none' }}
                   />
                   <Legend wrapperStyle={{ fontFamily: 'Titillium Web', paddingTop: '10px' }} />
-                  <Line type="basis" dataKey={`${data.driver1.code}_Speed`} stroke="#e10600" strokeWidth={2} dot={false} name={`${data.driver1.code} Speed`} isAnimationActive={false} />
-                  <Line type="basis" dataKey={`${data.driver2.code}_Speed`} stroke="#00d2be" strokeWidth={2} dot={false} name={`${data.driver2.code} Speed`} isAnimationActive={false} />
+                  <Line connectNulls={true} type="monotone" dataKey={`${data.driver1.code}_Speed`} stroke={data.driver1.color} strokeWidth={2} dot={false} name={`${data.driver1.code} Speed`} isAnimationActive={false} />
+                  <Line connectNulls={true} type="monotone" dataKey={`${data.driver2.code}_Speed`} stroke={data.driver2.color} strokeWidth={2} dot={false} name={`${data.driver2.code} Speed`} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -318,8 +318,8 @@ export default function ComparePage() {
                     itemStyle={{ fontFamily: 'Titillium Web', fontWeight: 'bold' }}
                     labelStyle={{ display: 'none' }}
                   />
-                  <Line type="basis" dataKey={`${data.driver1.code}_Throttle`} stroke="#e10600" strokeWidth={2} dot={false} isAnimationActive={false} />
-                  <Line type="basis" dataKey={`${data.driver2.code}_Throttle`} stroke="#00d2be" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="monotone" dataKey={`${data.driver1.code}_Throttle`} stroke={data.driver1.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="monotone" dataKey={`${data.driver2.code}_Throttle`} stroke={data.driver2.color} strokeWidth={2} dot={false} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -337,8 +337,8 @@ export default function ComparePage() {
                     itemStyle={{ fontFamily: 'Titillium Web', fontWeight: 'bold' }}
                     labelStyle={{ display: 'none' }}
                   />
-                  <Line type="basis" dataKey={`${data.driver1.code}_Brake`} stroke="#e10600" strokeWidth={2} dot={false} isAnimationActive={false} />
-                  <Line type="basis" dataKey={`${data.driver2.code}_Brake`} stroke="#00d2be" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="monotone" dataKey={`${data.driver1.code}_Brake`} stroke={data.driver1.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="monotone" dataKey={`${data.driver2.code}_Brake`} stroke={data.driver2.color} strokeWidth={2} dot={false} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -356,8 +356,8 @@ export default function ComparePage() {
                     itemStyle={{ fontFamily: 'Titillium Web', fontWeight: 'bold' }}
                     labelStyle={{ display: 'none' }}
                   />
-                  <Line type="stepAfter" dataKey={`${data.driver1.code}_Gear`} stroke="#e10600" strokeWidth={2} dot={false} isAnimationActive={false} />
-                  <Line type="stepAfter" dataKey={`${data.driver2.code}_Gear`} stroke="#00d2be" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="stepAfter" dataKey={`${data.driver1.code}_Gear`} stroke={data.driver1.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="stepAfter" dataKey={`${data.driver2.code}_Gear`} stroke={data.driver2.color} strokeWidth={2} dot={false} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -375,8 +375,8 @@ export default function ComparePage() {
                     itemStyle={{ fontFamily: 'Titillium Web', fontWeight: 'bold' }}
                     labelStyle={{ display: 'none' }}
                   />
-                  <Line type="basis" dataKey={`${data.driver1.code}_RPM`} stroke="#e10600" strokeWidth={2} dot={false} isAnimationActive={false} />
-                  <Line type="basis" dataKey={`${data.driver2.code}_RPM`} stroke="#00d2be" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="monotone" dataKey={`${data.driver1.code}_RPM`} stroke={data.driver1.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="monotone" dataKey={`${data.driver2.code}_RPM`} stroke={data.driver2.color} strokeWidth={2} dot={false} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -394,8 +394,8 @@ export default function ComparePage() {
                     itemStyle={{ fontFamily: 'Titillium Web', fontWeight: 'bold' }}
                     labelStyle={{ display: 'none' }}
                   />
-                  <Line type="stepAfter" dataKey={`${data.driver1.code}_DRS`} stroke="#e10600" strokeWidth={2} dot={false} isAnimationActive={false} />
-                  <Line type="stepAfter" dataKey={`${data.driver2.code}_DRS`} stroke="#00d2be" strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="stepAfter" dataKey={`${data.driver1.code}_DRS`} stroke={data.driver1.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="stepAfter" dataKey={`${data.driver2.code}_DRS`} stroke={data.driver2.color} strokeWidth={2} dot={false} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
