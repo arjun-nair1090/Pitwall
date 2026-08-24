@@ -760,6 +760,9 @@ class F1DataService:
             print(f"Error fetching H2H telemetry: {e}")
             return {"error": str(e)}
 
+    async def get_head_to_head_telemetry(self, year: int, gp: str, session_name: str, driver1: str, driver2: str, driver1_lap: Optional[int] = None, driver2_lap: Optional[int] = None) -> Dict[str, Any]:
+        return await asyncio.to_thread(self._get_head_to_head_telemetry_sync, year, gp, session_name, driver1, driver2, driver1_lap, driver2_lap)
+
     def _get_dominance_map_sync(self, year: int, gp: str, session_name: str, driver1: str, driver2: str) -> Dict[str, Any]:
         """Calculates mini-sectors and determines which driver was faster in each segment."""
         try:
