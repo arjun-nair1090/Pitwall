@@ -737,8 +737,10 @@ class F1DataService:
                     "gear": int(g) if pd.notna(g) else 0,
                     "rpm": int(r) if pd.notna(r) else 0,
                     "drs": int(drs) if pd.notna(drs) else 0,
-                    "time": float(time.total_seconds()) if pd.notna(time) else 0.0
-                } for d, s, t, b, g, r, drs, time in zip(tel["Distance"], tel["Speed"], tel["Throttle"], tel["Brake"], tel["nGear"], tel["RPM"], tel["DRS"], tel["Time"])]
+                    "time": float(time.total_seconds()) if pd.notna(time) else 0.0,
+                    "x": float(x) if pd.notna(x) else 0.0,
+                    "y": float(y) if pd.notna(y) else 0.0
+                } for d, s, t, b, g, r, drs, time, x, y in zip(tel["Distance"], tel["Speed"], tel["Throttle"], tel["Brake"], tel["nGear"], tel["RPM"], tel["DRS"], tel["Time"], tel["X"], tel["Y"])]
             
             return {
                 "driver1": {
@@ -758,8 +760,92 @@ class F1DataService:
             print(f"Error fetching H2H telemetry: {e}")
             return {"error": str(e)}
 
-    async def get_head_to_head_telemetry(self, year: int, gp: str, session_name: str, driver1: str, driver2: str) -> Dict[str, Any]:
-        return await asyncio.to_thread(self._get_head_to_head_telemetry_sync, year, gp, session_name, driver1, driver2)
+    def _get_dominance_map_sync(self, year: int, gp: str, session_name: str, driver1: str, driver2: str) -> Dict[str, Any]:
+        """Calculates mini-sectors and determines which driver was faster in each segment."""
+        try:
+            import fastf1
+            import numpy as np
+            session = fastf1.get_session(year, gp, session_name)
+            session.load(telemetry=True, laps=True, weather=False)
+            
+            laps_d1 = session.laps.pick_driver(driver1)
+            laps_d2 = session.laps.pick_driver(driver2)
+            
+            if laps_d1.empty or laps_d2.empty:
+                return {"error": "Drivers not found in session."}
+                
+            fastest_d1 = laps_d1.pick_fastest()
+            fastest_d2 = laps_d2.pick_fastest()
+            
+            tel_d1 = fastest_d1.get_telemetry()
+            tel_d2 = fastest_d2.get_telemetry()
+            
+            # Create mini-sectors (e.g. every 50 meters)
+            max_distance = max(tel_d1['Distance'].max(), tel_d2['Distance'].max())
+            num_minisectors = int(max_distance / 50) # 50 meter sectors
+            
+            if num_minisectors == 0:
+                num_minisectors = 100
+                
+            # Create distance bins
+            bins = np.linspace(0, max_distance, num_minisectors)
+            
+            # Assign bins to telemetry
+            tel_d1['Minisector'] = pd.cut(tel_d1['Distance'], bins, labels=False, include_lowest=True)
+            tel_d2['Minisector'] = pd.cut(tel_d2['Distance'], bins, labels=False, include_lowest=True)
+            
+            # Calculate average speed per minisector
+            avg_speed_d1 = tel_d1.groupby('Minisector')['Speed'].mean()
+            avg_speed_d2 = tel_d2.groupby('Minisector')['Speed'].mean()
+            
+            # We also need the X, Y coordinates for each minisector to draw them on the track map
+            # We can use driver1's coordinates as the baseline for the track shape
+            x_coords = tel_d1.groupby('Minisector')['X'].mean()
+            y_coords = tel_d1.groupby('Minisector')['Y'].mean()
+            
+            # Fetch colors
+            color_d1 = "#ffffff"
+            color_d2 = "#ffffff"
+            for fallback_driver in FALLBACK_2024_DRIVERS:
+                if fallback_driver["code"] == driver1:
+                    color_d1 = fallback_driver["team_color"]
+                if fallback_driver["code"] == driver2:
+                    color_d2 = fallback_driver["team_color"]
+            
+            dominance_data = []
+            
+            for i in range(num_minisectors - 1):
+                if i not in avg_speed_d1 or i not in avg_speed_d2 or pd.isna(avg_speed_d1[i]) or pd.isna(avg_speed_d2[i]):
+                    continue
+                if i not in x_coords or i not in y_coords or pd.isna(x_coords[i]) or pd.isna(y_coords[i]):
+                    continue
+                    
+                speed_d1 = float(avg_speed_d1[i])
+                speed_d2 = float(avg_speed_d2[i])
+                
+                dominant_driver = driver1 if speed_d1 >= speed_d2 else driver2
+                dominant_color = color_d1 if speed_d1 >= speed_d2 else color_d2
+                
+                dominance_data.append({
+                    "minisector": i,
+                    "x": float(x_coords[i]),
+                    "y": float(y_coords[i]),
+                    "dominant_driver": dominant_driver,
+                    "color": dominant_color,
+                    "speed_delta": abs(speed_d1 - speed_d2)
+                })
+                
+            return {
+                "driver1": {"code": driver1, "color": color_d1},
+                "driver2": {"code": driver2, "color": color_d2},
+                "dominance": dominance_data
+            }
+        except Exception as e:
+            print(f"Error generating dominance map: {e}")
+            return {"error": str(e)}
+
+    async def get_dominance_map(self, year: int, gp: str, session_name: str, driver1: str, driver2: str) -> Dict[str, Any]:
+        return await asyncio.to_thread(self._get_dominance_map_sync, year, gp, session_name, driver1, driver2)
 
 # Global instance
 f1_service = F1DataService()

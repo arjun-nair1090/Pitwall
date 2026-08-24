@@ -99,6 +99,20 @@ async def compare_telemetry(req: TelemetryCompareRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/telemetry/dominance")
+async def dominance_map(req: TelemetryCompareRequest):
+    """Generate a track dominance map comparing two drivers' mini-sectors."""
+    try:
+        dominance = await f1_service.get_dominance_map(
+            req.year, req.gp, req.session, req.driver1, req.driver2
+        )
+        if "error" in dominance:
+            raise HTTPException(status_code=400, detail=dominance["error"])
+        return dominance
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/stats/standings")
 async def get_stats_standings(year: int = Query(...)):
     """Get driver and constructor standings for a given year."""

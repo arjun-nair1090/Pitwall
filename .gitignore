@@ -48,3 +48,7 @@ desktop.ini
 # Logs
 *.log
 logs/
+
+# FastF1 Cache
+backend/data/fastf1_cache/
+*.sqlite

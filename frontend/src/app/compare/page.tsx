@@ -13,6 +13,7 @@ import {
   Legend,
   ResponsiveContainer
 } from "recharts";
+import DominanceMap from "@/components/DominanceMap";
 
 interface TelemetryPoint {
   distance: number;
@@ -266,6 +267,19 @@ export default function ComparePage() {
                 <p className="text-3xl font-titillium font-bold text-f1-blue">{formatLapTime(data.driver2.lap_time)}</p>
               </div>
             </div>
+          </div>
+
+          {/* Dominance Map */}
+          <div className="glass-panel p-6 rounded-xl border border-white/5 flex flex-col gap-6 shrink-0 h-[600px]">
+            <DominanceMap 
+              year={year} 
+              gp={gp} 
+              session={session} 
+              driver1={data.driver1.code} 
+              driver2={data.driver2.code} 
+              telemetry1={data.driver1.telemetry as any}
+              telemetry2={data.driver2.telemetry as any}
+            />
           </div>
 
           {/* Telemetry Charts Container */}
