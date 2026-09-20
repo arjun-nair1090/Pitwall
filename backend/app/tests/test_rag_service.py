@@ -58,3 +58,34 @@ def test_query_historical_context_swallows_connection_errors(monkeypatch):
     monkeypatch.setattr(rag_service, "get_collection", _raise)
     result = rag_service.query_historical_context("How did Verstappen do at Spa?")
     assert result == ""
+
+
+def test_get_driver_season_documents_returns_matching_races_sorted_by_event(monkeypatch, fake_collection):
+    fake_collection.upsert(
+        ids=["2023_dutch-grand-prix_race_ver", "2023_belgian-grand-prix_race_ver", "2023_belgian-grand-prix_race_ham"],
+        documents=["Dutch GP summary.", "Belgian GP summary.", "Belgian GP summary for HAM."],
+        metadatas=[
+            {"year": 2023, "event": "Dutch Grand Prix", "session": "Race", "driver_code": "VER", "team": "Red Bull Racing"},
+            {"year": 2023, "event": "Belgian Grand Prix", "session": "Race", "driver_code": "VER", "team": "Red Bull Racing"},
+            {"year": 2023, "event": "Belgian Grand Prix", "session": "Race", "driver_code": "HAM", "team": "Mercedes"},
+        ],
+    )
+    monkeypatch.setattr(rag_service, "get_collection", lambda: fake_collection)
+
+    results = rag_service.get_driver_season_documents(2023, "VER")
+
+    assert [r["event"] for r in results] == ["Belgian Grand Prix", "Dutch Grand Prix"]
+    assert results[0]["document"] == "Belgian GP summary."
+
+
+def test_get_driver_season_documents_returns_empty_list_when_uningested(monkeypatch, fake_collection):
+    monkeypatch.setattr(rag_service, "get_collection", lambda: fake_collection)
+    assert rag_service.get_driver_season_documents(2023, "VER") == []
+
+
+def test_get_driver_season_documents_swallows_connection_errors(monkeypatch):
+    def _raise():
+        raise ConnectionError("chromadb unreachable")
+
+    monkeypatch.setattr(rag_service, "get_collection", _raise)
+    assert rag_service.get_driver_season_documents(2023, "VER") == []

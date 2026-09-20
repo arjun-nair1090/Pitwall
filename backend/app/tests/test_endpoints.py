@@ -53,3 +53,16 @@ def test_result_card_returns_png_or_a_handled_error():
 def test_result_card_rejects_missing_required_params():
     response = client.get("/api/v1/share/result-card", params={"year": 2023})
     assert response.status_code == 422
+
+
+def test_driver_season_insights_returns_empty_insights_when_uningested():
+    response = client.get("/api/v1/drivers/ZZZ/season-insights", params={"year": 1950})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["driver_code"] == "ZZZ"
+    assert body["insights"] == []
+
+
+def test_driver_season_insights_rejects_missing_year():
+    response = client.get("/api/v1/drivers/VER/season-insights")
+    assert response.status_code == 422
