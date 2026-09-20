@@ -113,6 +113,25 @@ async def dominance_map(req: TelemetryCompareRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class PedalBehaviorRequest(BaseModel):
+    year: int
+    gp: str
+    session: Optional[str] = "Race"
+
+@router.post("/telemetry/pedal-behavior")
+async def pedal_behavior(req: PedalBehaviorRequest):
+    """Analyze throttle and brake usage for the fastest lap of all drivers in the session."""
+    try:
+        behavior = await f1_service.get_pedal_behavior(
+            req.year, req.gp, req.session
+        )
+        if "error" in behavior:
+            raise HTTPException(status_code=400, detail=behavior["error"])
+        return behavior
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/stats/standings")
 async def get_stats_standings(year: int = Query(...)):
     """Get driver and constructor standings for a given year."""
@@ -167,8 +186,9 @@ class CommentaryRequest(BaseModel):
 async def ai_commentary(req: CommentaryRequest):
     """Generate live F1 commentary for a given on-track event description."""
     try:
+        import asyncio
         from app.services.ai_commentator import ai_commentator
-        commentary = ai_commentator.generate_commentary(req.event_description)
+        commentary = await asyncio.to_thread(ai_commentator.generate_commentary, req.event_description)
         return {"commentary": commentary}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -185,19 +205,13 @@ async def get_historical_races(year: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/stats/standings")
-async def get_standings(year: int):
-    """Get driver standings/codes for a given year."""
-    try:
-        # Since Ergast is deprecated and OpenF1 requires paid API, we will just return a hardcoded 
-        # comprehensive list of recent drivers for the UI dropdown. FastF1 doesn't have a fast 
-        # 'get_drivers' method without loading a session which takes 30 seconds.
-        # This is a robust fallback for the UI to show driver codes.
-        drivers = [
-            "VER", "PER", "HAM", "RUS", "LEC", "SAI", "NOR", "PIA", 
-            "ALO", "STR", "GAS", "OCO", "ALB", "SAR", "COL", "TSU", "RIC", 
-            "LAW", "BOT", "ZHO", "MAG", "HUL", "BEA", "DOO", "ANF"
-        ]
-        return {"driver_standings": [{"driver_code": code} for code in drivers]}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/drivers/known-codes")
+async def get_known_driver_codes():
+    """Static fallback list of recent driver codes for UI dropdowns.
+
+    NOT live standings — Ergast is deprecated and OpenF1 standings require a paid
+    plan, and FastF1 has no fast 'get_drivers' call without loading a full session.
+    Use /stats/standings for real season standings.
+    """
+    from app.services.f1_data_service import FALLBACK_2024_DRIVERS
+    return {"driver_standings": [{"driver_code": d["code"]} for d in FALLBACK_2024_DRIVERS]}

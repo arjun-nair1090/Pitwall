@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
@@ -9,14 +10,54 @@ from app.services.redis_service import redis_service
 from app.api.v1.endpoints import router as api_router
 from app.core.database import Base, engine
 
-# Initialize database tables on startup
-try:
-    Base.metadata.create_all(bind=engine)
-    print("Database tables initialized successfully.")
-except Exception as e:
-    print(f"Error initializing database tables: {e}")
 
-app = FastAPI(title="F1 Pit Wall API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize database tables
+    try:
+        Base.metadata.create_all(bind=engine)
+        print("Database tables initialized successfully.")
+    except Exception as e:
+        print(f"Error initializing database tables: {e}")
+
+    # Connect to Redis
+    await redis_service.connect()
+
+    # Task 1: Telemetry Streamer - Fetches real OpenF1 telemetry and broadcasts to Redis
+    async def telemetry_streamer():
+        print("Starting real F1 live telemetry streamer task...")
+        while True:
+            try:
+                session_key = await f1_service.get_latest_session_key()
+                await f1_service.stream_live_telemetry(session_key)
+            except Exception as e:
+                print(f"Error in live telemetry streamer task: {e}")
+            await asyncio.sleep(1)
+
+    # Task 2: Redis Subscriber - Listens to Redis pub/sub and broadcasts to WebSockets
+    async def redis_subscriber():
+        pubsub = await redis_service.subscribe("telemetry:live")
+        if pubsub:
+            print("Redis Subscriber started for channel 'telemetry:live'")
+            try:
+                async for message in pubsub.listen():
+                    if message["type"] == "message":
+                        await manager.broadcast(message["data"])
+            except Exception as e:
+                print(f"Redis Subscriber Error: {e}")
+        else:
+            print("Could not subscribe to Redis 'telemetry:live' channel.")
+
+    streamer_task = asyncio.create_task(telemetry_streamer())
+    subscriber_task = asyncio.create_task(redis_subscriber())
+
+    yield
+
+    streamer_task.cancel()
+    subscriber_task.cancel()
+
+
+app = FastAPI(title="F1 Pit Wall API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,36 +92,3 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     except Exception as e:
         print(f"WebSocket Error for {client_id}: {e}")
         await manager.disconnect(client_id)
-
-@app.on_event("startup")
-async def startup_event():
-    # Connect to Redis
-    await redis_service.connect()
-
-    # Task 1: Telemetry Streamer - Fetches real OpenF1 telemetry and broadcasts to Redis
-    async def telemetry_streamer():
-        print("Starting real F1 live telemetry streamer task...")
-        while True:
-            try:
-                session_key = await f1_service.get_latest_session_key()
-                await f1_service.stream_live_telemetry(session_key)
-            except Exception as e:
-                print(f"Error in live telemetry streamer task: {e}")
-            await asyncio.sleep(1)
-
-    # Task 2: Redis Subscriber - Listens to Redis pub/sub and broadcasts to WebSockets
-    async def redis_subscriber():
-        pubsub = await redis_service.subscribe("telemetry:live")
-        if pubsub:
-            print("Redis Subscriber started for channel 'telemetry:live'")
-            try:
-                async for message in pubsub.listen():
-                    if message["type"] == "message":
-                        await manager.broadcast(message["data"])
-            except Exception as e:
-                print(f"Redis Subscriber Error: {e}")
-        else:
-            print("Could not subscribe to Redis 'telemetry:live' channel.")
-
-    asyncio.create_task(telemetry_streamer())
-    asyncio.create_task(redis_subscriber())

@@ -11,7 +11,8 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  ReferenceLine
 } from "recharts";
 import DominanceMap from "@/components/DominanceMap";
 
@@ -24,10 +25,12 @@ interface TelemetryPoint {
   rpm: number;
   drs: number;
   time: number;
+  acceleration: number;
 }
 
 interface DriverComparison {
   code: string;
+  color: string;
   lap_time: number;
   compound: string;
   telemetry: TelemetryPoint[];
@@ -129,7 +132,9 @@ export default function ComparePage() {
         [data.driver1.code + "_Brake"]: t.brake,
         [data.driver1.code + "_Gear"]: t.gear,
         [data.driver1.code + "_RPM"]: t.rpm,
-        [data.driver1.code + "_DRS"]: t.drs
+        [data.driver1.code + "_DRS"]: t.drs,
+        [data.driver1.code + "_Acceleration"]: t.acceleration,
+        [data.driver1.code + "_Time"]: t.time
       });
     });
     
@@ -142,10 +147,30 @@ export default function ComparePage() {
       existing[data.driver2.code + "_Gear"] = t.gear;
       existing[data.driver2.code + "_RPM"] = t.rpm;
       existing[data.driver2.code + "_DRS"] = t.drs;
+      existing[data.driver2.code + "_Acceleration"] = t.acceleration;
+      existing[data.driver2.code + "_Time"] = t.time;
       mergedMap.set(dist, existing);
     });
 
     const mergedArray = Array.from(mergedMap.values()).sort((a, b) => a.distance - b.distance);
+
+    let last_d1_speed = 0;
+    let last_d2_speed = 0;
+    let last_d1_time = 0;
+    let last_d2_time = 0;
+
+    mergedArray.forEach(pt => {
+        if (pt[`${data.driver1.code}_Speed`] !== undefined) last_d1_speed = pt[`${data.driver1.code}_Speed`];
+        if (pt[`${data.driver2.code}_Speed`] !== undefined) last_d2_speed = pt[`${data.driver2.code}_Speed`];
+        if (pt[`${data.driver1.code}_Time`] !== undefined) last_d1_time = pt[`${data.driver1.code}_Time`];
+        if (pt[`${data.driver2.code}_Time`] !== undefined) last_d2_time = pt[`${data.driver2.code}_Time`];
+
+        pt.SpeedDiff = last_d1_speed - last_d2_speed;
+        
+        const time_diff_sec = last_d2_time - last_d1_time;
+        pt.DistanceDiff = time_diff_sec * (last_d1_speed / 3.6);
+    });
+
     return mergedArray;
   };
 
@@ -396,6 +421,63 @@ export default function ComparePage() {
                   />
                   <Line connectNulls={true} type="stepAfter" dataKey={`${data.driver1.code}_DRS`} stroke={data.driver1.color} strokeWidth={2} dot={false} isAnimationActive={false} />
                   <Line connectNulls={true} type="stepAfter" dataKey={`${data.driver2.code}_DRS`} stroke={data.driver2.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Acceleration */}
+            <div className="w-full h-[150px]">
+              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">Acceleration (m/s²)</h3>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                  <XAxis dataKey="distance" hide={true} />
+                  <YAxis stroke="#ffffff40" tick={{ fill: '#ffffff60', fontSize: 12 }} domain={['auto', 'auto']} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#111118', border: '1px solid #ffffff20', borderRadius: '8px' }}
+                    itemStyle={{ fontFamily: 'Titillium Web', fontWeight: 'bold' }}
+                    labelStyle={{ display: 'none' }}
+                  />
+                  <Line connectNulls={true} type="monotone" dataKey={`${data.driver1.code}_Acceleration`} stroke={data.driver1.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+                  <Line connectNulls={true} type="monotone" dataKey={`${data.driver2.code}_Acceleration`} stroke={data.driver2.color} strokeWidth={2} dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Speed Difference */}
+            <div className="w-full h-[150px]">
+              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">Speed Diff (km/h)</h3>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                  <XAxis dataKey="distance" hide={true} />
+                  <YAxis stroke="#ffffff40" tick={{ fill: '#ffffff60', fontSize: 12 }} domain={['auto', 'auto']} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#111118', border: '1px solid #ffffff20', borderRadius: '8px' }}
+                    itemStyle={{ fontFamily: 'Titillium Web', fontWeight: 'bold' }}
+                    labelStyle={{ display: 'none' }}
+                  />
+                  <ReferenceLine y={0} stroke="#ffffff40" strokeDasharray="3 3" />
+                  <Line connectNulls={true} type="monotone" dataKey="SpeedDiff" stroke="#ffffff" strokeWidth={2} dot={false} isAnimationActive={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Distance Difference */}
+            <div className="w-full h-[150px]">
+              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">Distance Diff (m)</h3>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                  <XAxis dataKey="distance" hide={true} />
+                  <YAxis stroke="#ffffff40" tick={{ fill: '#ffffff60', fontSize: 12 }} domain={['auto', 'auto']} />
+                  <Tooltip 
+                    contentStyle={{ backgroundColor: '#111118', border: '1px solid #ffffff20', borderRadius: '8px' }}
+                    itemStyle={{ fontFamily: 'Titillium Web', fontWeight: 'bold' }}
+                    labelStyle={{ display: 'none' }}
+                  />
+                  <ReferenceLine y={0} stroke="#ffffff40" strokeDasharray="3 3" />
+                  <Line connectNulls={true} type="monotone" dataKey="DistanceDiff" stroke="#ffffff" strokeWidth={2} dot={false} isAnimationActive={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>

@@ -74,15 +74,15 @@ export default function RacingScene() {
     let animationFrameId: number;
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
-      
+
       // Rotate grid slowly
       gridHelper.rotation.y += 0.0005;
-      
+
       // Move particles forward slowly
       const posArr = geometry.attributes.position.array as Float32Array;
       for (let i = 0; i < particleCount; i++) {
         posArr[i * 3 + 2] += 0.15; // Move z forward
-        
+
         // Reset when too close to camera
         if (posArr[i * 3 + 2] > 150) {
           posArr[i * 3 + 2] = -250;
@@ -92,19 +92,40 @@ export default function RacingScene() {
 
       renderer.render(scene, camera);
     };
-    animate();
 
-    // Handle resize
+    // Pause the render loop when the tab isn't visible — this is a permanent
+    // full-screen background layer, so an unthrottled loop burns CPU/GPU/battery
+    // on every hidden tab indefinitely.
+    const stopAnimating = () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopAnimating();
+      } else {
+        animate();
+      }
+    };
+    if (!document.hidden) animate();
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Handle resize (debounced — resizing the window shouldn't thrash the renderer)
+    let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
     const handleResize = () => {
-      if (!container) return;
-      camera.aspect = container.clientWidth / container.clientHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => {
+        if (!container) return;
+        camera.aspect = container.clientWidth / container.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(container.clientWidth, container.clientHeight);
+      }, 150);
     };
     window.addEventListener("resize", handleResize);
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearTimeout(resizeTimeout);
       cancelAnimationFrame(animationFrameId);
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
