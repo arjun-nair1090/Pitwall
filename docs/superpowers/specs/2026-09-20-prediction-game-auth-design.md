@@ -43,6 +43,33 @@ Two foundational choices were made with the user before this spec was written
 - No OAuth/social login.
 - No rate limiting on login/signup (a real gap for a production deployment,
   called out explicitly rather than silently ignored — flagged as a follow-up).
+- **Accepted risk (post-implementation security review):** `POST /auth/signup`
+  returns 409 for an already-registered email, which lets someone enumerate
+  registered accounts. Closing this properly needs an email-verification flow
+  (already a stated non-goal above) — a generic "check your email" response
+  only works once accounts aren't immediately usable pre-verification. Flagged
+  explicitly rather than fixed silently or ignored; revisit if/when email
+  verification is built.
+
+## Post-implementation security review
+
+A dedicated review pass (this session's `security-review` skill) after Tasks
+1-4 found no high-severity issues and four medium/low findings, three of which
+were fixed before continuing to the prediction-game endpoints:
+- Added a minimum/maximum password length check on signup (was previously unbounded).
+- Added an Origin-header allow-list check on `/auth/login` and `/auth/signup`
+  (the CSRF double-submit cookie can't cover these two routes — there's no
+  CSRF cookie yet before a session exists — so a cross-site auto-submitting
+  form could otherwise force a victim into an attacker-chosen account).
+- Added JWT revocation: `create_access_token` now includes a `jti` claim,
+  `logout` records it in Redis (best-effort — a `logout` still deletes the
+  cookie even if Redis is unreachable, since Redis being down doesn't
+  re-enable a bypass of the primary signature/expiry check), and
+  `get_current_user` checks it. Token lifetime was also shortened from 7 days
+  to 24 hours as defense-in-depth alongside revocation.
+- The email-enumeration finding above was accepted as a documented tradeoff
+  rather than fixed, since a real fix depends on the already-deferred email
+  verification flow.
 
 ## Data model
 
