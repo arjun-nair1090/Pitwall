@@ -67,6 +67,12 @@ export interface LiveAlert {
   timestamp: number;
 }
 
+export interface CurrentUser {
+  id: number;
+  email: string;
+  display_name: string;
+}
+
 interface F1StoreState {
   activeSession: any | null;
   historicalRace: HistoricalRace | null;
@@ -81,7 +87,8 @@ interface F1StoreState {
   isConnected: boolean;
   liveSignal: boolean;
   selectedDriverNum: number | null;
-  
+  currentUser: CurrentUser | null;
+
   replayPlayback: {
     isPlaying: boolean;
     speed: number;
@@ -105,6 +112,7 @@ interface F1StoreState {
   setIsConnected: (status: boolean) => void;
   setLiveSignal: (signal: boolean) => void;
   setSelectedDriverNum: (num: number | null) => void;
+  setCurrentUser: (user: CurrentUser | null) => void;
 }
 
 export const useF1Store = create<F1StoreState>((set) => ({
@@ -121,6 +129,7 @@ export const useF1Store = create<F1StoreState>((set) => ({
   isConnected: false,
   liveSignal: true,
   selectedDriverNum: null,
+  currentUser: null,
   replayPlayback: { isPlaying: true, speed: 1, frame: 0, maxFrame: 0 },
   setReplayPlayback: (playback) => set((state) => ({ replayPlayback: { ...state.replayPlayback, ...playback } })),
   setActiveSession: (session) => set({ activeSession: session }),
@@ -155,4 +164,5 @@ export const useF1Store = create<F1StoreState>((set) => ({
   setIsConnected: (status) => set({ isConnected: status }),
   setLiveSignal: (signal) => set({ liveSignal: signal }),
   setSelectedDriverNum: (num) => set({ selectedDriverNum: num }),
+  setCurrentUser: (user) => set({ currentUser: user }),
 }));

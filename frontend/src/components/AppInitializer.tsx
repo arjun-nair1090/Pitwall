@@ -6,6 +6,22 @@ import { useF1Store } from "@/store/useTelemetryStore";
 
 // Configure default base URL for Axios to communicate with backend
 axios.defaults.baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+axios.defaults.withCredentials = true;
+
+function getCookie(name: string): string | null {
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+axios.interceptors.request.use((config) => {
+  if (["post", "put", "delete", "patch"].includes((config.method || "").toLowerCase())) {
+    const csrfToken = getCookie("csrf_token");
+    if (csrfToken) {
+      config.headers["X-CSRF-Token"] = csrfToken;
+    }
+  }
+  return config;
+});
 
 export default function AppInitializer({ children }: { children: React.ReactNode }) {
   const {
@@ -19,6 +35,7 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     pushAlert,
     updateTelemetryPoint,
     setIsConnected,
+    setCurrentUser,
   } = useF1Store();
 
   const FLAG_SEVERITY: Record<string, "info" | "warning" | "critical"> = {
@@ -72,6 +89,12 @@ export default function AppInitializer({ children }: { children: React.ReactNode
       .catch((err) => {
         console.error("Initialization sync failed", err);
       });
+
+    // A 401 here just means "not logged in" -- not an error to surface.
+    axios
+      .get("/api/v1/auth/me")
+      .then((res) => setCurrentUser(res.data))
+      .catch(() => setCurrentUser(null));
   }, []);
 
   // Connect WebSockets
