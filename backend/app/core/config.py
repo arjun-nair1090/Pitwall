@@ -34,6 +34,21 @@ class Settings(BaseModel):
     if not SECRET_KEY:
         raise ValueError("SECRET_KEY must be set in environment variables")
 
+    CHROMA_HOST: str = os.getenv("CHROMA_HOST", "chromadb")
+    CHROMA_PORT: int = int(os.getenv("CHROMA_PORT", "8000"))
+
+    @property
+    def CHROMA_CONNECTION_HOST(self) -> str:
+        if os.getenv("RUNNING_LOCALLY") == "true":
+            return "localhost"
+        return self.CHROMA_HOST
+
+    @property
+    def CHROMA_CONNECTION_PORT(self) -> int:
+        if os.getenv("RUNNING_LOCALLY") == "true":
+            return 8001  # docker-compose maps host 8001 -> container 8000
+        return self.CHROMA_PORT
+
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     FASTF1_SESSION_TYPE: str = os.getenv("FASTF1_SESSION_TYPE", "Race")
