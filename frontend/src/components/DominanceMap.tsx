@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import axios from "axios";
-import { Loader2 } from "lucide-react";
+import { Loader2, Download } from "lucide-react";
 
 interface DominanceSegment {
   minisector: number;
@@ -41,7 +41,9 @@ export default function DominanceMap({ year, gp, session, driver1, driver2, tele
   const [error, setError] = useState<string | null>(null);
   const [frame, setFrame] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const requestRef = React.useRef<number>();
+  const svgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
     if (!driver1 || !driver2 || !year || !gp) return;
@@ -124,6 +126,49 @@ export default function DominanceMap({ year, gp, session, driver1, driver2, tele
     return { x: svgX, y: svgY };
   };
 
+  const exportAsPng = () => {
+    if (!svgRef.current) return;
+    setExporting(true);
+
+    const svgMarkup = new XMLSerializer().serializeToString(svgRef.current);
+    const svgBlob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    const scale = 2; // export at 2x for sharper sharing
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = svgWidth * scale;
+      canvas.height = svgHeight * scale;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        setExporting(false);
+        URL.revokeObjectURL(svgUrl);
+        return;
+      }
+      ctx.fillStyle = "#050506";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(svgUrl);
+
+      canvas.toBlob((blob) => {
+        setExporting(false);
+        if (!blob) return;
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = `dominance-map-${driver1}-vs-${driver2}.png`;
+        link.click();
+        URL.revokeObjectURL(downloadUrl);
+      }, "image/png");
+    };
+    image.onerror = () => {
+      setExporting(false);
+      URL.revokeObjectURL(svgUrl);
+    };
+    image.src = svgUrl;
+  };
+
   return (
     <div className="glass-panel rounded-lg p-4 h-full flex flex-col items-center justify-center relative border border-white/5 bg-black/60 overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.8)]">
       {/* Background ambient glow */}
@@ -171,9 +216,18 @@ export default function DominanceMap({ year, gp, session, driver1, driver2, tele
                 {isPlaying ? "PAUSE GHOST CARS" : "PLAY GHOST CARS"}
               </button>
             )}
+            <button
+              onClick={exportAsPng}
+              disabled={exporting}
+              className="mt-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white/80 px-3 py-1.5 rounded-md text-[10px] font-bold font-mono-f1 flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+            >
+              <Download className="h-3 w-3" />
+              {exporting ? "EXPORTING..." : "EXPORT PNG"}
+            </button>
           </div>
 
           <svg
+            ref={svgRef}
             viewBox={`0 0 ${svgWidth} ${svgHeight}`}
             className="w-full max-h-[400px] h-auto drop-shadow-2xl z-10"
           >

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { Loader2, Zap, AlertTriangle } from "lucide-react";
+import { Loader2, Zap, AlertTriangle, Download } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -183,6 +183,14 @@ export default function ComparePage() {
     return `${m}:${s.padStart(6, '0')}`;
   };
 
+  // Plain <a> tags don't go through axios, so they need the backend origin spelled
+  // out explicitly (axios.defaults.baseURL only applies to axios-issued requests).
+  const getResultCardUrl = (driverCode: string) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    const params = new URLSearchParams({ year: String(year), gp, session, driver: driverCode });
+    return `${apiBase}/api/v1/share/result-card?${params.toString()}`;
+  };
+
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-8 animate-fade-in flex flex-col">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6 shrink-0">
@@ -278,18 +286,34 @@ export default function ComparePage() {
                 <h2 className="text-3xl font-black text-white">{data.driver1.code}</h2>
                 <p className="text-white/60 font-titillium text-sm uppercase mt-1">Tyre: {data.driver1.compound}</p>
               </div>
-              <div className="text-right">
+              <div className="text-right flex items-center gap-4">
                 <p className="text-3xl font-titillium font-bold text-f1-red">{formatLapTime(data.driver1.lap_time)}</p>
+                <a
+                  href={getResultCardUrl(data.driver1.code)}
+                  download={`${data.driver1.code}-${year}-${gp}.png`}
+                  title="Download shareable result card"
+                  className="text-white/30 hover:text-f1-red transition-colors"
+                >
+                  <Download className="w-5 h-5" />
+                </a>
               </div>
             </div>
-            
+
             <div className="glass-panel p-6 rounded-xl border border-f1-blue/30 flex justify-between items-center bg-gradient-to-r from-f1-blue/10 to-transparent">
               <div>
                 <h2 className="text-3xl font-black text-white">{data.driver2.code}</h2>
                 <p className="text-white/60 font-titillium text-sm uppercase mt-1">Tyre: {data.driver2.compound}</p>
               </div>
-              <div className="text-right">
+              <div className="text-right flex items-center gap-4">
                 <p className="text-3xl font-titillium font-bold text-f1-blue">{formatLapTime(data.driver2.lap_time)}</p>
+                <a
+                  href={getResultCardUrl(data.driver2.code)}
+                  download={`${data.driver2.code}-${year}-${gp}.png`}
+                  title="Download shareable result card"
+                  className="text-white/30 hover:text-f1-blue transition-colors"
+                >
+                  <Download className="w-5 h-5" />
+                </a>
               </div>
             </div>
           </div>
