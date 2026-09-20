@@ -30,9 +30,30 @@ The F1 Pit Wall Platform is an ultra-high-performance historical telemetry and s
 Requirements: Docker and Docker Compose.
 
 ```bash
+# Copy the environment template and fill in real values (SECRET_KEY at minimum)
+cp .env.example .env
+
 # Build and start the containers
 docker compose up --build -d
 
 # The frontend will be available at http://localhost:3000
 # The backend API will be available at http://localhost:8000
 ```
+
+See `.env.example` for the full list of environment variables (database, Redis, LLM API keys, FastF1 config).
+
+## Seeding historical data for the AI Race Engineer (optional)
+
+The AI Race Engineer can answer cross-season questions ("how did Verstappen's
+strategy at Spa compare across recent years") if its historical corpus has been
+built. This is a manual, one-time (or periodic) step — it's not required for
+the app to run, and the AI Engineer works live-session-only until you do this:
+
+```bash
+docker compose exec backend python -m app.scripts.ingest_history --years 2018-2025
+```
+
+This can take several hours the first time (FastF1 loads each session fresh).
+It's safe to interrupt (Ctrl-C) and rerun later — already-ingested sessions are
+skipped. Rerun periodically with just the new year (`--years 2026`) to pick up
+newly-completed race weekends.
