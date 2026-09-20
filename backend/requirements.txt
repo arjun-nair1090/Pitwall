@@ -17,3 +17,5 @@ anthropic
 chromadb
 requests
 scikit-learn
+bcrypt
+PyJWT
