@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Dict, List, Optional
 
 import chromadb
 
@@ -50,3 +50,34 @@ def query_historical_context(question: str, n_results: int = 5) -> str:
         lines.append(f"- [{tag}]: {doc}")
 
     return "\n".join(lines)
+
+
+def get_driver_season_documents(year: int, driver_code: str, session: str = "Race") -> List[Dict[str, str]]:
+    """Every already-ingested race summary for this driver/year, sorted by event name.
+
+    Returns [] if Chroma is unreachable or nothing's been ingested for this
+    driver/year yet -- never raises (a season page must still render, just
+    without race-by-race insights, same fallback philosophy as the chat RAG)."""
+    try:
+        collection = get_collection()
+        results = collection.get(
+            where={
+                "$and": [
+                    {"year": {"$eq": year}},
+                    {"driver_code": {"$eq": driver_code}},
+                    {"session": {"$eq": session}},
+                ]
+            }
+        )
+    except Exception as e:
+        print(f"RAG season lookup unavailable: {e}")
+        return []
+
+    documents = results.get("documents") or []
+    metadatas = results.get("metadatas") or []
+
+    entries = [
+        {"event": (meta or {}).get("event", "Unknown Event"), "document": doc}
+        for doc, meta in zip(documents, metadatas)
+    ]
+    return sorted(entries, key=lambda e: e["event"])

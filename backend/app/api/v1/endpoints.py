@@ -351,3 +351,32 @@ async def get_result_card(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/drivers/{driver_code}/season-insights")
+async def get_driver_season_insights(driver_code: str, year: int = Query(...)):
+    """Season standing plus any already-ingested race-by-race summaries (RAG corpus)
+    for this driver. Insights are [] (not an error) until the ingestion script has
+    been run for this year -- see the README's 'Seeding historical data' section."""
+    try:
+        from app.services import rag_service
+
+        driver_code = driver_code.upper()
+        standings = await f1_service.get_season_standings(year)
+        standing = None
+        if "driver_standings" in standings:
+            standing = next(
+                (d for d in standings["driver_standings"] if d.get("driver_code") == driver_code),
+                None,
+            )
+
+        insights = rag_service.get_driver_season_documents(year, driver_code)
+
+        return {
+            "driver_code": driver_code,
+            "year": year,
+            "standing": standing,
+            "insights": insights,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
