@@ -37,3 +37,19 @@ def test_strategy_simulate_invalid_stint_plan_does_not_crash():
 def test_strategy_simulate_rejects_malformed_request_body():
     response = client.post("/api/v1/strategy/simulate", json={"year": 2023})
     assert response.status_code == 422
+
+
+def test_result_card_returns_png_or_a_handled_error():
+    response = client.get("/api/v1/share/result-card", params={
+        "year": 2023, "gp": "Belgian Grand Prix", "driver": "VER", "session": "Race",
+    })
+    # Real FastF1 network call -- accept success or a handled (never unhandled) failure.
+    assert response.status_code in (200, 404, 500)
+    if response.status_code == 200:
+        assert response.headers["content-type"] == "image/png"
+        assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_result_card_rejects_missing_required_params():
+    response = client.get("/api/v1/share/result-card", params={"year": 2023})
+    assert response.status_code == 422

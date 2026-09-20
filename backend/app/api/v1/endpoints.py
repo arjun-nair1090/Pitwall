@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from app.services.f1_data_service import f1_service
@@ -268,6 +268,85 @@ async def simulate_strategy(req: StrategySimulationRequest):
         if "error" in result:
             raise HTTPException(status_code=400, detail=result["error"])
         return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/share/result-card")
+async def get_result_card(
+    year: int = Query(...),
+    gp: str = Query(...),
+    driver: str = Query(...),
+    session: str = Query("Race"),
+):
+    """Generate a shareable PNG result card for a driver's real session result."""
+    try:
+        import asyncio
+        from app.services.card_generator import render_result_card
+        from app.services.history_summarizer import build_driver_session_summary
+        from app.services.f1_data_service import FALLBACK_2024_DRIVERS
+
+        driver_code = driver.upper()
+
+        def _run() -> bytes:
+            import fastf1
+            import pandas as pd
+
+            fastf1_session = fastf1.get_session(year, gp, session)
+            fastf1_session.load(laps=True, weather=False, telemetry=False)
+            laps = fastf1_session.laps
+            driver_laps = laps[laps["Driver"] == driver_code]
+            if driver_laps.empty:
+                return None
+
+            race_control = None
+            try:
+                race_control = fastf1_session.race_control_messages
+            except Exception:
+                pass
+
+            summary_text, meta = build_driver_session_summary(
+                laps, driver_code, gp, year, session, race_control
+            )
+            strategy_sentence = next(
+                (s.strip() for s in summary_text.split(". ") if s.strip().startswith("Strategy:")),
+                summary_text,
+            )
+            if not strategy_sentence.endswith("."):
+                strategy_sentence += "."
+
+            fastest = driver_laps.loc[driver_laps["LapTime"].idxmin()] if driver_laps["LapTime"].notna().any() else None
+            if fastest is not None and pd.notna(fastest["LapTime"]):
+                total = fastest["LapTime"].total_seconds()
+                fastest_lap_str = f"{int(total // 60)}:{total % 60:06.3f}"
+            else:
+                fastest_lap_str = "N/A"
+
+            position_val = driver_laps["Position"].iloc[-1] if pd.notna(driver_laps["Position"].iloc[-1]) else None
+            position = int(position_val) if position_val is not None else None
+
+            team_color = next(
+                (d["team_color"] for d in FALLBACK_2024_DRIVERS if d["code"] == driver_code),
+                "#E10600",
+            )
+
+            return render_result_card(
+                driver_code=driver_code,
+                team_color=team_color,
+                position=position,
+                year=year,
+                event_name=gp,
+                session_name=session,
+                fastest_lap_str=fastest_lap_str,
+                strategy_text=strategy_sentence,
+            )
+
+        png_bytes = await asyncio.to_thread(_run)
+        if png_bytes is None:
+            raise HTTPException(status_code=404, detail=f"No lap data found for driver {driver_code} in this session.")
+        return Response(content=png_bytes, media_type="image/png")
     except HTTPException:
         raise
     except Exception as e:
