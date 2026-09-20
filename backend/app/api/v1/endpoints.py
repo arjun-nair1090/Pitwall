@@ -215,3 +215,60 @@ async def get_known_driver_codes():
     """
     from app.services.f1_data_service import FALLBACK_2024_DRIVERS
     return {"driver_standings": [{"driver_code": d["code"]} for d in FALLBACK_2024_DRIVERS]}
+
+
+class StintPlan(BaseModel):
+    compound: str
+    laps: int
+
+class StrategySimulationRequest(BaseModel):
+    year: int
+    gp: str
+    session: Optional[str] = "Race"
+    stints: List[StintPlan]
+    driver_code: Optional[str] = None
+
+@router.post("/strategy/simulate")
+async def simulate_strategy(req: StrategySimulationRequest):
+    """Predict a hypothetical tire strategy's race time using a degradation model
+    fit to the real session's own lap data."""
+    try:
+        import asyncio
+        from app.services import strategy_simulator
+
+        def _run():
+            import fastf1
+            session = fastf1.get_session(req.year, req.gp, req.session)
+            session.load(laps=True, weather=False, telemetry=False)
+            laps = session.laps
+            if laps.empty:
+                return {"error": "No lap data available for this session."}
+
+            expected_total_laps = int(laps["LapNumber"].max())
+            stints = [s.model_dump() for s in req.stints]
+            validation_error = strategy_simulator.validate_stint_plan(stints, expected_total_laps)
+            if validation_error:
+                return {"error": validation_error}
+
+            compound_stats = strategy_simulator.compute_compound_stats(laps)
+            pit_loss = strategy_simulator.estimate_pit_loss_seconds(laps, compound_stats)
+            prediction = strategy_simulator.simulate_stint_plan(compound_stats, stints, pit_loss)
+            prediction["pit_loss_seconds_used"] = pit_loss
+            prediction["compound_stats"] = compound_stats
+
+            if req.driver_code:
+                actual = strategy_simulator.get_actual_driver_total_seconds(laps, req.driver_code.upper())
+                if actual is not None:
+                    prediction["actual_driver_total_seconds"] = actual
+                    prediction["delta_seconds"] = prediction["predicted_total_seconds"] - actual
+
+            return prediction
+
+        result = await asyncio.to_thread(_run)
+        if "error" in result:
+            raise HTTPException(status_code=400, detail=result["error"])
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
