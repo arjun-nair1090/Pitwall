@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useF1Store } from "@/store/useTelemetryStore";
-import { Activity, Map, Archive, Home, FlaskConical } from "lucide-react";
+import { Activity, Map, Archive, Home, FlaskConical, GitCommit } from "lucide-react";
 
 export default function NavigationBar() {
   const pathname = usePathname();
@@ -74,6 +74,16 @@ export default function NavigationBar() {
             {isConnected ? "TELEMETRY LINK STABLE" : "TELEMETRY DISCONNECTED"}
           </span>
         </div>
+        <Link
+          href="/changelog"
+          title="Changelog"
+          className={`flex items-center gap-1.5 pl-4 border-l border-white/10 uppercase text-[11px] transition-colors ${
+            pathname === "/changelog" ? "text-f1-red" : "text-white/40 hover:text-white/70"
+          }`}
+        >
+          <GitCommit className="h-3.5 w-3.5" />
+          Changelog
+        </Link>
       </div>
     </header>
   );
