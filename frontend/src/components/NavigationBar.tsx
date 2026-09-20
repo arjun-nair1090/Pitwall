@@ -4,7 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useF1Store } from "@/store/useTelemetryStore";
-import { Activity, Map, Archive, Home, FlaskConical, GitCommit } from "lucide-react";
+import { Activity, Map, Archive, Home, FlaskConical, GitCommit, Target } from "lucide-react";
 
 export default function NavigationBar() {
   const pathname = usePathname();
@@ -16,6 +16,7 @@ export default function NavigationBar() {
     { name: "H2H", path: "/compare", icon: <Activity className="h-4 w-4" /> },
     { name: "Advanced", path: "/advanced", icon: <Activity className="h-4 w-4" /> },
     { name: "Strategy", path: "/strategy", icon: <FlaskConical className="h-4 w-4" /> },
+    { name: "Predictions", path: "/predictions", icon: <Target className="h-4 w-4" /> },
     { name: "Archives", path: "/archive", icon: <Archive className="h-4 w-4" /> },
   ];
 

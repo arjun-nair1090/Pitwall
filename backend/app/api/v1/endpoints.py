@@ -200,7 +200,7 @@ async def get_historical_races(year: int):
         import fastf1
         schedule = fastf1.get_event_schedule(year)
         # Filter out pre-season testing and return countries
-        races = [{"country": str(row["Country"]), "location": str(row["Location"])} for _, row in schedule.iterrows() if str(row["EventFormat"]) != "testing"]
+        races = [{"country": str(row["Country"]), "location": str(row["Location"]), "event_name": str(row["EventName"])} for _, row in schedule.iterrows() if str(row["EventFormat"]) != "testing"]
         return races
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
