@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import axios from "axios";
+import Link from "next/link";
 import { Loader2, Trophy, Medal } from "lucide-react";
 
 interface DriverStanding {
@@ -112,10 +113,10 @@ export default function StatsPage() {
                     <tr key={driver.driver_code} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                       <td className="py-3 px-2 font-bold text-white/80">{driver.position}</td>
                       <td className="py-3 px-2">
-                        <div className="flex flex-col">
+                        <Link href={`/drivers/${driver.driver_code}?year=${year}`} className="flex flex-col hover:opacity-80 transition-opacity">
                           <span className="font-bold text-white">{driver.driver_name}</span>
                           <span className="text-xs text-white/40">{driver.driver_code}</span>
-                        </div>
+                        </Link>
                       </td>
                       <td className="py-3 px-2 text-white/60 text-sm">{driver.team_name}</td>
                       <td className="py-3 px-2 text-right font-black text-f1-red">{driver.points}</td>
