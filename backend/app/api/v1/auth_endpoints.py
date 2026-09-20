@@ -1,5 +1,7 @@
 import os
 import secrets
+from datetime import datetime
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, field_validator
@@ -7,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.models.models import UserModel
+from app.models.models import PredictionModel, UserModel
+from app.services import predictions_service
 from app.services.auth_service import (
     DEFAULT_EXPIRY,
     create_access_token,
@@ -147,3 +150,124 @@ async def logout(
 @router.get("/auth/me", response_model=UserResponse)
 async def me(current_user: UserModel = Depends(get_current_user)):
     return current_user
+
+
+class PredictionRequest(BaseModel):
+    year: int
+    event_name: str
+    predicted_p1: str
+    predicted_p2: str
+    predicted_p3: str
+
+
+class PredictionResponse(BaseModel):
+    id: int
+    year: int
+    event_name: str
+    predicted_p1: str
+    predicted_p2: str
+    predicted_p3: str
+    points_awarded: Optional[int]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LeaderboardRow(BaseModel):
+    display_name: str
+    total_points: int
+
+
+@router.post("/predictions", response_model=PredictionResponse)
+async def submit_prediction(
+    req: PredictionRequest,
+    current_user: UserModel = Depends(get_current_user),
+    _csrf: None = Depends(verify_csrf),
+    db: Session = Depends(get_db),
+):
+    validation_error = predictions_service.validate_prediction(req.predicted_p1, req.predicted_p2, req.predicted_p3)
+    if validation_error:
+        raise HTTPException(status_code=400, detail=validation_error)
+
+    import fastf1
+    schedule = fastf1.get_event_schedule(req.year)
+    matching = schedule[schedule["EventName"] == req.event_name]
+    if not matching.empty and predictions_service.race_has_started(matching.iloc[0], datetime.utcnow()):
+        raise HTTPException(status_code=400, detail="This race has already started -- predictions are locked.")
+
+    existing = db.query(PredictionModel).filter(
+        PredictionModel.user_id == current_user.id,
+        PredictionModel.year == req.year,
+        PredictionModel.event_name == req.event_name,
+    ).first()
+
+    if existing:
+        existing.predicted_p1 = req.predicted_p1.upper()
+        existing.predicted_p2 = req.predicted_p2.upper()
+        existing.predicted_p3 = req.predicted_p3.upper()
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    prediction = PredictionModel(
+        user_id=current_user.id, year=req.year, event_name=req.event_name,
+        predicted_p1=req.predicted_p1.upper(), predicted_p2=req.predicted_p2.upper(), predicted_p3=req.predicted_p3.upper(),
+    )
+    db.add(prediction)
+    db.commit()
+    db.refresh(prediction)
+    return prediction
+
+
+@router.get("/predictions/me", response_model=List[PredictionResponse])
+async def my_predictions(year: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    return db.query(PredictionModel).filter(
+        PredictionModel.user_id == current_user.id, PredictionModel.year == year,
+    ).all()
+
+
+@router.get("/leaderboard", response_model=List[LeaderboardRow])
+async def leaderboard(year: int, db: Session = Depends(get_db)):
+    from sqlalchemy import func as sa_func
+
+    rows = (
+        db.query(UserModel.display_name, sa_func.sum(PredictionModel.points_awarded).label("total_points"))
+        .join(PredictionModel, PredictionModel.user_id == UserModel.id)
+        .filter(PredictionModel.year == year, PredictionModel.points_awarded.isnot(None))
+        .group_by(UserModel.id)
+        .order_by(sa_func.sum(PredictionModel.points_awarded).desc())
+        .all()
+    )
+    return [{"display_name": r[0], "total_points": r[1]} for r in rows]
+
+
+class ScoreRequest(BaseModel):
+    year: int
+    event_name: str
+
+
+@router.post("/predictions/score")
+async def score_race(req: ScoreRequest, db: Session = Depends(get_db)):
+    import asyncio
+    import fastf1
+
+    def _get_real_top3():
+        session = fastf1.get_session(req.year, req.event_name, "Race")
+        session.load(laps=False, telemetry=False, weather=False)
+        results = session.results.sort_values("Position")
+        if len(results) < 3:
+            return None
+        top3 = results.iloc[:3]["Abbreviation"].tolist()
+        return tuple(top3)
+
+    actual_top3 = await asyncio.to_thread(_get_real_top3)
+    if actual_top3 is None:
+        raise HTTPException(status_code=400, detail="No result available for this race yet.")
+
+    predictions = db.query(PredictionModel).filter(
+        PredictionModel.year == req.year, PredictionModel.event_name == req.event_name,
+    ).all()
+    for prediction in predictions:
+        predicted = (prediction.predicted_p1, prediction.predicted_p2, prediction.predicted_p3)
+        prediction.points_awarded = predictions_service.score_prediction(predicted, actual_top3)
+    db.commit()
+
+    return {"scored_predictions": len(predictions)}
