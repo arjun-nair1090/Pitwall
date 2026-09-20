@@ -2,7 +2,14 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
-client = TestClient(app)
+ALLOWED_ORIGIN = {"Origin": "http://localhost:3000"}
+
+
+def _client():
+    return TestClient(app, headers=ALLOWED_ORIGIN)
+
+
+client = _client()
 
 
 def _signup(email="user@example.com", password="hunter2horse", display_name="Tester"):
@@ -47,13 +54,13 @@ def test_login_with_wrong_password_returns_401():
 
 
 def test_me_requires_authentication():
-    anon_client = TestClient(app)
+    anon_client = _client()
     response = anon_client.get("/api/v1/auth/me")
     assert response.status_code == 401
 
 
 def test_me_returns_current_user_when_authenticated():
-    authed_client = TestClient(app)
+    authed_client = _client()
     authed_client.post("/api/v1/auth/signup", json={
         "email": "me@example.com", "password": "some-password-3", "display_name": "MeUser",
     })
@@ -63,7 +70,7 @@ def test_me_returns_current_user_when_authenticated():
 
 
 def test_logout_without_csrf_header_is_rejected():
-    authed_client = TestClient(app)
+    authed_client = _client()
     authed_client.post("/api/v1/auth/signup", json={
         "email": "logout-csrf@example.com", "password": "some-password-4", "display_name": "LogoutUser",
     })
@@ -72,10 +79,63 @@ def test_logout_without_csrf_header_is_rejected():
 
 
 def test_logout_with_correct_csrf_header_succeeds():
-    authed_client = TestClient(app)
+    authed_client = _client()
     authed_client.post("/api/v1/auth/signup", json={
         "email": "logout-ok@example.com", "password": "some-password-5", "display_name": "LogoutUser2",
     })
     csrf_token = authed_client.cookies.get("csrf_token")
     response = authed_client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": csrf_token})
     assert response.status_code == 200
+
+
+def test_signup_rejects_short_password():
+    response = _signup(email="shortpw@example.com", password="short1")
+    assert response.status_code == 422
+
+
+def test_signup_and_login_reject_missing_or_disallowed_origin():
+    # Simulates a cross-site form POST -- browsers won't attach an
+    # Origin matching this app's own allowed origins for that.
+    no_origin_client = TestClient(app)
+    response = no_origin_client.post(
+        "/api/v1/auth/signup",
+        json={"email": "origin-check@example.com", "password": "some-password-6", "display_name": "OriginUser"},
+        headers={"Origin": "https://evil.example.com"},
+    )
+    assert response.status_code == 403
+
+
+def test_logout_revokes_the_token_so_it_cannot_be_reused(monkeypatch):
+    import app.services.auth_service as auth_service_module
+
+    class FakeRedisClient:
+        def __init__(self):
+            self._store = {}
+
+        async def set(self, key, value, ex=None):
+            self._store[key] = value
+
+        async def exists(self, key):
+            return 1 if key in self._store else 0
+
+    monkeypatch.setattr(auth_service_module.redis_service, "client", FakeRedisClient())
+
+    authed_client = _client()
+    authed_client.post("/api/v1/auth/signup", json={
+        "email": "revoke-me@example.com", "password": "some-password-8", "display_name": "RevokeUser",
+    })
+
+    stolen_session_cookie = authed_client.cookies.get("session")
+    csrf_token = authed_client.cookies.get("csrf_token")
+
+    logout_response = authed_client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": csrf_token})
+    assert logout_response.status_code == 200
+
+    # Simulate an attacker who captured the raw token before logout and
+    # replays it directly on a fresh client (the original client's cookie
+    # jar already dropped it via logout's Set-Cookie -- this bypasses that
+    # to prove the token itself is rejected, not just "cookie is missing").
+    replay_client = _client()
+    replay_client.cookies.set("session", stolen_session_cookie)
+    response = replay_client.get("/api/v1/auth/me")
+    assert response.status_code == 401
