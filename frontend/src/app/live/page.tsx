@@ -2,6 +2,7 @@
 
 import React from "react";
 import LiveTiming from "@/components/LiveTiming";
+import GapEvolutionChart from "@/components/GapEvolutionChart";
 import TelemetryConsole from "@/components/TelemetryConsole";
 import AIEngineerConsole from "@/components/AIEngineerConsole";
 import TeamRadioConsole from "@/components/TeamRadioConsole";
@@ -10,9 +11,14 @@ export default function LiveDashboardPage() {
   return (
     <div className="flex-1 flex flex-col gap-4">
       <div className="grid grid-cols-12 gap-4 flex-1">
-        {/* Left Side Timing Boards (5 cols) */}
-        <div className="col-span-12 xl:col-span-5 h-[calc(100vh-180px)]">
-          <LiveTiming />
+        {/* Left Side: Timing Board + Gap Evolution (5 cols) */}
+        <div className="col-span-12 xl:col-span-5 h-[calc(100vh-180px)] flex flex-col gap-4">
+          <div className="flex-1 min-h-0">
+            <LiveTiming />
+          </div>
+          <div className="h-[260px] shrink-0">
+            <GapEvolutionChart />
+          </div>
         </div>
 
         {/* Right Columns: AI & Telemetry Console (7 cols) */}

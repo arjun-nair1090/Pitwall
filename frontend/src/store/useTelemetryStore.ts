@@ -55,15 +55,29 @@ export interface RaceControlMessage {
   flag?: string;
 }
 
+export interface GapHistoryPoint {
+  lap: number;
+  gaps: Record<string, number | null>;
+}
+
+export interface LiveAlert {
+  id: string;
+  severity: "info" | "warning" | "critical";
+  message: string;
+  timestamp: number;
+}
+
 interface F1StoreState {
   activeSession: any | null;
   historicalRace: HistoricalRace | null;
   replaySession: { year: number, gp: string, lap?: number } | null;
   drivers: any[];
   leaderboard: Record<string, TimingDriver>;
+  gapHistory: GapHistoryPoint[];
   telemetry: Record<number, DriverTelemetry>;
   weather: WeatherData | null;
   raceControl: RaceControlMessage[];
+  alerts: LiveAlert[];
   isConnected: boolean;
   liveSignal: boolean;
   selectedDriverNum: number | null;
@@ -86,6 +100,8 @@ interface F1StoreState {
   setWeather: (weather: WeatherData) => void;
   addRaceControlMessage: (msg: RaceControlMessage) => void;
   setRaceControlMessages: (msgs: RaceControlMessage[]) => void;
+  pushAlert: (alert: LiveAlert) => void;
+  dismissAlert: (id: string) => void;
   setIsConnected: (status: boolean) => void;
   setLiveSignal: (signal: boolean) => void;
   setSelectedDriverNum: (num: number | null) => void;
@@ -97,9 +113,11 @@ export const useF1Store = create<F1StoreState>((set) => ({
   replaySession: null,
   drivers: [],
   leaderboard: {},
+  gapHistory: [],
   telemetry: {},
   weather: null,
   raceControl: [],
+  alerts: [],
   isConnected: false,
   liveSignal: true,
   selectedDriverNum: null,
@@ -109,7 +127,21 @@ export const useF1Store = create<F1StoreState>((set) => ({
   setHistoricalRace: (race) => set({ historicalRace: race }),
   setReplaySession: (replay) => set({ replaySession: replay }),
   setDrivers: (drivers) => set({ drivers }),
-  updateLeaderboard: (leaderboard) => set({ leaderboard }),
+  updateLeaderboard: (leaderboard) => set((state) => {
+    // Sample gap history once per lap (not on every tick) so a race's worth of
+    // history stays a few dozen points, not thousands of near-duplicate ticks.
+    const maxLap = Math.max(0, ...Object.values(leaderboard).map((t) => t.lap_number || 0));
+    const lastPoint = state.gapHistory[state.gapHistory.length - 1];
+    if (maxLap > 0 && maxLap !== lastPoint?.lap) {
+      const gaps: Record<string, number | null> = {};
+      Object.entries(leaderboard).forEach(([num, t]) => {
+        gaps[num] = t.gap_to_leader ?? null;
+      });
+      const gapHistory = [...state.gapHistory, { lap: maxLap, gaps }].slice(-100);
+      return { leaderboard, gapHistory };
+    }
+    return { leaderboard };
+  }),
   updateTelemetryPoint: (point) => set((state) => ({
     telemetry: { ...state.telemetry, [point.driver_number]: point }
   })),
@@ -118,6 +150,8 @@ export const useF1Store = create<F1StoreState>((set) => ({
     raceControl: [msg, ...state.raceControl].slice(0, 50)
   })),
   setRaceControlMessages: (msgs) => set({ raceControl: msgs }),
+  pushAlert: (alert) => set((state) => ({ alerts: [alert, ...state.alerts].slice(0, 8) })),
+  dismissAlert: (id) => set((state) => ({ alerts: state.alerts.filter((a) => a.id !== id) })),
   setIsConnected: (status) => set({ isConnected: status }),
   setLiveSignal: (signal) => set({ liveSignal: signal }),
   setSelectedDriverNum: (num) => set({ selectedDriverNum: num }),

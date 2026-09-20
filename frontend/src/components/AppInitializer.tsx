@@ -16,9 +16,19 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     setWeather,
     setRaceControlMessages,
     addRaceControlMessage,
+    pushAlert,
     updateTelemetryPoint,
     setIsConnected,
   } = useF1Store();
+
+  const FLAG_SEVERITY: Record<string, "info" | "warning" | "critical"> = {
+    RED: "critical",
+    "SAFETY CAR": "critical",
+    "VIRTUAL SAFETY CAR": "warning",
+    YELLOW: "warning",
+    GREEN: "info",
+    CHEQUERED: "info",
+  };
 
   const [ws, setWs] = useState<WebSocket | null>(null);
 
@@ -30,6 +40,12 @@ export default function AppInitializer({ children }: { children: React.ReactNode
       .then((res) => {
         const sess = res.data;
         setActiveSession(sess);
+        pushAlert({
+          id: `session-${sess.session_key}`,
+          severity: "info",
+          message: `Session live: ${sess.session_name} — ${sess.circuit_short_name || sess.location}`,
+          timestamp: Date.now(),
+        });
 
         // 2. Fetch session drivers
         axios.get(`/api/v1/sessions/${sess.session_key}/drivers`).then((resD) => {
@@ -91,6 +107,14 @@ export default function AppInitializer({ children }: { children: React.ReactNode
         } else if (frame.message !== undefined && frame.category !== undefined) {
           // Race Control / Flags packet (must have category to distinguish from sentinels)
           addRaceControlMessage(frame);
+          if (frame.flag) {
+            pushAlert({
+              id: `flag-${frame.timestamp}-${frame.flag}`,
+              severity: FLAG_SEVERITY[frame.flag] || "info",
+              message: `${frame.flag} FLAG: ${frame.message}`,
+              timestamp: Date.now(),
+            });
+          }
         }
       } catch (err) {
         // Echo logs
