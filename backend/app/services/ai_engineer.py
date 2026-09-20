@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import TypedDict, Dict, Any, List
 from datetime import datetime
@@ -6,12 +7,14 @@ from anthropic import Anthropic
 from langgraph.graph import StateGraph, START, END
 from app.core.config import settings
 from app.services.f1_data_service import f1_service
+from app.services import rag_service
 
 # Define LangGraph state schema
 class AgentState(TypedDict):
     question: str
     session_key: int
     context_md: str
+    historical_md: str
     response: str
 
 class AIEngineer:
@@ -138,22 +141,37 @@ async def retrieve_context_node(state: AgentState) -> Dict[str, Any]:
     context_md = ai_engineer.format_context_as_markdown(context)
     return {"context_md": context_md}
 
+async def retrieve_historical_node(state: AgentState) -> Dict[str, Any]:
+    historical_md = await asyncio.to_thread(rag_service.query_historical_context, state["question"])
+    return {"historical_md": historical_md}
+
 async def generate_response_node(state: AgentState) -> Dict[str, Any]:
-    response = await ai_engineer.call_llm(state["question"], state["context_md"])
+    combined_context = state["context_md"]
+    if state.get("historical_md"):
+        combined_context = f"{combined_context}\n\n{state['historical_md']}"
+    response = await ai_engineer.call_llm(state["question"], combined_context)
     return {"response": response}
 
 # Compile Workflow Graph
 workflow = StateGraph(AgentState)
 workflow.add_node("retrieve_context", retrieve_context_node)
+workflow.add_node("retrieve_historical", retrieve_historical_node)
 workflow.add_node("generate_response", generate_response_node)
 
 workflow.add_edge(START, "retrieve_context")
+workflow.add_edge(START, "retrieve_historical")
 workflow.add_edge("retrieve_context", "generate_response")
+workflow.add_edge("retrieve_historical", "generate_response")
 workflow.add_edge("generate_response", END)
 
 graph = workflow.compile()
 
 # Unified wrapper
 async def answer_question(question: str, session_key: int) -> str:
-    res = await graph.ainvoke({"question": question, "session_key": session_key})
+    res = await graph.ainvoke({
+        "question": question,
+        "session_key": session_key,
+        "context_md": "",
+        "historical_md": "",
+    })
     return res["response"]
