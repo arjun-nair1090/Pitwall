@@ -25,6 +25,7 @@ Every task's requirements implicitly include this section.
 - Never stage `frontend/tsconfig.tsbuildinfo`. Always `git add` explicit paths, never `git add -A` or `git add .`.
 - Commit messages end with the trailer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.
 - `next.config.mjs` sets `ignoreBuildErrors`/`ignoreDuringBuilds`, so `next build` does not type-check. Always run `npx tsc --noEmit` explicitly.
+- In Git Bash on Windows, prefix any command that takes a `/route` argument (`ui-sweep.mjs --routes /stats`) with `MSYS_NO_PATHCONV=1`, or the shell rewrites it into a Windows path.
 - Never run `next build` while `next dev` is running (it corrupts `.next`). Vitest, tsc and pytest are safe alongside the dev server. Frontend commands run from `C:\Users\arjun\f1-pitwall\frontend`; backend from `...\backend` with `SECRET_KEY=test RUNNING_LOCALLY=true`.
 
 ## File Structure

@@ -23,6 +23,7 @@ Every task's requirements implicitly include this section. It repeats Plan 1's c
 - Every data area renders one of four states: loading (`Loading` + `Skeleton`), empty (`EmptyState` with the next action), error (`ErrorState` with retry, message via `getApiErrorMessage(err, fallback)`), or data.
 - Copy: errors say what happened and what to do, never apologise; one name per action across a flow.
 - **Do not change data fetching, state, handlers or API contracts in any migrated page.** Presentation only.
+- In Git Bash on Windows, prefix any command that takes a `/route` argument (`ui-sweep.mjs --routes /stats`) with `MSYS_NO_PATHCONV=1`, or the shell rewrites it into a Windows path.
 - Frontend commands run from `C:\Users\arjun\f1-pitwall\frontend`. `next dev` is running on :3000; never run `next build` while it runs (Task 12 stops it first). `tsc`, `vitest` and the sweep are safe alongside it.
 - Never stage `frontend/tsconfig.tsbuildinfo` or `backend/app/services/f1_data_service.py`. Use explicit `git add` paths. Commit trailer: `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.
 
