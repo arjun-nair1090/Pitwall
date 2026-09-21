@@ -1,8 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import AppInitializer from "@/components/AppInitializer";
-import NavigationBar from "@/components/NavigationBar";
-import BackgroundScene from "@/components/BackgroundScene";
 import LiveAlertBanner from "@/components/LiveAlertBanner";
+import AppShell from "@/components/shell/AppShell";
 import localFont from "next/font/local";
 import "@/design/tokens.css";
 import "./globals.css";
@@ -44,6 +43,12 @@ const ui = localFont({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata: Metadata = {
   title: "F1 Pit Wall",
   description: "Real-time F1 telemetry dashboard",
@@ -58,20 +63,8 @@ export default function RootLayout({
     <html lang="en" className={`${display.variable} ${ui.variable} ${titillium.variable}`}>
       <body className="bg-tarmac font-sans text-chalk antialiased">
         <AppInitializer>
-          <div className="relative min-h-screen w-full overflow-hidden">
-            {/* Background layer: animated 3D hero on landing, flat background elsewhere */}
-            <BackgroundScene />
-
-            <LiveAlertBanner />
-
-            {/* The UI Layer */}
-            <div className="relative z-10 min-h-screen p-4 flex flex-col">
-              <NavigationBar />
-              <main className="flex-1 flex flex-col">
-                {children}
-              </main>
-            </div>
-          </div>
+          <LiveAlertBanner />
+          <AppShell>{children}</AppShell>
         </AppInitializer>
       </body>
     </html>
