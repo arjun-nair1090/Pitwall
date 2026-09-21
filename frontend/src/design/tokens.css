@@ -1,0 +1,19 @@
+/* Timing Screen tokens. RGB triplets so Tailwind can apply alpha: rgb(var(--kerb) / 0.6).
+   Values are checked by tokens.test.ts (contrast) and mirrored in chartTheme.ts. */
+:root {
+  --tarmac: 19 22 27;
+  --kerb: 27 31 38;
+  --raised: 35 40 50;
+  --gantry: 42 48 58;
+  --edge: 108 119 137;
+  --chalk: 232 235 239;
+  --mute: 166 174 187;
+  --faint: 135 144 160;
+  --timing-purple: 181 123 255;
+  --timing-green: 53 208 127;
+  --timing-yellow: 246 201 69;
+  --f1-red: 225 6 0;
+  --f1-red-text: 255 107 96;
+  --radius-panel: 6px;
+  --radius-control: 4px;
+}

@@ -168,6 +168,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test** `frontend/src/design/tokens.test.ts`
 ```ts
+// @vitest-environment node
+// Reads tokens.css with node:fs; jsdom's URL class is not accepted by fs.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -384,7 +386,7 @@ Then (dev server on :3000 is running):
 ```bash
 node --input-type=module -e "import {launch} from './scripts/cdp.mjs'; const b=await launch(9672); await b.goto('http://localhost:3000/stats',2500); console.log(await b.eval('getComputedStyle(document.body).backgroundColor')); await b.close();"
 ```
-Expected: `rgb(19, 22, 27)`.
+Expected: `rgb(19, 22, 27)`. (At this point `layout.tsx` still has `bg-black` on `<body>`, which wins until Task 6, so the body reads `rgb(0, 0, 0)`; instead check `getComputedStyle(document.documentElement).getPropertyValue('--tarmac')` is `19 22 27` and that a probe element with `bg-kerb text-mute rounded-panel border-edge` resolves to `rgb(27, 31, 38)`, `rgb(166, 174, 187)`, `6px`, `rgb(108, 119, 137)`.)
 
 - [ ] **Step 9: Commit**
 ```bash
@@ -1785,6 +1787,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test** `chartTheme.test.ts` (guards drift between the hex values here and the CSS tokens)
 ```ts
+// @vitest-environment node
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CHART, seriesColor, seriesDash } from "./chartTheme";
