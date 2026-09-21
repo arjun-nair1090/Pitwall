@@ -65,6 +65,15 @@ const AUDIT = `(() => {
   return issues;
 })()`;
 
+// Every page talks to the API on load; with it down, all pages "fail" for the wrong reason.
+const API = process.env.API || "http://localhost:8000";
+try {
+  await fetch(`${API}/docs`, { signal: AbortSignal.timeout(5000) });
+} catch {
+  console.error(`API not reachable at ${API}. Start the backend first; results would be meaningless.`);
+  process.exit(2);
+}
+
 const b = await launch(9671);
 await b.send("Page.enable");
 await b.send("Page.addScriptToEvaluateOnNewDocument", { source: INSTALL_ERROR_HOOK });

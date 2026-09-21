@@ -49,7 +49,7 @@ export default function StrategySimulatorPage() {
       axios.get("/api/v1/drivers/known-codes"),
     ])
       .then(([racesRes, driversRes]) => {
-        const gps = racesRes.data.map((r: any) => r.country);
+        const gps: string[] = Array.from(new Set<string>(racesRes.data.map((r: any) => r.country)));
         setAvailableGPs(gps);
         if (!gps.includes(gp)) setGp(gps[0] || "");
         setAvailableDrivers(driversRes.data.driver_standings.map((d: any) => d.driver_code));
@@ -92,40 +92,39 @@ export default function StrategySimulatorPage() {
   };
 
   return (
-    <div className="w-full py-4 md:p-8 max-w-5xl mx-auto space-y-8 animate-fade-in flex flex-col">
-      <div className="border-b border-white/10 pb-6">
-        <h1 className="text-3xl md:text-4xl font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
-          <FlaskConical className="w-8 h-8 text-f1-red" />
-          Strategy Simulator
+    <div className="w-full py-4 md:p-8 max-w-5xl mx-auto space-y-8 flex flex-col">
+      <div className="pb-5">
+        <h1 className="font-display text-3xl font-extrabold leading-none tracking-tight text-chalk md:text-4xl">
+          Strategy simulator
         </h1>
-        <p className="text-white/50 text-sm font-titillium tracking-wide mt-1">
+        <p className="mt-2 max-w-prose text-sm text-mute">
           Predict a hypothetical tire strategy using a degradation model fit to the real session
         </p>
       </div>
 
-      <div className="glass-panel p-6 rounded-xl border border-white/5 space-y-6">
+      <div className="rounded-panel border border-gantry bg-kerb p-6 space-y-6">
         {optionsError && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg font-titillium flex items-center justify-between gap-3 text-sm">
+          <div className="bg-live/10 border border-live/40 text-live-text p-3 rounded-panel flex items-center justify-between gap-3 text-sm">
             <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{optionsError}</span>
-            <button type="button" onClick={loadOptions} className="font-bold underline underline-offset-2 hover:text-white">
+            <button type="button" onClick={loadOptions} className="font-bold underline underline-offset-2 hover:text-chalk">
               Retry
             </button>
           </div>
         )}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-xs font-titillium font-bold text-white/60 mb-2">YEAR</label>
-            <input aria-label="Year" type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red" />
+            <label className="block text-xs font-bold text-mute mb-2">YEAR</label>
+            <input aria-label="Year" type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40" />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-xs font-titillium font-bold text-white/60 mb-2">GRAND PRIX</label>
-            <select aria-label="Grand Prix" value={gp} onChange={(e) => setGp(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red">
+            <label className="block text-xs font-bold text-mute mb-2">Grand Prix</label>
+            <select aria-label="Grand Prix" value={gp} onChange={(e) => setGp(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
               {availableGPs.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-titillium font-bold text-white/60 mb-2">COMPARE TO DRIVER (OPTIONAL)</label>
-            <select aria-label="Compare To Driver (Optional)" value={driverCode} onChange={(e) => setDriverCode(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red">
+            <label className="block text-xs font-bold text-mute mb-2">Compare to driver (optional)</label>
+            <select aria-label="Compare To Driver (Optional)" value={driverCode} onChange={(e) => setDriverCode(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
               <option value="">None</option>
               {availableDrivers.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
@@ -134,17 +133,17 @@ export default function StrategySimulatorPage() {
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-xs font-titillium font-bold text-white/60">STINT PLAN ({totalLaps} laps total)</label>
-            <button onClick={addStint} className="flex items-center gap-1 text-xs text-f1-red hover:text-red-400 font-bold">
+            <label className="text-xs font-bold text-mute">STINT PLAN ({totalLaps} laps total)</label>
+            <button onClick={addStint} className="flex items-center gap-1 text-xs text-chalk hover:text-chalk font-bold">
               <Plus className="w-3.5 h-3.5" /> ADD STINT
             </button>
           </div>
           <div className="space-y-2">
             {stints.map((stint, i) => (
-              <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-black/30 p-3 rounded-md border border-white/5">
-                <span className="text-xs text-white/40 font-bold w-16">STINT {i + 1}</span>
+              <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-kerb p-3 rounded-panel border border-gantry">
+                <span className="text-xs text-faint font-bold w-16">STINT {i + 1}</span>
                 <CompoundBadge compound={stint.compound} />
-                <select aria-label={`Stint ${i + 1} compound`} value={stint.compound} onChange={(e) => updateStint(i, { compound: e.target.value })} className="bg-black/50 border border-white/10 text-white rounded-md px-3 py-1.5 text-sm font-titillium">
+                <select aria-label={`Stint ${i + 1} compound`} value={stint.compound} onChange={(e) => updateStint(i, { compound: e.target.value })} className="bg-kerb border border-gantry text-chalk rounded-panel px-3 py-1.5 text-sm">
                   {COMPOUNDS.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <input
@@ -152,11 +151,11 @@ export default function StrategySimulatorPage() {
                   type="number"
                   value={stint.laps}
                   onChange={(e) => updateStint(i, { laps: parseInt(e.target.value) || 0 })}
-                  className="w-20 bg-black/50 border border-white/10 text-white rounded-md px-3 py-1.5 text-sm font-titillium"
+                  className="w-20 bg-kerb border border-gantry text-chalk rounded-panel px-3 py-1.5 text-sm"
                 />
-                <span className="text-xs text-white/40">laps</span>
+                <span className="text-xs text-faint">laps</span>
                 {stints.length > 1 && (
-                  <button onClick={() => removeStint(i)} className="ml-auto text-white/30 hover:text-f1-red">
+                  <button onClick={() => removeStint(i)} className="ml-auto text-faint hover:text-chalk">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
@@ -168,7 +167,7 @@ export default function StrategySimulatorPage() {
         <button
           onClick={runSimulation}
           disabled={loading || !gp}
-          className="bg-f1-red hover:bg-red-700 text-white font-titillium font-bold py-2.5 px-8 rounded-md transition-colors flex items-center gap-2 disabled:opacity-40"
+          className="bg-chalk text-tarmac hover:bg-white hover:bg-live/90 font-bold py-2.5 px-8 rounded-panel transition-colors flex items-center gap-2 disabled:opacity-40"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
           RUN SIMULATION
@@ -176,30 +175,30 @@ export default function StrategySimulatorPage() {
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-lg font-titillium flex items-center gap-3">
+        <div className="bg-live/10 border border-live/40 text-live-text p-4 rounded-panel flex items-center gap-3">
           <AlertTriangle className="w-5 h-5" />
           {error}
         </div>
       )}
 
       {result && (
-        <div className="glass-panel p-6 rounded-xl border border-f1-red/30 grid grid-cols-2 md:grid-cols-4 gap-6">
+        <div className="rounded-panel border border-gantry bg-kerb p-6 border-live/40 grid grid-cols-2 md:grid-cols-4 gap-6">
           <div>
-            <div className="text-[10px] text-white/40 uppercase">Predicted Total Time</div>
-            <div className="text-2xl font-bold text-white font-titillium mt-1">{formatTime(result.predicted_total_seconds)}</div>
+            <div className="text-[10px] text-faint">Predicted Total Time</div>
+            <div className="text-2xl font-bold text-chalk mt-1">{formatTime(result.predicted_total_seconds)}</div>
           </div>
           <div>
-            <div className="text-[10px] text-white/40 uppercase">Avg Lap</div>
-            <div className="text-2xl font-bold text-white font-titillium mt-1">{result.predicted_avg_lap_seconds.toFixed(3)}s</div>
+            <div className="text-[10px] text-faint">Avg Lap</div>
+            <div className="text-2xl font-bold text-chalk mt-1">{result.predicted_avg_lap_seconds.toFixed(3)}s</div>
           </div>
           <div>
-            <div className="text-[10px] text-white/40 uppercase">Pit Stops</div>
-            <div className="text-2xl font-bold text-white font-titillium mt-1">{result.num_pit_stops} <span className="text-xs text-white/40">(~{result.pit_loss_seconds_used.toFixed(1)}s each)</span></div>
+            <div className="text-[10px] text-faint">Pit Stops</div>
+            <div className="text-2xl font-bold text-chalk mt-1">{result.num_pit_stops} <span className="text-xs text-faint">(~{result.pit_loss_seconds_used.toFixed(1)}s each)</span></div>
           </div>
           {result.delta_seconds !== undefined && (
             <div>
-              <div className="text-[10px] text-white/40 uppercase">vs Actual Race</div>
-              <div className={`text-2xl font-bold font-titillium mt-1 ${result.delta_seconds < 0 ? "text-f1-green" : "text-f1-red"}`}>
+              <div className="text-[10px] text-faint">vs Actual Race</div>
+              <div className={`text-2xl font-bold mt-1${result.delta_seconds < 0 ? "text-timing-green" : "text-chalk"}`}>
                 {result.delta_seconds < 0 ? "-" : "+"}{Math.abs(result.delta_seconds).toFixed(1)}s
               </div>
             </div>

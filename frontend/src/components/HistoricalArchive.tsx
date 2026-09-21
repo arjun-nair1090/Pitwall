@@ -4,6 +4,8 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useF1Store, HistoricalRace } from "@/store/useTelemetryStore";
 import { Calendar, Users, Trophy, ChevronRight, X, Play, Flag, Timer } from "lucide-react";
+import Select from "@/components/ui/Select";
+import Tabs from "@/components/ui/Tabs";
 
 interface DriverStanding {
   position: string;
@@ -152,82 +154,54 @@ export default function HistoricalArchive() {
   };
 
   return (
-    <div className="glass-panel rounded-lg p-4 h-full flex flex-col justify-between border border-white/5 bg-black/40 text-sm font-titillium tracking-wide shadow-lg">
+    <div className="rounded-panel border border-gantry bg-kerb p-4 h-full flex flex-col justify-between text-sm shadow-lg">
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between mb-4 border-b border-f1-red/30 pb-3">
-          <h2 className="text-base font-bold tracking-widest text-white uppercase flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-f1-yellow" />
+        <div className="flex items-center justify-between mb-4 border-b border-live/40 pb-3">
+          <h2 className="text-base font-bold text-chalk flex items-center gap-2">
+            <Trophy className="h-5 w-5 text-mute" />
             Season Archive
           </h2>
           
           {/* Season Year selector */}
-          <select
-            aria-label="Season"
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value))}
-            className="bg-black border border-white/20 text-white px-2 py-1 rounded font-bold focus:outline-none focus:border-f1-red"
-          >
+          <Select label="Season" hideLabel value={year} onChange={(e) => setYear(parseInt(e.target.value))}>
             {yearsList.map((y) => (
-              <option key={y} value={y}>{y} SEASON</option>
+              <option key={y} value={y}>{y} season</option>
             ))}
-          </select>
+          </Select>
         </div>
 
-        {/* Sub-tabs */}
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => setTab("standings")}
-            className={`px-4 py-1.5 rounded-sm font-bold transition-colors ${
-              tab === "standings"
-                ? "bg-f1-red text-white"
-                : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            STANDINGS
-          </button>
-          <button
-            onClick={() => {
-              setTab("calendar");
-              setSelectedRace(null);
-            }}
-            className={`px-4 py-1.5 rounded-sm font-bold transition-colors ${
-              tab === "calendar"
-                ? "bg-f1-red text-white"
-                : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
-            }`}
-          >
-            CALENDAR
-          </button>
-          {selectedRace && (
-            <button
-              onClick={() => setTab("racedetails")}
-              className={`px-4 py-1.5 rounded-sm font-bold transition-colors flex items-center gap-1 ${
-                tab === "racedetails"
-                  ? "bg-f1-red text-white"
-                  : "bg-white/5 text-white/50 hover:bg-white/10 hover:text-white"
-              }`}
-            >
-              <Flag className="h-4 w-4" /> RACE DETAILS
-            </button>
-          )}
-        </div>
+        <Tabs
+          idBase="archive"
+          label="Archive views"
+          className="mb-4"
+          value={tab}
+          onChange={(id) => {
+            if (id === "calendar") setSelectedRace(null);
+            setTab(id as typeof tab);
+          }}
+          tabs={[
+            { id: "standings", label: "Standings" },
+            { id: "calendar", label: "Calendar" },
+            ...(selectedRace ? [{ id: "racedetails", label: "Race details" }] : []),
+          ]}
+        />
 
         {loading ? (
-          <div className="flex-1 flex items-center justify-center text-white/40 font-bold animate-pulse">QUERYING ERGAST ARCHIVE...</div>
+          <div className="flex-1 flex items-center justify-center text-faint font-bold animate-pulse">Loading the archive…</div>
         ) : tab === "standings" ? (
           /* Standings View */
           <div className="flex-1 grid grid-cols-2 gap-6 overflow-y-auto custom-scrollbar pr-2 pb-4">
             {/* Drivers Standings */}
             <div>
-              <div className="text-xs text-f1-red uppercase mb-2 font-bold tracking-widest border-b border-f1-red/20 pb-1">DRIVERS</div>
+              <div className="text-xs text-live-text mb-2 font-bold border-b border-live/40 pb-1">Drivers</div>
               <ul className="space-y-1">
                 {driverStandings.map((st) => (
-                  <li key={st.Driver.code || st.Driver.familyName} className="flex justify-between border-b border-white/5 py-1.5 hover:bg-white/5 px-2 transition-colors">
+                  <li key={st.Driver.code || st.Driver.familyName} className="flex justify-between border-b border-gantry py-1.5 hover:bg-raised px-2 transition-colors">
                     <span className="font-semibold">
-                      <span className="text-white/50 inline-block w-6">{st.position}</span>
-                      {st.Driver.givenName[0]}. {st.Driver.familyName} <span className="text-white/40 ml-1 text-xs">({st.Driver.code || st.Driver.nationality})</span>
+                      <span className="text-faint inline-block w-6">{st.position}</span>
+                      {st.Driver.givenName[0]}. {st.Driver.familyName} <span className="text-faint ml-1 text-xs">({st.Driver.code || st.Driver.nationality})</span>
                     </span>
-                    <span className="font-bold text-white">{st.points} <span className="text-white/40 text-xs">PTS</span></span>
+                    <span className="font-bold text-chalk">{st.points} <span className="text-faint text-xs">PTS</span></span>
                   </li>
                 ))}
               </ul>
@@ -235,15 +209,15 @@ export default function HistoricalArchive() {
 
             {/* Constructors Standings */}
             <div>
-              <div className="text-xs text-f1-red uppercase mb-2 font-bold tracking-widest border-b border-f1-red/20 pb-1">CONSTRUCTORS</div>
+              <div className="text-xs text-live-text mb-2 font-bold border-b border-live/40 pb-1">Constructors</div>
               <ul className="space-y-1">
                 {constructorStandings.map((st) => (
-                  <li key={st.Constructor.name} className="flex justify-between border-b border-white/5 py-1.5 hover:bg-white/5 px-2 transition-colors">
+                  <li key={st.Constructor.name} className="flex justify-between border-b border-gantry py-1.5 hover:bg-raised px-2 transition-colors">
                     <span className="font-semibold">
-                      <span className="text-white/50 inline-block w-6">{st.position}</span>
+                      <span className="text-faint inline-block w-6">{st.position}</span>
                       {st.Constructor.name}
                     </span>
-                    <span className="font-bold text-white">{st.points} <span className="text-white/40 text-xs">PTS</span></span>
+                    <span className="font-bold text-chalk">{st.points} <span className="text-faint text-xs">PTS</span></span>
                   </li>
                 ))}
               </ul>
@@ -252,18 +226,18 @@ export default function HistoricalArchive() {
         ) : tab === "racedetails" && selectedRace ? (
           /* Race Details View */
           <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="bg-gradient-to-r from-f1-red/20 to-transparent border-l-4 border-f1-red p-3 mb-4 rounded-r">
+            <div className="bg-gradient-to-r to-transparent border-l-4 border-live/40 p-3 mb-4 rounded-r">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="font-bold text-lg text-white">{selectedRace.raceName}</h3>
-                  <p className="text-sm text-white/70">
+                  <h3 className="font-bold text-lg text-chalk">{selectedRace.raceName}</h3>
+                  <p className="text-sm text-mute">
                     {selectedRace.Circuit.circuitName} — {selectedRace.Circuit.Location.locality}, {selectedRace.Circuit.Location.country}
                   </p>
-                  <p className="text-xs text-white/50 mt-1">{selectedRace.date}</p>
+                  <p className="text-xs text-faint mt-1">{selectedRace.date}</p>
                 </div>
                 <button
                   onClick={() => setReplaySession({ year, gp: selectedRace.Circuit.Location.locality })}
-                  className="bg-f1-red hover:bg-red-700 text-white px-4 py-2 rounded font-bold flex items-center gap-2 transition-colors shadow-[0_0_15px_rgba(225,6,0,0.4)]"
+                  className="bg-chalk text-tarmac hover:bg-white hover:bg-live/90 px-4 py-2 rounded-control font-bold flex items-center gap-2 transition-colors shadow-[0_0_15px_rgba(225,6,0,0.4)]"
                 >
                   <Play className="h-4 w-4 fill-current" />
                   REPLAY TELEMETRY
@@ -272,38 +246,38 @@ export default function HistoricalArchive() {
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-              <h4 className="text-xs text-f1-red font-bold tracking-widest mb-2 border-b border-white/10 pb-1">RACE CLASSIFICATION</h4>
+              <h4 className="text-xs text-chalk font-bold mb-2 border-b border-gantry pb-1">Race classification</h4>
               {loadingResults ? (
-                <div className="py-8 text-center text-white/40 animate-pulse font-bold">LOADING RESULTS...</div>
+                <div className="py-8 text-center text-faint animate-pulse font-bold">Loading results…</div>
               ) : raceResults.length === 0 ? (
-                <div className="py-8 text-center text-white/40">NO RESULTS AVAILABLE FOR THIS ROUND YET</div>
+                <div className="py-8 text-center text-faint">No results for this round yet</div>
               ) : (
                 <table className="w-full text-left border-collapse text-sm">
-                  <thead className="sticky top-0 bg-black/90 backdrop-blur z-10 text-white/40 text-xs">
+                  <thead className="sticky top-0 bg-kerb backdrop-blur z-10 text-faint text-xs">
                     <tr>
                       <th className="py-2 px-2 font-bold">POS</th>
                       <th className="py-2 px-2 font-bold">NO</th>
-                      <th className="py-2 px-2 font-bold">DRIVER</th>
+                      <th className="py-2 px-2 font-bold">Driver</th>
                       <th className="py-2 px-2 font-bold">CAR</th>
                       <th className="py-2 px-2 font-bold">LAPS</th>
-                      <th className="py-2 px-2 font-bold">TIME/RETIRED</th>
+                      <th className="py-2 px-2 font-bold">Time or status</th>
                       <th className="py-2 px-2 font-bold">PTS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {raceResults.map(res => (
-                      <tr key={res.number} className="border-b border-white/5 hover:bg-white/5 transition-colors">
+                      <tr key={res.number} className="border-b border-gantry hover:bg-raised transition-colors">
                         <td className="py-2.5 px-2 font-bold">{res.position}</td>
-                        <td className="py-2.5 px-2 text-white/50">{res.number}</td>
+                        <td className="py-2.5 px-2 text-faint">{res.number}</td>
                         <td className="py-2.5 px-2 font-bold">
                           {res.Driver.givenName} {res.Driver.familyName.toUpperCase()}
                         </td>
-                        <td className="py-2.5 px-2 text-white/70">{res.Constructor.name}</td>
-                        <td className="py-2.5 px-2 text-white/70">{res.laps}</td>
+                        <td className="py-2.5 px-2 text-mute">{res.Constructor.name}</td>
+                        <td className="py-2.5 px-2 text-mute">{res.laps}</td>
                         <td className="py-2.5 px-2 font-medium">
                           {res.Time?.time || res.status}
                         </td>
-                        <td className="py-2.5 px-2 font-bold text-f1-yellow">{res.points !== "0" ? res.points : ""}</td>
+                        <td className="py-2.5 px-2 font-bold text-timing-yellow">{res.points !== "0" ? res.points : ""}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -332,24 +306,24 @@ export default function HistoricalArchive() {
                   setTab("racedetails");
                   loadRaceDetails(r.round);
                 }}
-                className="bg-white/5 border border-white/10 rounded p-3 hover:bg-white/10 hover:border-f1-red/50 cursor-pointer flex justify-between items-center transition-all group"
+                className="bg-raised border border-gantry rounded-control p-3 hover:bg-raised hover:border-live/40 cursor-pointer flex justify-between items-center transition-all group"
               >
                 <div className="flex items-center gap-4">
-                  <div className="bg-black/50 border border-white/10 px-3 py-2 rounded text-center min-w-[60px]">
-                    <div className="text-[10px] text-white/50 font-bold tracking-widest">RND</div>
-                    <div className="font-bold text-lg text-white">{r.round}</div>
+                  <div className="bg-kerb border border-gantry px-3 py-2 rounded-control text-center min-w-[60px]">
+                    <div className="text-[10px] text-faint font-bold">RND</div>
+                    <div className="font-bold text-lg text-chalk">{r.round}</div>
                   </div>
                   <div>
-                    <h3 className="font-bold text-white text-base group-hover:text-f1-red transition-colors">{r.raceName}</h3>
-                    <p className="text-sm text-white/50">{r.Circuit.circuitName}, {r.Circuit.Location.country}</p>
-                    <p className="text-xs text-white/30 mt-1 flex items-center gap-1"><Calendar className="h-3 w-3"/> {r.date}</p>
+                    <h3 className="font-bold text-chalk text-base group-hover:text-chalk transition-colors">{r.raceName}</h3>
+                    <p className="text-sm text-faint">{r.Circuit.circuitName}, {r.Circuit.Location.country}</p>
+                    <p className="text-xs text-faint mt-1 flex items-center gap-1"><Calendar className="h-3 w-3"/> {r.date}</p>
                   </div>
                 </div>
                 <div className="text-right flex items-center gap-2">
-                  <span className="text-xs font-bold bg-f1-red text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-xs font-bold bg-chalk text-tarmac hover:bg-white px-2 py-1 rounded-control opacity-0 group-hover:opacity-100 transition-opacity">
                     DETAILS
                   </span>
-                  <ChevronRight className="h-5 w-5 text-white/30 group-hover:text-white transition-colors" />
+                  <ChevronRight className="h-5 w-5 text-faint group-hover:text-chalk transition-colors" />
                 </div>
               </div>
             ))}
