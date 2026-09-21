@@ -88,3 +88,12 @@ async def test_is_token_revoked_defaults_to_false_when_redis_unavailable(monkeyp
     monkeypatch.setattr(auth_service_module.redis_service, "client", None)
 
     assert await is_token_revoked("any-jti") is False
+
+
+def test_verify_password_rejects_passwords_longer_than_bcrypts_72_byte_limit():
+    hashed = hash_password("a-normal-password")
+    assert verify_password("x" * 100, hashed) is False
+
+
+def test_verify_password_returns_false_for_a_malformed_stored_hash():
+    assert verify_password("anything", "not-a-bcrypt-hash") is False

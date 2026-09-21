@@ -9,13 +9,27 @@ from app.core.config import settings
 from app.services.redis_service import redis_service
 
 
+# bcrypt only ever looks at the first 72 *bytes* of a password (and current
+# versions raise rather than silently truncate). Callers validate against this;
+# it's a byte limit, not a character limit -- "é" is 2 bytes.
+MAX_PASSWORD_BYTES = 72
+
+
 def hash_password(password: str) -> str:
     hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
     return hashed.decode("utf-8")
 
 
 def verify_password(password: str, password_hash: str) -> bool:
-    return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
+    """Never raises: a password longer than bcrypt's limit can't have been the one
+    that was hashed, and a malformed stored hash can't match anything."""
+    password_bytes = password.encode("utf-8")
+    if len(password_bytes) > MAX_PASSWORD_BYTES:
+        return False
+    try:
+        return bcrypt.checkpw(password_bytes, password_hash.encode("utf-8"))
+    except ValueError:
+        return False
 
 
 ALGORITHM = "HS256"

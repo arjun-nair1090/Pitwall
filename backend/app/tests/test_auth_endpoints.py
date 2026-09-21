@@ -139,3 +139,90 @@ def test_logout_revokes_the_token_so_it_cannot_be_reused(monkeypatch):
     replay_client.cookies.set("session", stolen_session_cookie)
     response = replay_client.get("/api/v1/auth/me")
     assert response.status_code == 401
+
+
+# --- input hardening ----------------------------------------------------------
+
+import pytest  # noqa: E402
+
+
+def _post_signup(email, password="valid-password-1", display_name="Tester"):
+    return _client().post("/api/v1/auth/signup", json={
+        "email": email, "password": password, "display_name": display_name,
+    })
+
+
+def test_signup_rejects_passwords_over_72_bytes_even_when_under_72_characters():
+    # bcrypt limits the password to 72 *bytes*. 40 accented characters is 80 bytes:
+    # previously this passed the length check and crashed hashing with a 500.
+    response = _post_signup("multibyte-long@example.com", password="é" * 40)
+    assert response.status_code == 422
+
+
+def test_signup_accepts_a_multibyte_password_of_exactly_72_bytes():
+    response = _post_signup("multibyte-ok@example.com", password="é" * 36)
+    assert response.status_code == 200
+
+
+def test_login_with_an_overlong_password_is_a_clean_401_not_a_500():
+    _post_signup("overlong-login@example.com", password="correct-password-9")
+    response = _client().post("/api/v1/auth/login", json={
+        "email": "overlong-login@example.com", "password": "x" * 500,
+    })
+    assert response.status_code == 401
+
+
+def test_emails_are_case_insensitive_and_stored_normalized():
+    response = _post_signup("  MiXeD.Case@Example.COM ")
+    assert response.status_code == 200
+    assert response.json()["email"] == "mixed.case@example.com"
+
+    login = _client().post("/api/v1/auth/login", json={
+        "email": "MIXED.case@example.com", "password": "valid-password-1",
+    })
+    assert login.status_code == 200
+
+
+def test_signup_treats_emails_differing_only_by_case_as_duplicates():
+    assert _post_signup("dupe.case@example.com").status_code == 200
+    assert _post_signup("DUPE.CASE@example.com").status_code == 409
+
+
+@pytest.mark.parametrize("bad_email", ["notanemail", "a@b", "a b@example.com", "@example.com", "user@", "user@@example.com", "u@" + "x" * 300 + ".com"])
+def test_signup_rejects_malformed_emails(bad_email):
+    assert _post_signup(bad_email).status_code == 422
+
+
+@pytest.mark.parametrize("bad_name", ["", "   ", "x" * 51])
+def test_signup_rejects_invalid_display_names(bad_name):
+    assert _post_signup("name-check@example.com", display_name=bad_name).status_code == 422
+
+
+def test_signup_trims_display_names_and_allows_the_maximum_length():
+    response = _post_signup("name-trim@example.com", display_name="  " + "n" * 50 + "  ")
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "n" * 50
+
+
+def test_login_still_verifies_a_password_hash_for_unknown_emails(monkeypatch):
+    # An unknown email must cost the same as a wrong password, otherwise response
+    # time reveals which addresses are registered.
+    import app.api.v1.auth_endpoints as endpoints_module
+    calls = []
+    real_verify = endpoints_module.verify_password
+
+    def spy(password, password_hash):
+        calls.append(password_hash)
+        return real_verify(password, password_hash)
+
+    monkeypatch.setattr(endpoints_module, "verify_password", spy)
+    response = _client().post("/api/v1/auth/login", json={"email": "nobody-here@example.com", "password": "whatever-1"})
+    assert response.status_code == 401
+    assert len(calls) == 1
+
+
+def test_auth_cookies_share_the_tokens_lifetime():
+    response = _post_signup("cookie-life@example.com")
+    set_cookies = [v for k, v in response.headers.multi_items() if k.lower() == "set-cookie"]
+    assert len(set_cookies) == 2
+    assert all("Max-Age=86400" in c for c in set_cookies)
