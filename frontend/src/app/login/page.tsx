@@ -5,6 +5,7 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import { LogIn, UserPlus } from "lucide-react";
 import { useF1Store } from "@/store/useTelemetryStore";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,7 +28,7 @@ export default function LoginPage() {
       setCurrentUser(res.data);
       router.push("/predictions");
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Something went wrong.");
+      setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -43,22 +44,31 @@ export default function LoginPage() {
       <form onSubmit={submit} className="glass-panel p-6 rounded-xl border border-white/5 space-y-4">
         {mode === "signup" && (
           <input
-            type="text" placeholder="Display name" value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)} required
+            type="text" placeholder="Display name" aria-label="Display name" value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)} required maxLength={50}
+            autoComplete="nickname"
             className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium"
           />
         )}
         <input
-          type="email" placeholder="Email" value={email}
-          onChange={(e) => setEmail(e.target.value)} required
+          type="email" placeholder="Email" aria-label="Email" value={email}
+          onChange={(e) => setEmail(e.target.value)} required maxLength={254}
+          autoComplete="email"
           className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium"
         />
-        <input
-          type="password" placeholder="Password" value={password}
-          onChange={(e) => setPassword(e.target.value)} required
-          className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium"
-        />
-        {error && <p className="text-red-400 text-sm font-titillium">{error}</p>}
+        <div>
+          <input
+            type="password" placeholder="Password" aria-label="Password" value={password}
+            onChange={(e) => setPassword(e.target.value)} required
+            minLength={mode === "signup" ? 8 : undefined}
+            autoComplete={mode === "signup" ? "new-password" : "current-password"}
+            className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium"
+          />
+          {mode === "signup" && (
+            <p className="text-white/40 text-xs font-titillium mt-1.5">At least 8 characters.</p>
+          )}
+        </div>
+        {error && <p className="text-red-400 text-sm font-titillium" role="alert">{error}</p>}
         <button
           type="submit" disabled={loading}
           className="w-full bg-f1-red hover:bg-red-700 text-white font-titillium font-bold py-2.5 rounded-md transition-colors disabled:opacity-40"
@@ -67,7 +77,10 @@ export default function LoginPage() {
         </button>
         <button
           type="button"
-          onClick={() => setMode(mode === "login" ? "signup" : "login")}
+          onClick={() => {
+            setMode(mode === "login" ? "signup" : "login");
+            setError("");
+          }}
           className="w-full text-white/50 hover:text-white text-sm font-titillium"
         >
           {mode === "login" ? "Need an account? Sign up" : "Already have an account? Log in"}

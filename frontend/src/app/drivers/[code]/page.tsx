@@ -5,6 +5,7 @@ import axios from "axios";
 import { User, Trophy, FileText } from "lucide-react";
 import TableSkeleton from "@/components/TableSkeleton";
 import ErrorState from "@/components/ErrorState";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 interface DriverStanding {
   position: number;
@@ -49,7 +50,7 @@ export default function DriverSeasonPage({
     axios
       .get<SeasonInsightsResponse>(`/api/v1/drivers/${driverCode}/season-insights?year=${year}`)
       .then((res) => setData(res.data))
-      .catch((err) => setError(err.response?.data?.detail || "Failed to load driver season data."))
+      .catch((err) => setError(getApiErrorMessage(err, "Failed to load driver season data.")))
       .finally(() => setLoading(false));
   };
 

@@ -15,6 +15,7 @@ import {
   ReferenceLine
 } from "recharts";
 import DominanceMap from "@/components/DominanceMap";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 interface TelemetryPoint {
   distance: number;
@@ -113,7 +114,7 @@ export default function ComparePage() {
       });
       setData(res.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to load comparison data.");
+      setError(getApiErrorMessage(err, "Failed to load comparison data."));
     } finally {
       setLoading(false);
     }
