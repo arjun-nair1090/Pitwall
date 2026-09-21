@@ -4,12 +4,12 @@ import { cn } from "@/lib/cn";
 // The leading bar is red, so the mark reads as the leader's row.
 export function Mark({ className }: { className?: string }) {
   return (
-    <svg width="24" height="20" viewBox="0 0 24 20" aria-hidden className={cn("shrink-0", className)}>
-      <g transform="skewX(-14)" transform-origin="0 20">
-        <rect x="3" y="2" width="21" height="4" fill="rgb(var(--f1-red))" />
-        <rect x="3" y="8" width="14" height="4" fill="currentColor" />
-        <rect x="3" y="14" width="7" height="4" fill="currentColor" />
-      </g>
+    // The lean is baked into the points rather than applied as a transform, so the mark needs no
+    // transform attributes and scales cleanly at any size.
+    <svg width="25" height="20" viewBox="0 0 25 20" aria-hidden className={cn("shrink-0", className)}>
+      <polygon points="3.99,2 24.99,2 23.99,6 2.99,6" fill="rgb(var(--f1-red))" />
+      <polygon points="2.49,8 16.49,8 15.49,12 1.49,12" fill="currentColor" />
+      <polygon points="1,14 8,14 7,18 0,18" fill="currentColor" />
     </svg>
   );
 }
