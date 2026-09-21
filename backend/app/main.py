@@ -9,6 +9,7 @@ from app.services.f1_data_service import f1_service
 from app.services.redis_service import redis_service
 from app.api.v1.endpoints import router as api_router
 from app.api.v1.auth_endpoints import router as auth_router
+from app.api.v1.insights_endpoints import router as insights_router
 from app.core.database import Base, engine
 
 
@@ -71,6 +72,7 @@ app.add_middleware(
 # Connect api endpoints
 app.include_router(api_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
+app.include_router(insights_router, prefix="/api/v1")
 
 @app.get("/")
 async def root():
