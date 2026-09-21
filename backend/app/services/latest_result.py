@@ -171,3 +171,37 @@ def latest_classification(
     if candidates and len(errors) == len(candidates):
         raise errors[-1]  # everything failed with a real error: surface it, don't say "no results"
     raise NoResultsError("No completed race results are available yet.")
+
+
+def race_results(
+    year: int,
+    round_number: int,
+    *,
+    load_results: Callable[[int, Any], pd.DataFrame] = _load_results,
+) -> Dict[str, Any]:
+    """Final classification of any race (by round), with points and team colours, for the archive.
+    Finished results never change, so they are cached. Blocking -- call via asyncio.to_thread."""
+    from app.services.session_info import FALLBACK_COLOR, team_colour
+
+    key = ("round", year, round_number)
+    cached = _RESULTS_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    try:
+        results = load_results(year, round_number)
+    except ValueError as e:  # FastF1 rejects a round the season doesn't have
+        raise NoResultsError(f"There's no round {round_number} in {year}.") from e
+    classification = build_classification(results)  # raises NoResultsError when unpublished
+
+    by_code = {str(r["Abbreviation"]): r for _, r in results.iterrows()}
+    for row in classification:
+        source = by_code.get(row["code"])
+        points = source.get("Points") if source is not None else None
+        row["points"] = None if points is None or pd.isna(points) else float(points)
+        colour = source.get("TeamColor") if source is not None else None
+        row["color"] = team_colour(colour) if colour is not None and not pd.isna(colour) else FALLBACK_COLOR
+
+    payload = {"year": year, "round": round_number, "classification": classification}
+    _RESULTS_CACHE.set(key, payload)
+    return payload

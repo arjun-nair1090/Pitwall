@@ -53,7 +53,7 @@ def load_session(
     return session
 
 
-def _colour(value: Any) -> str:
+def team_colour(value: Any) -> str:
     text = str(value).strip().lstrip("#") if value is not None and not pd.isna(value) else ""
     return f"#{text.upper()}" if len(text) == 6 else FALLBACK_COLOR
 
@@ -73,7 +73,7 @@ def driver_profile(session, code: str) -> Dict[str, str]:
     if "TeamName" in row.index and not pd.isna(row["TeamName"]):
         profile["team"] = str(row["TeamName"])
     if "TeamColor" in row.index:
-        profile["color"] = _colour(row["TeamColor"])
+        profile["color"] = team_colour(row["TeamColor"])
     return profile
 
 
@@ -135,7 +135,7 @@ def _driver_entry(code: str, driver_laps: pd.DataFrame, result_row: Optional[pd.
         "code": code,
         "name": str(field("FullName", code)),
         "team": str(field("TeamName", "")),
-        "color": _colour(field("TeamColor", None)),
+        "color": team_colour(field("TeamColor", None)),
         "position": int(position) if position is not None else None,
         "laps": int(driver_laps["LapNumber"].max()) if not driver_laps.empty else 0,
         "fastest_lap": int(fastest["LapNumber"]) if fastest is not None else None,

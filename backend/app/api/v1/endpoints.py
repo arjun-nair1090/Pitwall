@@ -284,6 +284,17 @@ async def get_latest_race_result():
         print(f"latest-result failed: {e}")  # log the cause; the client only needs what to try next
         raise HTTPException(status_code=502, detail="Couldn't load the latest race result. Try again shortly.")
 
+@router.get("/races/results")
+async def get_race_results(year: int = Query(...), round: int = Query(...)):
+    """Final classification of a past race: positions, grid, status, points and team colours."""
+    try:
+        return await asyncio.to_thread(latest_result.race_results, year, round)
+    except NoResultsError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"race results failed for {year} round {round}: {e}")  # log the cause; the client only needs what to try next
+        raise HTTPException(status_code=502, detail="Couldn't load this race's results. Try again shortly.")
+
 @router.get("/drivers/known-codes")
 async def get_known_driver_codes():
     """Static fallback list of recent driver codes for UI dropdowns.
