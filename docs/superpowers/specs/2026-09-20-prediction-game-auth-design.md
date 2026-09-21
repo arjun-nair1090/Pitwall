@@ -1,6 +1,6 @@
 # Prediction Game & Auth (Roadmap Phase 5, item 3)
 
-Status: approved, not yet implemented
+Status: implemented (Tasks 1-8 of the plan) and security-reviewed; see "Post-implementation security review" below
 Date: 2026-09-20
 Relates to: `PITWALL_FIX_AND_FEATURE_ROADMAP.md` Phase 5 ("Prediction game / leaderboard")
 
