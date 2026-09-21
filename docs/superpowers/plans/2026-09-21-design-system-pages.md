@@ -913,6 +913,8 @@ export default function Workspace({ name, panels, defaults, rowHeight = 56, rese
         isDraggable={desktop}
         isResizable={desktop}
         draggableHandle=".panel-drag-handle"
+        // Buttons in the title strip (Expand) must click, not start a drag.
+        draggableCancel="button, a, input, select, textarea"
         onBreakpointChange={(bp: string) => setBreakpoint(bp)}
         onLayoutChange={(_current: unknown, all: Layouts) => {
           setLayouts(all);

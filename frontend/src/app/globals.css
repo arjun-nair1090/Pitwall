@@ -103,6 +103,16 @@
   animation: blink 1.5s infinite;
 }
 
+/* react-grid-layout: match the design tokens */
+.react-grid-item.react-grid-placeholder {
+  background: rgb(var(--edge));
+  opacity: 0.25;
+  border-radius: var(--radius-panel);
+}
+.react-grid-item > .react-resizable-handle::after {
+  border-color: rgb(var(--edge));
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
