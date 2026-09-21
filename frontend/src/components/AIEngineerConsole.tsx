@@ -181,7 +181,7 @@ export default function AIEngineerConsole() {
       ) : (
         <div {...tabPanelProps("engineer", "strategist")} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-xs font-medium text-mute">Live pit predictions</h3>
+            <h3 className="font-display text-[11px] font-bold uppercase tracking-[0.12em] text-mute">Live pit predictions</h3>
             <Button size="sm" variant="ghost" onClick={fetchStrategy} disabled={!activeSession}>
               <RotateCw aria-hidden className="h-3.5 w-3.5" />
               Refresh
@@ -218,7 +218,7 @@ export default function AIEngineerConsole() {
               )}
 
               <div>
-                <h3 className="mb-1 text-xs font-medium text-mute">Tyre life estimates</h3>
+                <h3 className="mb-1 font-display text-[11px] font-bold uppercase tracking-[0.12em] text-mute">Tyre life estimates</h3>
                 <DataTable
                   caption="Tyre life estimates"
                   columns={WINDOW_COLUMNS}

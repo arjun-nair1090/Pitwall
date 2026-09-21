@@ -21,8 +21,8 @@ describe("chartTheme", () => {
     expect(seriesColor("McLaren", 0)).toBe("#FF8000");
   });
   it("falls back to neutral greys by index for unknown teams", () => {
-    expect(seriesColor(null, 0)).toBe("#E8EBEF");
-    expect(seriesColor("???", 1)).toBe("#A6AEBB");
+    expect(seriesColor(null, 0)).toBe("#F0F0F5");
+    expect(seriesColor("???", 1)).toBe("#ACACBE");
   });
   it("dashes every second series so teammates stay distinguishable", () => {
     expect(seriesDash(0)).toBeUndefined();

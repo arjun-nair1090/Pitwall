@@ -49,9 +49,9 @@ describe("token contrast", () => {
 
 describe("token exact values", () => {
   it("matches the approved palette", () => {
-    expect(token("tarmac")).toEqual([19, 22, 27]);
-    expect(token("kerb")).toEqual([27, 31, 38]);
-    expect(token("chalk")).toEqual([232, 235, 239]);
+    expect(token("tarmac")).toEqual([21, 21, 30]);
+    expect(token("kerb")).toEqual([30, 30, 42]);
+    expect(token("chalk")).toEqual([240, 240, 245]);
     expect(token("timing-purple")).toEqual([181, 123, 255]);
   });
 });

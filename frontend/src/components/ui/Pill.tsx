@@ -10,9 +10,16 @@ const TONE: Record<Tone, string> = {
   yellow: "border-timing-yellow/60 text-timing-yellow",
 };
 
+// Squared off, not a lozenge: timing graphics are cut with straight edges.
 export default function Pill({ tone = "neutral", children, className }: { tone?: Tone; children: ReactNode; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium tabular-nums", TONE[tone], className)}>
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-control border px-2 py-0.5 font-display text-[11px] font-bold uppercase tracking-[0.08em] tabular-nums",
+        TONE[tone],
+        className,
+      )}
+    >
       {children}
     </span>
   );

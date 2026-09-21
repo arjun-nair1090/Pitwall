@@ -8,11 +8,12 @@ import { useF1Store } from "@/store/useTelemetryStore";
 
 const AUTO_DISMISS_MS = 12000;
 
-// Colour is the severity: red for critical, yellow for caution, neutral for information.
-const SEVERITY_STYLES: Record<string, { border: string; text: string; Icon: typeof Info }> = {
-  critical: { border: "border-live/60", text: "text-live-text", Icon: AlertTriangle },
-  warning: { border: "border-timing-yellow/60", text: "text-timing-yellow", Icon: Flag },
-  info: { border: "border-edge", text: "text-chalk", Icon: Info },
+// Colour is the severity, and it is flown as a bar down the left edge, the way a marshal's flag
+// reads from the trackside: red for critical, yellow for caution, neutral for information.
+const SEVERITY_STYLES: Record<string, { border: string; bar: string; text: string; Icon: typeof Info }> = {
+  critical: { border: "border-live/60", bar: "bg-live", text: "text-live-text", Icon: AlertTriangle },
+  warning: { border: "border-timing-yellow/60", bar: "bg-timing-yellow", text: "text-timing-yellow", Icon: Flag },
+  info: { border: "border-edge", bar: "bg-edge", text: "text-chalk", Icon: Info },
 };
 
 function AlertCard({ id, severity, message }: { id: string; severity: string; message: string; timestamp: number }) {
@@ -27,9 +28,10 @@ function AlertCard({ id, severity, message }: { id: string; severity: string; me
 
   return (
     <div
-      className={cn("pointer-events-auto flex items-start gap-3 rounded-panel border bg-kerb p-3 pr-2", style.border)}
+      className={cn("pointer-events-auto relative flex items-start gap-3 overflow-hidden rounded-panel border bg-kerb p-3 pl-4 pr-2", style.border)}
       role="alert"
     >
+      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-1", style.bar)} />
       <Icon aria-hidden className={cn("mt-0.5 h-4 w-4 shrink-0", style.text)} />
       <p className={cn("flex-1 text-sm font-medium leading-snug", style.text)}>{message}</p>
       <IconButton label="Dismiss alert" onClick={() => dismissAlert(id)}>

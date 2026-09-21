@@ -20,8 +20,11 @@ describe("Button", () => {
     expect(b).toHaveAttribute("aria-busy", "true");
   });
   it("exposes its classes for links styled as buttons", () => {
-    expect(buttonClass({ variant: "primary" })).toContain("bg-chalk");
-    expect(buttonClass({ variant: "danger" })).toContain("bg-live");
+    // Red fills the primary action; danger is the same red as an outline, so only one thing on a
+    // page is ever a solid red block.
+    expect(buttonClass({ variant: "primary" })).toContain("bg-live");
+    expect(buttonClass({ variant: "danger" })).toContain("border-live");
+    expect(buttonClass({ variant: "danger" })).not.toContain(" bg-live");
   });
 });
 

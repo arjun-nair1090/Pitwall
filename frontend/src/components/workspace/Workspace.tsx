@@ -141,7 +141,7 @@ export default function Workspace({ name, panels, defaults, rowHeight = 56, rese
       {expanded && (
         <div role="dialog" aria-modal="true" aria-label={expanded.title} className="fixed inset-0 z-40 flex flex-col bg-tarmac p-3 md:p-6">
           <div className="flex items-center gap-3 pb-3">
-            <h2 className="font-display text-2xl font-extrabold text-chalk">{expanded.title}</h2>
+            <h2 className="font-display text-2xl font-black uppercase tracking-tight text-chalk">{expanded.title}</h2>
             <IconButton className="ml-auto" label="Exit full screen" onClick={close} autoFocus>
               <Minimize2 aria-hidden className="h-4 w-4" />
             </IconButton>

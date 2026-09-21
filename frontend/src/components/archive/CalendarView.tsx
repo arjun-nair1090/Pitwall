@@ -17,7 +17,7 @@ interface CalendarViewProps {
 function RaceInfo({ race }: { race: CalendarRace }) {
   return (
     <>
-      <span className="w-8 text-right font-display text-2xl font-extrabold leading-none tabular-nums text-faint" aria-hidden>
+      <span className="w-8 text-right font-display text-2xl font-black leading-none tabular-nums text-faint" aria-hidden>
         {race.round ?? "–"}
       </span>
       <span className="min-w-0">

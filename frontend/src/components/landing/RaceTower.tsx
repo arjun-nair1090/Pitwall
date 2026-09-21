@@ -30,13 +30,14 @@ export default function RaceTower({ rows, phase, reducedMotion, label, visibleRo
             key={row.code}
             layout={!reducedMotion}
             transition={{ type: "spring", stiffness: 380, damping: 36 }}
-            className="grid items-center border-b border-gantry/60 pr-3 text-sm tabular-nums"
+            className="grid items-center border-b border-gantry/60 pr-3 text-sm tabular-nums even:bg-raised/20"
             style={{ height: ROW_HEIGHT, gridTemplateColumns: "2.75rem 4px minmax(0,1fr) auto auto" }}
           >
-            <span className="text-center font-display text-2xl font-extrabold leading-none text-chalk">{index + 1}</span>
-            <span aria-hidden className="h-6 w-1 rounded-sm" style={{ background: teamColor(row.team) }} />
+            <span className="text-center font-display text-2xl font-black leading-none text-chalk">{index + 1}</span>
+            {/* The team's colour runs the full height of the row, flush, as it does on the real tower. */}
+            <span aria-hidden className="h-full w-1" style={{ background: teamColor(row.team) }} />
             <span className="min-w-0 truncate pl-3">
-              <span className="font-semibold text-chalk">{row.code}</span>{" "}
+              <span className="font-display font-bold uppercase tracking-[0.06em] text-chalk">{row.code}</span>{" "}
               <span className="hidden text-mute sm:inline">{row.name}</span>
             </span>
             <span className={row.finished || phase === "grid" ? "pl-3 text-right text-mute" : "pl-3 text-right text-live-text"}>

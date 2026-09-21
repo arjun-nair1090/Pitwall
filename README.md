@@ -45,13 +45,27 @@ distance and each driver's real stints), `GET /api/v1/races/results`, `POST /api
 
 ## Design system ("Timing Screen")
 
+The look is the official one: the near-black navy of a Formula 1 broadcast feed, F1 red, and squared-off
+graphics cut with a hairline rather than a curve.
+
 The UI follows one rule: **colour only carries meaning.** Chrome is greys and white; colour appears only as
 timing semantics (purple overall best, green personal best, yellow off pace), live/danger red, tyre compounds
-and team colours.
+and team colours. Red has exactly three jobs — the frame (the wordmark, the rule under the top bar, the bar
+beside a page title), the primary action, and the on-air state. Nothing else is ever a solid red block.
+
+White marks the thing you are on: the current page in the sidebar and the mobile tab bar, the selected tab,
+the channels switched on.
 
 - Tokens: `frontend/src/design/tokens.css` (checked for WCAG AA contrast by `tokens.test.ts`); Tailwind maps them in `tailwind.config.ts`.
 - Primitives: `frontend/src/components/ui/` (Panel, Button, Select, Input, Tabs, DataTable, ...). Shell and command palette: `components/shell/`.
-- Type: Big Shoulders Display for headlines and single numerals, Barlow Semi Condensed for UI and data (tabular figures), both self-hosted.
+- Type: Titillium Web for headlines, captions, labels and single numerals — the squared bowls and flat-cut
+  terminals of F1's own (proprietary) broadcast face — and Barlow Semi Condensed for UI and data (tabular
+  figures). Both self-hosted.
+- Upper case is the display face's voice: page titles, panel captions, column headers, form labels and
+  navigation. Prose — descriptions, empty states, errors, buttons — stays in sentence case, and
+  `check-legacy.mjs` fails on `uppercase` that isn't paired with `font-display`.
+- Tables read as timing towers: the team's colour flush to the left edge of the row, faint banding, tabular
+  figures and the position in the display face.
 - Adding a page: one entry in `frontend/src/lib/modules.ts` (the rail, mobile tab bar, palette and landing page all read it) plus the page itself.
 - Checks: `npm test`, `npm run typecheck`, `node scripts/check-legacy.mjs --all` (no legacy styles), and `node scripts/ui-sweep.mjs`
   (overflow, crashes, labels, heading count and contrast at 390/768/1280px; needs the dev server and API running).

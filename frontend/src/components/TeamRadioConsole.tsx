@@ -55,7 +55,7 @@ export default function TeamRadioConsole() {
   return (
     <div className="grid h-full min-h-0 grid-cols-1 divide-gantry md:grid-cols-2 md:divide-x">
       <section aria-labelledby="race-control-heading" className="flex min-h-0 flex-col p-3">
-        <h3 id="race-control-heading" className="mb-2 shrink-0 text-xs font-medium text-mute">Race control</h3>
+        <h3 id="race-control-heading" className="mb-2 shrink-0 font-display text-[11px] font-bold uppercase tracking-[0.12em] text-mute">Race control</h3>
         <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
           {raceControl.length > 0 ? (
             raceControl.map((msg, idx) => (
@@ -75,7 +75,7 @@ export default function TeamRadioConsole() {
 
       <section aria-labelledby="team-radio-heading" className="flex min-h-0 flex-col p-3">
         <div className="mb-2 flex shrink-0 items-center justify-between">
-          <h3 id="team-radio-heading" className="text-xs font-medium text-mute">Team radio</h3>
+          <h3 id="team-radio-heading" className="font-display text-[11px] font-bold uppercase tracking-[0.12em] text-mute">Team radio</h3>
           <Button size="sm" variant="ghost" onClick={fetchRadios} disabled={!activeSession}>
             <RotateCw aria-hidden className="h-3.5 w-3.5" />
             Refresh

@@ -10,6 +10,7 @@ import WhatIfPanel from "@/components/WhatIfPanel";
 import CompoundBadge from "@/components/CompoundBadge";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { DebriefResponse } from "@/lib/insights";
+import PageHeader from "@/components/ui/PageHeader";
 
 interface RaceOption {
   country: string;
@@ -115,14 +116,10 @@ function DebriefContent() {
 
   return (
     <div className="w-full py-4 md:p-8 max-w-5xl mx-auto space-y-8">
-      <div className="pb-5">
-        <h1 className="font-display text-3xl font-extrabold leading-none tracking-tight text-chalk md:text-4xl">
-          Race debrief
-        </h1>
-        <p className="mt-2 max-w-prose text-sm text-mute">
-          An auto-generated summary of how a race unfolded, built from the official results and lap data
-        </p>
-      </div>
+      <PageHeader
+        title="Race debrief"
+        description="How a race unfolded, written from the official results and lap data."
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>

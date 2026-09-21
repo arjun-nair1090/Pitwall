@@ -76,13 +76,13 @@ export default function LiveTiming() {
   }
 
   const columns = [BASE_COLUMNS, showSectors ? SECTOR_COLUMNS : null, TYRE_COLUMN].filter(Boolean).join(" ");
-  const head = "px-1 py-2 text-xs font-medium text-mute";
+  const head = "px-1 py-2 font-display text-[11px] font-bold uppercase tracking-[0.1em] text-mute";
 
   return (
     <div ref={containerRef} className="h-full overflow-auto">
       <div role="table" aria-label="Live timing tower" className="min-w-max text-sm tabular-nums">
-        <div role="rowgroup" className="sticky top-0 z-10 bg-kerb">
-          <div role="row" className="grid items-center border-b border-gantry pr-2" style={{ gridTemplateColumns: columns }}>
+        <div role="rowgroup" className="sticky top-0 z-10 border-b border-gantry bg-raised/60 backdrop-blur">
+          <div role="row" className="grid items-center pr-2" style={{ gridTemplateColumns: columns }}>
             <span role="columnheader" className={cn(head, "text-center")}>Pos</span>
             <span role="columnheader" aria-hidden className="w-1" />
             <span role="columnheader" className={head}>Driver</span>
@@ -116,21 +116,22 @@ export default function LiveTiming() {
                 layout={!reducedMotion}
                 transition={{ type: "spring", stiffness: 380, damping: 36 }}
                 className={cn(
-                  "grid h-10 items-center border-b border-gantry/60 pr-2 transition-colors hover:bg-raised/60",
-                  isSelected && "bg-raised",
+                  "grid h-10 items-center border-b border-gantry/60 pr-2 transition-colors even:bg-raised/20 hover:bg-raised/60",
+                  isSelected && "bg-raised even:bg-raised",
                 )}
                 style={{ gridTemplateColumns: columns }}
               >
-                <span role="cell" className="text-center font-display text-xl font-extrabold leading-none text-chalk">
+                <span role="cell" className="text-center font-display text-xl font-black leading-none text-chalk">
                   {timing.position || "–"}
                 </span>
-                <span role="cell" aria-hidden className="h-6 w-1 rounded-sm" style={{ backgroundColor: driver!.team_color }} />
+                {/* The team's colour runs the full height of the row, flush to its left edge. */}
+                <span role="cell" aria-hidden className="h-full w-1" style={{ backgroundColor: driver!.team_color }} />
                 <span role="cell" className="min-w-0 px-1">
                   <button
                     type="button"
                     aria-pressed={isSelected}
                     onClick={() => setSelectedDriverNum(isSelected ? null : number)}
-                    className="rounded-control px-1 py-2 font-semibold text-chalk hover:underline"
+                    className="rounded-control px-1 py-2 font-display font-bold uppercase tracking-[0.06em] text-chalk hover:underline"
                   >
                     {driver!.code}
                   </button>

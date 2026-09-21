@@ -55,8 +55,8 @@ export default function Tabs({ tabs, value, onChange, idBase, label, className }
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "-mb-px h-10 border-b-2 px-3 text-sm font-medium transition-colors",
-              selected ? "border-chalk text-chalk" : "border-transparent text-mute hover:text-chalk",
+              "-mb-px h-10 border-b-[3px] px-3 font-display text-xs font-bold uppercase tracking-[0.1em] transition-colors",
+              selected ? "border-chalk text-chalk" : "border-transparent text-mute hover:border-edge hover:text-chalk",
             )}
           >
             {tab.label}

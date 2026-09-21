@@ -55,7 +55,7 @@ export default function RaceDetail({ year, race, onBack }: RaceDetailProps) {
             <ArrowLeft aria-hidden className="h-4 w-4" />
             All races
           </Button>
-          <h2 className="font-display text-2xl font-extrabold leading-none text-chalk md:text-3xl">{race.event_name}</h2>
+          <h2 className="font-display text-2xl font-black leading-none text-chalk md:text-3xl">{race.event_name}</h2>
           <p className="mt-2 text-sm text-mute">
             Round {race.round} of {year}, {race.location}, {race.country}. {formatRaceDate(race.race_start_utc)}.
           </p>

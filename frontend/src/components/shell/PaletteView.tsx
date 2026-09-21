@@ -123,7 +123,7 @@ export default function PaletteView({ open, items, onClose, onSelect }: PaletteV
           ) : (
             groups.map((group) => (
               <div key={group.section} role="group" aria-label={group.section} className="mb-2 last:mb-0">
-                <p aria-hidden className="px-3 py-1.5 text-xs font-medium text-faint">{group.section}</p>
+                <p aria-hidden className="px-3 py-1.5 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-faint">{group.section}</p>
                 {group.items.map((item, offset) => {
                   const index = group.start + offset;
                   const selected = index === active;

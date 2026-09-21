@@ -80,7 +80,7 @@ export default function DriverLiveTelemetry() {
         </div>
         <div>
           <dt className="text-xs text-mute">Gear</dt>
-          <dd className="mt-1 font-display text-5xl font-extrabold leading-none text-chalk">{data.gear === 0 ? "N" : data.gear}</dd>
+          <dd className="mt-1 font-display text-5xl font-black leading-none text-chalk">{data.gear === 0 ? "N" : data.gear}</dd>
         </div>
       </dl>
 
