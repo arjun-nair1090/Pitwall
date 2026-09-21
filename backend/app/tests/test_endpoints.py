@@ -31,7 +31,7 @@ def test_strategy_simulate_invalid_stint_plan_does_not_crash():
     # once the session loads. If FastF1 itself can't reach network in CI, this
     # comes back as 500 with a network error -- assert it's one or the other,
     # never an unhandled exception (which TestClient would raise, not return).
-    assert response.status_code in (400, 500)
+    assert response.status_code in (400, 404, 502)
 
 
 def test_strategy_simulate_rejects_malformed_request_body():
