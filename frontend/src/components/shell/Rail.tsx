@@ -5,14 +5,16 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { findModuleForPath, GROUP_ORDER, MODULES } from "@/lib/modules";
 
+// Labels stay in the DOM (so links keep their accessible names) but are transparent while the
+// rail is collapsed; otherwise the first pixels of each label peek out past the 56px edge.
 export default function Rail() {
   const current = findModuleForPath(usePathname());
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-14 overflow-hidden border-r border-gantry bg-tarmac transition-[width] duration-150 hover:w-56 focus-within:w-56 md:block">
+    <aside className="group/rail fixed inset-y-0 left-0 z-30 hidden w-14 overflow-hidden border-r border-gantry bg-tarmac transition-[width] duration-150 hover:w-56 focus-within:w-56 md:block">
       <nav aria-label="Main" className="flex h-full flex-col px-2 py-3">
         <Link href="/" aria-label="Pit Wall home" className="mb-3 flex h-10 items-center gap-3 rounded-control px-2.5 hover:bg-raised">
-          <span aria-hidden className="h-5 w-1.5 shrink-0 rounded-sm bg-live" />
-          <span className="whitespace-nowrap font-display text-xl font-extrabold text-chalk">Pit Wall</span>
+          <span aria-hidden className="h-5 w-1.5 shrink-0 rounded-sm bg-chalk" />
+          <span className="whitespace-nowrap font-display text-xl font-extrabold text-chalk opacity-0 transition-opacity group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">Pit Wall</span>
         </Link>
         {GROUP_ORDER.map((group, index) => (
           <div
@@ -35,7 +37,7 @@ export default function Rail() {
                   )}
                 >
                   <Icon aria-hidden className="h-5 w-5 shrink-0" />
-                  <span>{m.label}</span>
+                  <span className="opacity-0 transition-opacity group-hover/rail:opacity-100 group-focus-within/rail:opacity-100">{m.label}</span>
                 </Link>
               );
             })}
