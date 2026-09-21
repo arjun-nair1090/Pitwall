@@ -3,7 +3,9 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { Loader2, Trophy, Medal } from "lucide-react";
+import { Trophy, Medal } from "lucide-react";
+import TableSkeleton from "@/components/TableSkeleton";
+import ErrorState from "@/components/ErrorState";
 
 interface DriverStanding {
   position: number;
@@ -79,17 +81,13 @@ export default function StatsPage() {
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-lg font-titillium">
-          {error}
-        </div>
-      )}
-
       {loading ? (
-        <div className="flex flex-col items-center justify-center h-64 gap-4">
-          <Loader2 className="w-8 h-8 text-f1-red animate-spin" />
-          <p className="text-white/50 font-titillium tracking-widest text-sm">LOADING STANDINGS...</p>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <TableSkeleton rows={10} columns={4} />
+          <TableSkeleton rows={10} columns={4} />
         </div>
+      ) : error ? (
+        <ErrorState title="Couldn't load standings" message={error} onRetry={fetchStandings} />
       ) : standings ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Driver Standings */}
