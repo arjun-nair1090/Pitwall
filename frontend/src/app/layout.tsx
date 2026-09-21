@@ -23,6 +23,27 @@ const titillium = localFont({
   display: "swap",
 });
 
+const display = localFont({
+  src: [
+    { path: "../fonts/big-shoulders-display-latin-700-normal.woff2", weight: "700", style: "normal" },
+    { path: "../fonts/big-shoulders-display-latin-800-normal.woff2", weight: "800", style: "normal" },
+    { path: "../fonts/big-shoulders-display-latin-900-normal.woff2", weight: "900", style: "normal" },
+  ],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const ui = localFont({
+  src: [
+    { path: "../fonts/barlow-semi-condensed-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/barlow-semi-condensed-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/barlow-semi-condensed-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/barlow-semi-condensed-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-ui",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "F1 Pit Wall",
   description: "Real-time F1 telemetry dashboard",
@@ -34,8 +55,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${titillium.variable}`}>
-      <body className="bg-black text-white font-titillium antialiased">
+    <html lang="en" className={`${display.variable} ${ui.variable} ${titillium.variable}`}>
+      <body className="bg-tarmac font-sans text-chalk antialiased">
         <AppInitializer>
           <div className="relative min-h-screen w-full overflow-hidden">
             {/* Background layer: animated 3D hero on landing, flat background elsewhere */}
