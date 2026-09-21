@@ -31,8 +31,21 @@ The F1 Pit Wall Platform is an ultra-high-performance historical telemetry and s
 - Call the top 3 for an upcoming race; picks lock at lights-out (checked against the official UTC schedule) and are scored against the real result: 25 points for an exact podium, 10 per driver in the real top 3. Public season leaderboard.
 - Known gaps, by design: no email verification / password reset, no rate limiting on login and signup, and signup reveals whether an email is registered.
 
+## Design system ("Timing Screen")
+
+The UI follows one rule: **colour only carries meaning.** Chrome is greys and white; colour appears only as
+timing semantics (purple overall best, green personal best, yellow off pace), live/danger red, tyre compounds
+and team colours.
+
+- Tokens: `frontend/src/design/tokens.css` (checked for WCAG AA contrast by `tokens.test.ts`); Tailwind maps them in `tailwind.config.ts`.
+- Primitives: `frontend/src/components/ui/` (Panel, Button, Select, Input, Tabs, DataTable, ...). Shell and command palette: `components/shell/`.
+- Type: Big Shoulders Display for headlines and single numerals, Barlow Semi Condensed for UI and data (tabular figures), both self-hosted.
+- Adding a page: one entry in `frontend/src/lib/modules.ts` (the rail, mobile tab bar, palette and landing page all read it) plus the page itself.
+- Checks: `npm test`, `npm run typecheck`, `node scripts/check-legacy.mjs --all` (no legacy styles), and `node scripts/ui-sweep.mjs`
+  (overflow, crashes, labels, heading count and contrast at 390/768/1280px; needs the dev server and API running).
+
 ## Tech Stack
-- **Frontend**: Next.js 14, React, Tailwind CSS, Recharts, Lucide React, Three.js (landing page only).
+- **Frontend**: Next.js 14, React, Tailwind CSS, Recharts, framer-motion, react-grid-layout, Lucide React.
 - **Backend**: Python 3.12, FastAPI, FastF1 (Data Engine), SQLAlchemy + PostgreSQL, Redis, ChromaDB, LangGraph.
 - **AI**: Anthropic (default `claude-opus-5`) with an OpenAI fallback; both model IDs are configurable via `ANTHROPIC_MODEL` / `OPENAI_MODEL`.
 - **Infrastructure**: Docker, Docker Compose.
