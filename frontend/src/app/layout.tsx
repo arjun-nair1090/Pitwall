@@ -5,6 +5,7 @@ import AppShell from "@/components/shell/AppShell";
 import localFont from "next/font/local";
 import "@/design/tokens.css";
 import "./globals.css";
+import { RAIL_INIT_SCRIPT } from "@/lib/railScript";
 
 // Self-hosted (see src/fonts/) instead of next/font/google: the Google Fonts fetch at `next build`
 // time has no fallback and hard-fails the build on flaky or blocked networks (corporate proxies,
@@ -47,7 +48,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${display.variable} ${ui.variable}`}>
+    // suppressHydrationWarning: the script below sets data-rail on <html> before React hydrates.
+    <html lang="en" className={`${display.variable} ${ui.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: RAIL_INIT_SCRIPT }} />
+      </head>
       <body className="bg-tarmac font-sans text-chalk antialiased">
         <AppInitializer>
           <LiveAlertBanner />
