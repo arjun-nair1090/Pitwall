@@ -9,6 +9,18 @@ interface ChangelogEntry {
 const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-22",
+    title: "A new look, and a live workspace",
+    items: [
+      "A new visual design across every page. Colour now only ever carries meaning: purple for the fastest time, green for a personal best, yellow for off the pace, red for live and alerts, plus tyre and team colours.",
+      "Press Ctrl+K (or /) to search any page, driver or race. On a phone, the bottom bar has your five most-used pages and a More button.",
+      "Live timing is now a workspace: drag panels by their titles, resize them, expand any panel to full screen, and your layout is remembered. Reset layout puts everything back.",
+      "The home page now shows the latest race result as a race tower, with the five start lights on your first visit of a session (skippable, and off when your device asks for reduced motion).",
+      "Lap and sector times only claim a personal best once a driver has shown you a comparison, and lapped cars no longer show a misleading gap.",
+      "Fixes: the calendar dropdowns no longer list a country twice, keyboard focus is visible on every control, and duplicate session alerts are gone.",
+    ],
+  },
+  {
+    date: "2026-09-22",
     title: "Race debriefs, what-if strategy, and a mobile pass",
     items: [
       "New Race debrief: an auto-written summary of any race since 2018 with the podium, fastest lap, tyre strategies, movers, retirements and safety cars. Every debrief has a shareable link.",
@@ -85,7 +97,7 @@ export default function ChangelogPage() {
 
       <div className="space-y-10">
         {CHANGELOG.map((entry) => (
-          <div key={entry.date} className="relative pl-8 border-l border-gantry">
+          <div key={`${entry.date}-${entry.title}`} className="relative pl-8 border-l border-gantry">
             <div className="absolute left-[-5px] top-1 h-2.5 w-2.5 rounded-full bg-live" />
             <div className="text-xs text-faint tabular-nums mb-1">{entry.date}</div>
             <h2 className="text-xl font-bold text-chalk mb-3">{entry.title}</h2>
