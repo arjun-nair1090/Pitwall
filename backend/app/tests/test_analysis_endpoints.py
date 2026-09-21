@@ -126,3 +126,30 @@ def test_calendar_reports_round_numbers(monkeypatch):
     monkeypatch.setattr(fastf1, "get_event_schedule", lambda year: df)
     races = client.get("/api/v1/races/historical", params={"year": 2026}).json()
     assert [r["round"] for r in races] == [1, 2]
+
+
+def test_calendar_lists_the_sessions_each_weekend_actually_has(monkeypatch):
+    from app.tests.test_endpoints import _fake_calendar
+
+    df = _fake_calendar()
+    df["RoundNumber"] = [0, 1, 2]
+    names = ["Practice 1", "Practice 2", "Practice 3", "Qualifying", "Race"]
+    sprint = ["Practice 1", "Sprint Qualifying", "Sprint", "Qualifying", "Race"]
+    for i in range(5):
+        df[f"Session{i + 1}"] = [None, names[i], sprint[i]]
+    monkeypatch.setattr(fastf1, "get_event_schedule", lambda year: df)
+    races = client.get("/api/v1/races/historical", params={"year": 2026}).json()
+    assert races[0]["sessions"] == ["FP1", "FP2", "FP3", "Q", "R"]
+    assert races[1]["sessions"] == ["FP1", "SQ", "S", "Q", "R"]
+
+
+def test_calendar_skips_session_names_it_does_not_know(monkeypatch):
+    from app.tests.test_endpoints import _fake_calendar
+
+    df = _fake_calendar()
+    df["RoundNumber"] = [0, 1, 2]
+    df["Session1"] = [None, "Mystery Session", "Practice 1"]
+    monkeypatch.setattr(fastf1, "get_event_schedule", lambda year: df)
+    races = client.get("/api/v1/races/historical", params={"year": 2026}).json()
+    assert "Mystery Session" not in str(races[0]["sessions"])
+    assert races[0]["sessions"] == ["R"]  # only the fake calendar's Race slot is recognised
