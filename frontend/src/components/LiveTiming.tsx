@@ -40,7 +40,7 @@ export default function LiveTiming() {
         </div>
       ) : (
       <div className="flex-1 overflow-auto custom-scrollbar">
-        <table className="w-full text-left border-collapse text-sm font-titillium tracking-wide">
+        <table className="w-full text-left border-collapse text-sm font-titillium tracking-wide tabular-nums">
           <thead className="sticky top-0 bg-black/80 backdrop-blur-md z-10">
             <tr className="text-white/40 border-b border-f1-red/30 pb-2 text-xs">
               <th className="py-2 font-bold px-1">POS</th>

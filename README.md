@@ -20,9 +20,21 @@ The F1 Pit Wall Platform is an ultra-high-performance historical telemetry and s
 - **Race Calendar Filtering:** Actively filters the season calendar to only show completed races up to the current date.
 - **Dynamic Session Loading:** Easily switch between FP1, FP2, FP3, Qualifying, Sprint, and Race sessions.
 
+### 🧠 AI Race Engineer, Debrief & What-if
+- **Race Debrief (`/debrief`):** An auto-written summary of any race since 2018 -- result, podium gaps, fastest lap, tyre strategies, biggest climbers, retirements and safety cars -- with shareable links (`/debrief?year=2023&race=Belgian Grand Prix`).
+- **What-if counterfactuals:** Move a real driver's pit stop or change a stint's compound and see what the tyre-degradation model says it would have done to their race time. Implemented as a small LangGraph flow (`simulate` -> `explain`).
+- **Grounded by design:** every number comes from deterministic code over the official FastF1 data; the LLM only writes the wording, its output is checked against the real result, and both features fall back to a template if no API key is configured or the model's answer doesn't check out.
+- **Historical RAG:** the live AI Race Engineer can also answer cross-season questions from an ingested history corpus (see below).
+
+### 🎯 Accounts & Prediction Game
+- Email + password accounts (bcrypt, JWT in an httpOnly cookie, CSRF protection, server-side logout).
+- Call the top 3 for an upcoming race; picks lock at lights-out (checked against the official UTC schedule) and are scored against the real result: 25 points for an exact podium, 10 per driver in the real top 3. Public season leaderboard.
+- Known gaps, by design: no email verification / password reset, no rate limiting on login and signup, and signup reveals whether an email is registered.
+
 ## Tech Stack
-- **Frontend**: Next.js 14, React, Tailwind CSS, Recharts, Lucide React.
-- **Backend**: Python 3.12, FastAPI, FastF1 (Data Engine).
+- **Frontend**: Next.js 14, React, Tailwind CSS, Recharts, Lucide React, Three.js (landing page only).
+- **Backend**: Python 3.12, FastAPI, FastF1 (Data Engine), SQLAlchemy + PostgreSQL, Redis, ChromaDB, LangGraph.
+- **AI**: Anthropic (default `claude-opus-5`) with an OpenAI fallback; both model IDs are configurable via `ANTHROPIC_MODEL` / `OPENAI_MODEL`.
 - **Infrastructure**: Docker, Docker Compose.
 
 ## Running Locally

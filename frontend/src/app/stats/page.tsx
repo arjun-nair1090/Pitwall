@@ -98,7 +98,7 @@ export default function StatsPage() {
               Drivers' Championship
             </h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-left font-titillium">
+              <table className="w-full text-left font-titillium tabular-nums">
                 <thead>
                   <tr className="text-white/40 border-b border-white/10 text-xs">
                     <th className="pb-3 font-bold px-2">POS</th>
@@ -133,7 +133,7 @@ export default function StatsPage() {
               Constructors' Championship
             </h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-left font-titillium">
+              <table className="w-full text-left font-titillium tabular-nums">
                 <thead>
                   <tr className="text-white/40 border-b border-white/10 text-xs">
                     <th className="pb-3 font-bold px-2">POS</th>
