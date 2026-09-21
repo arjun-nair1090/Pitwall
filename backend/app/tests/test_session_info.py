@@ -19,8 +19,8 @@ def _laps():
 
 def _results():
     return pd.DataFrame([
-        {"Abbreviation": "NOR", "FullName": "Lando Norris", "TeamName": "McLaren", "TeamColor": "FF8000", "Position": 2.0, "GridPosition": 1.0},
-        {"Abbreviation": "VER", "FullName": "Max Verstappen", "TeamName": "Red Bull Racing", "TeamColor": "3671C6", "Position": 1.0, "GridPosition": 3.0},
+        {"Abbreviation": "NOR", "FullName": "Lando Norris", "TeamName": "McLaren", "TeamColor": "FF8000", "Position": 2.0, "GridPosition": 1.0, "Status": "Finished"},
+        {"Abbreviation": "VER", "FullName": "Max Verstappen", "TeamName": "Red Bull Racing", "TeamColor": "3671C6", "Position": 1.0, "GridPosition": 3.0, "Status": "+1 Lap"},
         {"Abbreviation": "PIA", "FullName": "Oscar Piastri", "TeamName": "McLaren", "TeamColor": "FF8000", "Position": 3.0, "GridPosition": 2.0},
     ])
 
@@ -116,6 +116,20 @@ def test_session_info_reports_laps_completed_and_fastest_lap(monkeypatch):
     assert drivers["VER"]["fastest_time"] == pytest.approx(91.0)
     assert drivers["NOR"]["laps"] == 4
     assert drivers["NOR"]["fastest_lap"] == 1  # lap 2 has no time
+
+
+def test_session_info_reports_how_each_driver_finished(monkeypatch):
+    _patch(monkeypatch, FakeSession())
+    drivers = {d["code"]: d for d in si.session_info(2024, "Belgium", "R")["drivers"]}
+    assert drivers["VER"]["status"] == "+1 Lap"
+    assert drivers["NOR"]["status"] == "Finished"
+
+
+def test_session_info_status_is_none_when_the_results_do_not_record_it(monkeypatch):
+    results = _results().drop(columns=["Status"])
+    _patch(monkeypatch, FakeSession(results=results))
+    drivers = si.session_info(2024, "Belgium", "R")["drivers"]
+    assert all(d["status"] is None for d in drivers)
 
 
 def test_session_info_reports_each_drivers_actual_stints(monkeypatch):
