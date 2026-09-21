@@ -32,7 +32,10 @@ export default function DataTable<T>({ columns, rows, rowKey, caption, accent, d
               <th
                 key={c.key}
                 scope="col"
-                className={cn("sticky top-0 border-b border-gantry bg-kerb px-3 py-2 text-xs font-medium text-mute", ALIGN[c.align ?? "left"])}
+                className={cn(
+                  "sticky top-0 border-b border-gantry bg-raised/40 px-3 py-2 font-display text-[11px] font-bold uppercase tracking-[0.1em] text-mute backdrop-blur",
+                  ALIGN[c.align ?? "left"],
+                )}
               >
                 {c.header}
               </th>
@@ -43,11 +46,13 @@ export default function DataTable<T>({ columns, rows, rowKey, caption, accent, d
           {rows.map((row) => {
             const spine = accent?.(row);
             return (
-              <tr key={rowKey(row)} className="border-b border-gantry/60 hover:bg-raised/60">
+              // Faintly banded, like the rows of a timing tower, with the team's colour flush to the
+              // left edge of the row.
+              <tr key={rowKey(row)} className="border-b border-gantry/60 even:bg-raised/20 hover:bg-raised/60">
                 {columns.map((c, i) => (
                   <td
                     key={c.key}
-                    style={i === 0 && spine ? { boxShadow: `inset 3px 0 0 ${spine}` } : undefined}
+                    style={i === 0 && spine ? { boxShadow: `inset 4px 0 0 ${spine}` } : undefined}
                     className={cn("px-3 text-chalk", dense ? "py-1.5" : "py-2.5", ALIGN[c.align ?? "left"], c.className)}
                   >
                     {c.cell(row)}

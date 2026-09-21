@@ -15,8 +15,8 @@ interface StrategyResultProps {
 function Stat({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
     <div className="flex flex-col gap-1 rounded-panel border border-gantry bg-kerb p-4">
-      <p className="text-xs font-medium text-mute">{label}</p>
-      <p className="font-display text-3xl font-extrabold leading-none tabular-nums text-chalk">{value}</p>
+      <p className="font-display text-[11px] font-bold uppercase tracking-[0.12em] text-mute">{label}</p>
+      <p className="font-display text-3xl font-black leading-none tabular-nums text-chalk">{value}</p>
       {note && <p className="text-xs text-mute">{note}</p>}
     </div>
   );

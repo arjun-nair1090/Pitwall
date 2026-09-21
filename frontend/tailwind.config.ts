@@ -13,7 +13,7 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        display: ["var(--font-display)", "Impact", "Arial Narrow", "sans-serif"],
+        display: ["var(--font-display)", "Eurostile", "Tahoma", "sans-serif"],
         sans: ["var(--font-ui)", "system-ui", "Segoe UI", "Roboto", "sans-serif"],
       },
       borderRadius: {
@@ -34,7 +34,7 @@ const config: Config = {
           green: token("timing-green"),
           yellow: token("timing-yellow"),
         },
-        live: { DEFAULT: token("f1-red"), text: token("f1-red-text") },
+        live: { DEFAULT: token("f1-red"), deep: token("f1-red-deep"), text: token("f1-red-text") },
       },
     },
   },

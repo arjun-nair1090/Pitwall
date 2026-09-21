@@ -100,7 +100,7 @@ export default function ChannelChart({ def, rows, code1, code2, style, showDista
   return (
     <section aria-label={def.label} className="flex flex-col gap-1">
       <div className="flex flex-wrap items-baseline gap-x-3 px-1">
-        <h3 className="text-sm font-semibold text-chalk">{def.label}</h3>
+        <h3 className="font-display text-xs font-bold uppercase tracking-[0.12em] text-chalk">{def.label}</h3>
         {def.unit && <span className="text-xs text-faint">{def.unit}</span>}
         {def.caption && <span className="text-xs text-mute">{def.caption(code1, code2)}</span>}
       </div>

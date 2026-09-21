@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { LogIn, UserPlus } from "lucide-react";
 import { useF1Store } from "@/store/useTelemetryStore";
 import { getApiErrorMessage } from "@/lib/apiError";
+import PageHeader from "@/components/ui/PageHeader";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -36,9 +37,7 @@ export default function LoginPage() {
 
   return (
     <div className="w-full py-4 md:p-8 max-w-md mx-auto space-y-8">
-      <h1 className="font-display text-3xl font-extrabold leading-none tracking-tight text-chalk md:text-4xl">
-        {mode === "login" ? "Log in" : "Create an account"}
-      </h1>
+      <PageHeader title={mode === "login" ? "Log in" : "Create an account"} />
 
       <form onSubmit={submit} className="rounded-panel border border-gantry bg-kerb p-6 space-y-4">
         {mode === "signup" && (

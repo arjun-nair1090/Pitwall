@@ -10,11 +10,13 @@ import { RAIL_INIT_SCRIPT } from "@/lib/railScript";
 // Self-hosted (see src/fonts/) instead of next/font/google: the Google Fonts fetch at `next build`
 // time has no fallback and hard-fails the build on flaky or blocked networks (corporate proxies,
 // some CI/Docker build contexts).
+// Titillium Web: the squared bowls and flat-cut terminals of Formula 1's own broadcast face, which
+// is proprietary. It carries every headline, wordmark and position number.
 const display = localFont({
   src: [
-    { path: "../fonts/big-shoulders-display-latin-700-normal.woff2", weight: "700", style: "normal" },
-    { path: "../fonts/big-shoulders-display-latin-800-normal.woff2", weight: "800", style: "normal" },
-    { path: "../fonts/big-shoulders-display-latin-900-normal.woff2", weight: "900", style: "normal" },
+    { path: "../fonts/titillium-web-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/titillium-web-latin-700-normal.woff2", weight: "700", style: "normal" },
+    { path: "../fonts/titillium-web-latin-900-normal.woff2", weight: "900", style: "normal" },
   ],
   variable: "--font-display",
   display: "swap",

@@ -82,7 +82,7 @@ export default function TelemetryConsole() {
         <dl className="grid grid-cols-3 gap-4">
           <div>
             <dt className="text-xs text-mute">Gear</dt>
-            <dd className="font-display text-5xl font-extrabold leading-none text-chalk">{gear === 0 ? "N" : gear}</dd>
+            <dd className="font-display text-5xl font-black leading-none text-chalk">{gear === 0 ? "N" : gear}</dd>
           </div>
           <div>
             <dt className="text-xs text-mute">Speed</dt>

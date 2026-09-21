@@ -14,7 +14,7 @@ export default function Select({ label, hideLabel = false, id, className, select
   const selectId = id ?? autoId;
   return (
     <div className={cn("flex flex-col gap-1", className)}>
-      <label htmlFor={selectId} className={cn("text-xs font-medium text-mute", hideLabel && "sr-only")}>{label}</label>
+      <label htmlFor={selectId} className={cn("font-display text-[11px] font-bold uppercase tracking-[0.12em] text-mute", hideLabel && "sr-only")}>{label}</label>
       <div className="relative">
         <select
           id={selectId}

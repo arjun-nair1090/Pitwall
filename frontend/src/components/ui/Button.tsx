@@ -7,11 +7,13 @@ type Size = "md" | "sm";
 
 const BASE =
   "inline-flex items-center justify-center gap-2 rounded-control font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+// Red is the one action colour, the way it is on every official F1 surface. Everything else is a
+// quiet outline, so the primary action is the only thing on a page competing with the data.
 const VARIANT: Record<Variant, string> = {
-  primary: "bg-chalk text-tarmac hover:bg-white",
-  secondary: "border border-edge text-chalk hover:bg-raised",
+  primary: "bg-live text-white hover:bg-live-deep",
+  secondary: "border border-edge text-chalk hover:border-chalk hover:bg-raised",
   ghost: "text-mute hover:bg-raised hover:text-chalk",
-  danger: "bg-live text-white hover:bg-live/90",
+  danger: "border border-live text-live-text hover:bg-live hover:text-white",
 };
 // "sm" is compact only where a pointer is available; phones keep the 40px target.
 const SIZE: Record<Size, string> = {

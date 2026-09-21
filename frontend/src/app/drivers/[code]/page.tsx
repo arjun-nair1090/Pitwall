@@ -6,6 +6,8 @@ import { User, Trophy, FileText } from "lucide-react";
 import TableSkeleton from "@/components/TableSkeleton";
 import ErrorState from "@/components/ErrorState";
 import { getApiErrorMessage } from "@/lib/apiError";
+import PageHeader from "@/components/ui/PageHeader";
+import Select from "@/components/ui/Select";
 
 interface DriverStanding {
   position: number;
@@ -61,28 +63,17 @@ export default function DriverSeasonPage({
 
   return (
     <div className="w-full py-4 md:p-8 max-w-5xl mx-auto space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5">
-        <div>
-          <h1 className="font-display text-3xl font-extrabold leading-none tracking-tight text-chalk md:text-4xl">
-            {driverCode}
-          </h1>
-          <p className="mt-2 max-w-prose text-sm text-mute">
-            {data?.standing?.driver_name || "Season Overview"}
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-bold text-mute">Season</label>
-          <select aria-label="Season"
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value))}
-            className="bg-kerb border border-gantry text-chalk rounded-panel px-4 py-2 "
-          >
+      <PageHeader
+        title={driverCode}
+        description={data?.standing?.driver_name || "Season overview"}
+        actions={
+          <Select label="Season" value={year} onChange={(e) => setYear(parseInt(e.target.value))} selectClassName="w-32 tabular-nums">
             {Array.from({ length: currentYear - 2018 + 1 }, (_, i) => currentYear - i).map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
-          </select>
-        </div>
-      </div>
+          </Select>
+        }
+      />
 
       {loading ? (
         <div className="space-y-8">

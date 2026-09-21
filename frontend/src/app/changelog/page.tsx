@@ -1,4 +1,5 @@
 import { GitCommit } from "lucide-react";
+import PageHeader from "@/components/ui/PageHeader";
 
 interface ChangelogEntry {
   date: string;
@@ -8,7 +9,19 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
-    date: "2026-09-22",
+    date: "2026-09-21",
+    title: "The official look",
+    items: [
+      "Pit Wall now wears Formula 1's own colours: the near-black navy of a broadcast feed, F1 red, and graphics cut square instead of rounded.",
+      "Headlines, captions, column headers, labels and navigation are set in Titillium Web, the closest free face to F1's proprietary broadcast type, in upper case. Everything you actually read — descriptions, errors, empty states — stays in sentence case.",
+      "Red now has exactly three jobs: the frame (the wordmark, the rule under the top bar, the bar beside a page title), the primary action on a page, and the on-air badge. White marks where you are: the current page, the selected tab, the channels you've switched on.",
+      "Every table reads as a timing tower: the team's colour flush to the left edge of the row, faint banding, and the position in the display face.",
+      "Season stats, race debrief, predictions, the changelog, login and the driver pages now use the same page title and season picker as the rest of the app, instead of their own.",
+      "Alerts fly their severity as a coloured bar down the left edge, the way a marshal's flag reads from trackside.",
+    ],
+  },
+  {
+    date: "2026-09-21",
     title: "Replay any race, and a round of fixes",
     items: [
       "Track map: choose any finished race since 2018 and replay it lap by lap. Every car is where it really was, so the gaps are the true gaps, and 1x is real time. Pick a car for its speed, pedals, gear and DRS; the next lap loads while this one plays. Live is now its own tab.",
@@ -21,7 +34,7 @@ const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    date: "2026-09-22",
+    date: "2026-09-21",
     title: "A new look, and a live workspace",
     items: [
       "A new visual design across every page. Colour now only ever carries meaning: purple for the fastest time, green for a personal best, yellow for off the pace, red for live and alerts, plus tyre and team colours.",
@@ -33,7 +46,7 @@ const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    date: "2026-09-22",
+    date: "2026-09-21",
     title: "Race debriefs, what-if strategy, and a mobile pass",
     items: [
       "New Race debrief: an auto-written summary of any race since 2018 with the podium, fastest lap, tyre strategies, movers, retirements and safety cars. Every debrief has a shareable link.",
@@ -99,14 +112,7 @@ const CHANGELOG: ChangelogEntry[] = [
 export default function ChangelogPage() {
   return (
     <div className="w-full py-4 md:p-8 max-w-3xl mx-auto space-y-8">
-      <div className="pb-5">
-        <h1 className="font-display text-3xl font-extrabold leading-none tracking-tight text-chalk md:text-4xl">
-          Changelog
-        </h1>
-        <p className="mt-2 max-w-prose text-sm text-mute">
-          What's new on F1 Pit Wall
-        </p>
-      </div>
+      <PageHeader title="Changelog" description="What's new on F1 Pit Wall." />
 
       <div className="space-y-10">
         {CHANGELOG.map((entry) => (

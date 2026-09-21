@@ -61,8 +61,9 @@ export default function DuelCharts({ rows, code1, code2, style }: DuelChartsProp
                 aria-pressed={on}
                 onClick={() => toggle(def.id)}
                 className={cn(
-                  "h-8 rounded-control border px-3 text-xs font-medium transition-colors",
-                  on ? "border-chalk bg-raised text-chalk" : "border-edge text-mute hover:bg-raised hover:text-chalk",
+                  // White fills the channels that are on, the same signal used for the page you're on.
+                  "h-8 rounded-control border px-3 font-display text-xs font-bold uppercase tracking-[0.06em] transition-colors",
+                  on ? "border-chalk bg-chalk text-tarmac" : "border-edge text-mute hover:bg-raised hover:text-chalk",
                 )}
               >
                 {def.label}

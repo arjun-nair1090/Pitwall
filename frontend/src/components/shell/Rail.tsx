@@ -11,6 +11,7 @@ import { useRailCollapsed } from "@/lib/railState";
 import { formatRaceDate, nextRace } from "@/lib/season";
 import { usePaletteStore } from "@/store/usePaletteStore";
 import { useF1Store } from "@/store/useTelemetryStore";
+import Wordmark, { Mark } from "./Wordmark";
 
 // The sidebar is an icon rail below 1024px and a full, labelled sidebar from 1024px, which can be
 // collapsed to the rail. Its width comes from --rail-w and its labels from the rail-expanded:
@@ -19,17 +20,6 @@ import { useF1Store } from "@/store/useTelemetryStore";
 const LABEL = "sr-only lg:rail-expanded:not-sr-only whitespace-nowrap";
 const TOOLTIP =
   "pointer-events-none absolute left-full top-1/2 z-40 ml-3 -translate-y-1/2 whitespace-nowrap rounded-control border border-gantry bg-raised px-2.5 py-1 text-xs font-medium text-chalk opacity-0 shadow-lg transition-opacity group-hover/item:opacity-100 group-focus-visible/item:opacity-100 lg:rail-expanded:hidden";
-
-// Three bars of falling length: a position tower, the one shape every timing screen has in common.
-function Mark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden className="shrink-0">
-      <rect x="0" y="2" width="20" height="4" rx="1" fill="currentColor" />
-      <rect x="0" y="8" width="14" height="4" rx="1" fill="currentColor" />
-      <rect x="0" y="14" width="8" height="4" rx="1" fill="currentColor" />
-    </svg>
-  );
-}
 
 // What is happening right now: the running session, or else the next race on the calendar.
 function StatusCard() {
@@ -60,7 +50,7 @@ function StatusCard() {
       </span>
       {live && <span aria-hidden className="absolute right-2 top-2 h-2 w-2 rounded-full bg-live" />}
       <span className={cn("min-w-0", LABEL)}>
-        <span className="flex items-center gap-1.5 text-xs font-medium text-mute">{heading}</span>
+        <span className="flex items-center gap-1.5 font-display text-[10px] font-bold uppercase tracking-[0.14em] text-faint">{heading}</span>
         <span className="block truncate text-sm font-semibold text-chalk">{title}</span>
         <span className="block text-xs text-mute">{note}</span>
       </span>
@@ -84,7 +74,7 @@ export default function Rail() {
           className="mb-3 flex h-11 items-center justify-center gap-3 rounded-control px-2 text-chalk transition-colors hover:bg-raised lg:rail-expanded:justify-start"
         >
           <Mark />
-          <span aria-hidden className="hidden font-display text-2xl font-extrabold leading-none lg:rail-expanded:inline">Pit Wall</span>
+          <Wordmark className="hidden text-2xl lg:rail-expanded:inline" />
         </Link>
 
         <button
@@ -102,7 +92,7 @@ export default function Rail() {
         {GROUP_ORDER.map((group) => (
           <div key={group} role="group" aria-label={group} className="flex flex-col gap-0.5">
             {/* Expanded: the group's name. Collapsed: a divider, so the groups still read as groups. */}
-            <p aria-hidden className="hidden px-2 pb-1 pt-5 text-xs font-medium text-faint lg:rail-expanded:block">{group}</p>
+            <p aria-hidden className="hidden px-2 pb-1.5 pt-5 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-faint lg:rail-expanded:block">{group}</p>
             <div aria-hidden className="mx-2 my-2 border-t border-gantry lg:rail-expanded:hidden" />
             {MODULES.filter((m) => m.group === group).map((m) => {
               const active = current?.id === m.id;
@@ -113,8 +103,8 @@ export default function Rail() {
                   href={m.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "group/item relative flex h-10 items-center justify-center gap-3 rounded-control px-1 text-sm transition-colors lg:rail-expanded:justify-start",
-                    active ? "font-semibold text-chalk" : "font-medium text-mute hover:text-chalk",
+                    "group/item relative flex h-10 items-center justify-center gap-3 rounded-control px-1 font-display text-[13px] uppercase tracking-[0.06em] transition-colors lg:rail-expanded:justify-start",
+                    active ? "font-bold text-chalk" : "font-semibold text-mute hover:text-chalk",
                   )}
                 >
                   {/* The icon sits in a tile: filled when this is the page you're on, like the highlighted row on a timing screen. */}
@@ -154,7 +144,7 @@ export default function Rail() {
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-control group-hover/item:bg-raised">
             {collapsed ? <PanelLeftOpen aria-hidden className="h-[18px] w-[18px]" /> : <PanelLeftClose aria-hidden className="h-[18px] w-[18px]" />}
           </span>
-          <span aria-hidden className="hidden lg:rail-expanded:inline">Collapse</span>
+          <span aria-hidden className="hidden font-display text-[13px] font-semibold uppercase tracking-[0.06em] lg:rail-expanded:inline">Collapse</span>
           <span aria-hidden className={TOOLTIP}>Expand sidebar</span>
         </button>
       </div>

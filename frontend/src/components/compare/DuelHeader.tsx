@@ -45,7 +45,7 @@ function DriverCard({
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <LineKey color={color} dash={dash} />
-          <h3 className="font-display text-3xl font-extrabold leading-none text-chalk">{driver.code}</h3>
+          <h3 className="font-display text-3xl font-black leading-none text-chalk">{driver.code}</h3>
         </div>
         {resultCard && (
           <a
@@ -69,7 +69,7 @@ function DriverCard({
           <span className="text-xs tabular-nums text-mute">Lap {driver.lap_number}</span>
           <CompoundBadge compound={driver.compound} showLabel />
         </div>
-        <span className="font-display text-3xl font-extrabold leading-none tabular-nums text-chalk">{formatLapTime(driver.lap_time)}</span>
+        <span className="font-display text-3xl font-black leading-none tabular-nums text-chalk">{formatLapTime(driver.lap_time)}</span>
       </div>
     </section>
   );

@@ -10,7 +10,10 @@ export default function LandingPage() {
     <div className="mx-auto w-full max-w-7xl space-y-16 py-4 md:py-10">
       <section className="grid items-center gap-10 lg:grid-cols-12">
         <div className="lg:col-span-5">
-          <h1 className="font-display text-5xl font-extrabold leading-[0.95] tracking-tight text-chalk md:text-7xl">
+          {/* The headline is the page's one loud moment: heavy, upper case and set tight, under the
+              red bar that runs through the rest of the product. */}
+          <span aria-hidden className="block h-1.5 w-16 -skew-x-12 bg-live" />
+          <h1 className="mt-5 font-display text-[2.75rem] font-black uppercase leading-[0.88] tracking-[-0.02em] text-chalk md:text-7xl">
             The pit wall, in your browser.
           </h1>
           <p className="mt-5 max-w-md text-base text-mute md:text-lg">
@@ -27,7 +30,10 @@ export default function LandingPage() {
       </section>
 
       <section aria-labelledby="inside-heading">
-        <h2 id="inside-heading" className="font-display text-3xl font-extrabold text-chalk">What's inside</h2>
+        <h2 id="inside-heading" className="flex items-stretch gap-3 font-display text-2xl font-black uppercase leading-none tracking-tight text-chalk md:text-3xl">
+          <span aria-hidden className="w-1.5 shrink-0 -skew-x-12 bg-live" />
+          What's inside
+        </h2>
         <ul className="mt-6 grid gap-x-10 md:grid-cols-2">
           {INDEX.map((m) => {
             const Icon = m.icon;

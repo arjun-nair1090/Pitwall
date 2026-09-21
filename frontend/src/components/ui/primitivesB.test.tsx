@@ -88,7 +88,7 @@ describe("DataTable", () => {
   it("draws the team spine on the first cell of each row", () => {
     render(<DataTable caption="c" columns={columns} rows={rows} rowKey={(r) => r.code} accent={() => "#FF8000"} />);
     // jsdom may serialise the colour as hex or rgb(); accept either.
-    expect(screen.getByText("VER").closest("td")?.getAttribute("style")).toMatch(/inset 3px 0(px)? 0(px)? (#ff8000|rgb\(255, 128, 0\))/i);
+    expect(screen.getByText("VER").closest("td")?.getAttribute("style")).toMatch(/inset 4px 0(px)? 0(px)? (#ff8000|rgb\(255, 128, 0\))/i);
     expect(screen.getByText("1:29.526").closest("td")?.getAttribute("style") ?? "").not.toMatch(/inset/);
   });
 });

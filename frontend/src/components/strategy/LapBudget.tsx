@@ -25,7 +25,7 @@ export default function LapBudget({ stints, raceLaps }: LapBudgetProps) {
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <p className="text-sm text-mute">
           Race distance{" "}
-          <span className="font-display text-2xl font-extrabold tabular-nums text-chalk">
+          <span className="font-display text-2xl font-black tabular-nums text-chalk">
             {raceLaps === null ? "–" : `${raceLaps} laps`}
           </span>
         </p>

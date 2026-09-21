@@ -41,11 +41,16 @@ export default function ReplaySidebar({ lap, seconds, selected, onSelect }: Repl
                   type="button"
                   aria-pressed={row.code === selected}
                   onClick={() => onSelect(row.code)}
-                  className={cn("grid w-full grid-cols-[1.75rem_3rem_minmax(0,1fr)_auto] items-center gap-2 px-3 py-1.5 text-left text-sm tabular-nums transition-colors hover:bg-raised", row.code === selected && "bg-raised")}
-                  style={{ boxShadow: `inset 3px 0 0 ${car?.color ?? "#8790A0"}` }}
+                  className={cn(
+                    // Faintly banded, with the team's colour flush to the left edge: a timing tower.
+                    "grid w-full grid-cols-[1.75rem_3rem_minmax(0,1fr)_auto] items-center gap-2 px-3 py-1.5 text-left text-sm tabular-nums transition-colors hover:bg-raised",
+                    i % 2 === 1 && "bg-raised/20",
+                    row.code === selected && "bg-raised",
+                  )}
+                  style={{ boxShadow: `inset 4px 0 0 ${car?.color ?? "#9292A6"}` }}
                 >
                   <span className="text-mute">{row.position}</span>
-                  <span className="font-semibold text-chalk">{row.code}</span>
+                  <span className="font-display font-bold uppercase tracking-[0.06em] text-chalk">{row.code}</span>
                   <span className="text-xs text-mute">{gap(row.gap_to_leader, i === 0)}{row.in_pit ? ", in the pits" : ""}</span>
                   <CompoundBadge compound={row.compound} age={row.tyre_age} />
                 </button>
@@ -59,7 +64,7 @@ export default function ReplaySidebar({ lap, seconds, selected, onSelect }: Repl
         <div className="flex flex-col gap-3 p-4">
           {driver && now ? (
             <>
-              <p className="font-display text-4xl font-extrabold leading-none tabular-nums text-chalk">{now.speed}<span className="ml-1 text-sm font-medium text-mute">km/h</span></p>
+              <p className="font-display text-4xl font-black leading-none tabular-nums text-chalk">{now.speed}<span className="ml-1 text-sm font-medium text-mute">km/h</span></p>
               <Bar label="Throttle" value={now.throttle} />
               <Bar label="Brake" value={now.brake ? 100 : 0} />
               <p className="text-sm tabular-nums text-mute">

@@ -15,7 +15,7 @@ export default function Input({ label, hint, error, id, className, ...rest }: In
   const errorId = error ? `${inputId}-error` : undefined;
   return (
     <div className={cn("flex flex-col gap-1", className)}>
-      <label htmlFor={inputId} className="text-xs font-medium text-mute">{label}</label>
+      <label htmlFor={inputId} className="font-display text-[11px] font-bold uppercase tracking-[0.12em] text-mute">{label}</label>
       <input
         id={inputId}
         aria-invalid={error ? true : undefined}

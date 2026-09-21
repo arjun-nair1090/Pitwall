@@ -7,6 +7,7 @@ import { Trophy, Target, Lock, AlertTriangle, CheckCircle2, Loader2 } from "luci
 import { useF1Store } from "@/store/useTelemetryStore";
 import ErrorState from "@/components/ErrorState";
 import { getApiErrorMessage } from "@/lib/apiError";
+import PageHeader from "@/components/ui/PageHeader";
 
 interface RaceOption {
   country: string;
@@ -193,14 +194,10 @@ export default function PredictionsPage() {
 
   return (
     <div className="w-full py-4 md:p-8 max-w-5xl mx-auto space-y-8">
-      <div className="pb-5">
-        <h1 className="font-display text-3xl font-extrabold leading-none tracking-tight text-chalk md:text-4xl">
-          Predictions
-        </h1>
-        <p className="mt-2 max-w-prose text-sm text-mute">
-          Call the top 3 for an upcoming race. 25 points for an exact podium, 10 points per driver named anywhere in the real top 3.
-        </p>
-      </div>
+      <PageHeader
+        title="Predictions"
+        description="Call the top 3 for an upcoming race. 25 points for an exact podium, 10 points per driver named anywhere in the real top 3."
+      />
 
       <div className="flex items-center gap-4">
         <label htmlFor="prediction-season" className="text-sm font-bold text-mute">Season</label>
