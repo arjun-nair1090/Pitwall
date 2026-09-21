@@ -72,6 +72,9 @@ export interface DominanceSegment {
   y: number;
   winner: 1 | 2;
   delta: number;
+  // The first driver's racing line through this sector, ending on the first point of the next one
+  // so consecutive sectors join up without gaps when drawn.
+  path: { x: number; y: number }[];
 }
 
 // Splits the lap into mini-sectors and says who carried more speed through each. Ties go to the
@@ -84,12 +87,13 @@ export function dominanceSegments(a: readonly TelemetryPoint[], b: readonly Tele
   const width = longest / count;
   const bucket = (distance: number) => Math.min(Math.floor(distance / width), count - 1);
 
-  const blank = () => Array.from({ length: count }, () => ({ speed: 0, x: 0, y: 0, n: 0 }));
+  const blank = () => Array.from({ length: count }, () => ({ speed: 0, x: 0, y: 0, n: 0, path: [] as { x: number; y: number }[] }));
   const sumsA = blank();
   const sumsB = blank();
   for (const p of a) {
     const s = sumsA[bucket(p.distance)];
     s.speed += p.speed; s.x += p.x; s.y += p.y; s.n += 1;
+    s.path.push({ x: p.x, y: p.y });
   }
   for (const p of b) {
     const s = sumsB[bucket(p.distance)];
@@ -106,6 +110,7 @@ export function dominanceSegments(a: readonly TelemetryPoint[], b: readonly Tele
       y: sumsA[i].y / sumsA[i].n,
       winner: speedA >= speedB ? 1 : 2,
       delta: Math.abs(speedA - speedB),
+      path: i + 1 < count && sumsA[i + 1].path.length > 0 ? [...sumsA[i].path, sumsA[i + 1].path[0]] : sumsA[i].path,
     });
   }
   return segments;
@@ -128,4 +133,44 @@ export function duelStyle(color1: string, color2: string): DuelStyle {
   return sameTeam
     ? { color1, color2: lighten(color2, 0.5), dash2: "6 4", sameTeam }
     : { color1, color2, dash2: undefined, sameTeam };
+}
+
+export const lapDuration = (points: readonly TelemetryPoint[]): number => (points.length ? points[points.length - 1].time : 0);
+
+// Where the car was `seconds` into its lap. Before the lap it sits on the start, after it on the
+// line, so a faster car waits at the finish while the slower one completes its lap.
+export function positionAtTime(points: readonly TelemetryPoint[], seconds: number): { x: number; y: number } | null {
+  if (points.length === 0) return null;
+  const last = points.length - 1;
+  if (seconds <= points[0].time) return { x: points[0].x, y: points[0].y };
+  if (seconds >= points[last].time) return { x: points[last].x, y: points[last].y };
+  let lo = 0;
+  let hi = last;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid].time <= seconds) lo = mid;
+    else hi = mid;
+  }
+  const from = points[lo];
+  const to = points[hi];
+  const span = to.time - from.time;
+  const t = span > 0 ? (seconds - from.time) / span : 0;
+  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+}
+
+// One side of POST /api/v1/telemetry/compare.
+export interface DuelDriver {
+  code: string;
+  name: string;
+  team: string;
+  color: string;
+  lap_number: number;
+  lap_time: number | null;
+  compound: string;
+  telemetry: TelemetryPoint[];
+}
+
+export interface DuelResult {
+  driver1: DuelDriver;
+  driver2: DuelDriver;
 }

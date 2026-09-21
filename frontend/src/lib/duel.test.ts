@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDuelRows, dominanceSegments, duelStyle, type TelemetryPoint } from "./duel";
+import { buildDuelRows, dominanceSegments, duelStyle, lapDuration, positionAtTime, type TelemetryPoint } from "./duel";
 
 const point = (distance: number, over: Partial<TelemetryPoint> = {}): TelemetryPoint => ({
   distance, speed: 100, throttle: 100, brake: 0, gear: 5, rpm: 10000, drs: 0, time: distance / 50, x: distance, y: 0, acceleration: 0, ...over,
@@ -88,6 +88,14 @@ describe("dominanceSegments", () => {
   it("returns nothing for empty laps", () => {
     expect(dominanceSegments([], line(5, 10))).toEqual([]);
   });
+
+  it("gives each sector the stretch of racing line it covers, joined end to end", () => {
+    const segments = dominanceSegments(line(20, 100), line(20, 100), 200);
+    expect(segments.every((s) => s.path.length >= 2)).toBe(true);
+    for (let i = 0; i < segments.length - 1; i++) {
+      expect(segments[i].path[segments[i].path.length - 1]).toEqual(segments[i + 1].path[0]);
+    }
+  });
 });
 
 describe("duelStyle", () => {
@@ -106,5 +114,37 @@ describe("duelStyle", () => {
 
   it("treats near-identical colours as the same team", () => {
     expect(duelStyle("#27F4D2", "#27F4D3").sameTeam).toBe(true);
+  });
+});
+
+describe("positionAtTime", () => {
+  const lap = [point(0, { time: 0, x: 0, y: 0 }), point(100, { time: 2, x: 100, y: 50 }), point(200, { time: 6, x: 200, y: 50 })];
+
+  it("interpolates the car's position at a moment in the lap", () => {
+    expect(positionAtTime(lap, 1)).toEqual({ x: 50, y: 25 });
+    expect(positionAtTime(lap, 4)).toEqual({ x: 150, y: 50 });
+  });
+
+  it("puts the car at the start before the lap begins and at the line once it has finished", () => {
+    expect(positionAtTime(lap, -3)).toEqual({ x: 0, y: 0 });
+    expect(positionAtTime(lap, 99)).toEqual({ x: 200, y: 50 });
+  });
+
+  it("has no position for an empty lap", () => {
+    expect(positionAtTime([], 1)).toBeNull();
+  });
+
+  it("keeps two cars in step by time, not by how many samples each has", () => {
+    const sparse = [point(0, { time: 0, x: 0 }), point(1000, { time: 10, x: 1000 })];
+    const dense = Array.from({ length: 101 }, (_, i) => point(i * 10, { time: i / 10, x: i * 10 }));
+    expect(positionAtTime(sparse, 5)?.x).toBeCloseTo(500);
+    expect(positionAtTime(dense, 5)?.x).toBeCloseTo(500);
+  });
+});
+
+describe("lapDuration", () => {
+  it("is the time of the last sample", () => {
+    expect(lapDuration([point(0, { time: 0 }), point(10, { time: 88.4 })])).toBe(88.4);
+    expect(lapDuration([])).toBe(0);
   });
 });
