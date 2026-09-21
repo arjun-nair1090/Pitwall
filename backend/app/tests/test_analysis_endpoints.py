@@ -200,10 +200,48 @@ def test_circuit_layout_error_is_a_400_with_a_plain_message(monkeypatch):
     assert response.json()["detail"] == "No layout for that race."
 
 
-def test_replay_error_is_a_400_with_a_plain_message(monkeypatch):
-    from app.services.f1_data_service import f1_service
+def test_replay_returns_the_lap_payload_and_passes_the_round_and_lap(monkeypatch):
+    from app.services import race_replay
 
-    monkeypatch.setattr(f1_service, "get_historical_replay", _async_returning({"error": "No replay for that race."}))
-    response = client.get("/api/v1/telemetry/replay", params={"year": 2999, "gp": "Nowhere"})
-    assert response.status_code == 400
-    assert response.json()["detail"] == "No replay for that race."
+    seen = {}
+
+    def fake(year, gp, session, lap, round_number):
+        seen.update(year=year, gp=gp, session=session, lap=lap, round_number=round_number)
+        return {"lap": lap, "drivers": []}
+
+    monkeypatch.setattr(race_replay, "replay_payload", fake)
+    response = client.get("/api/v1/telemetry/replay", params={"year": 2024, "round": 14, "lap_number": 12})
+    assert response.status_code == 200 and response.json()["lap"] == 12
+    assert seen == {"year": 2024, "gp": "", "session": "R", "lap": 12, "round_number": 14}
+
+
+def test_replay_defaults_to_the_first_lap(monkeypatch):
+    from app.services import race_replay
+
+    monkeypatch.setattr(race_replay, "replay_payload", lambda y, g, s, lap, r: {"lap": lap})
+    assert client.get("/api/v1/telemetry/replay", params={"year": 2024, "round": 14}).json()["lap"] == 1
+
+
+def test_replay_needs_a_race():
+    assert client.get("/api/v1/telemetry/replay", params={"year": 2024}).status_code == 422
+
+
+def test_replay_reports_a_lap_the_race_never_had_as_404(monkeypatch):
+    from app.services import race_replay
+
+    monkeypatch.setattr(race_replay, "replay_payload", _raise("That race had only 44 laps."))
+    response = client.get("/api/v1/telemetry/replay", params={"year": 2024, "round": 14, "lap_number": 99})
+    assert response.status_code == 404
+    assert response.json()["detail"] == "That race had only 44 laps."
+
+
+def test_replay_failures_do_not_leak_internals(monkeypatch):
+    from app.services import race_replay
+
+    def boom(*args):
+        raise RuntimeError("KeyError: 'internal'")
+
+    monkeypatch.setattr(race_replay, "replay_payload", boom)
+    response = client.get("/api/v1/telemetry/replay", params={"year": 2024, "round": 14})
+    assert response.status_code == 502 and "internal" not in response.json()["detail"]
+

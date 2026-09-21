@@ -65,7 +65,6 @@ export interface CurrentUser {
 
 interface F1StoreState {
   activeSession: any | null;
-  replaySession: { year: number, gp: string, lap?: number } | null;
   drivers: any[];
   leaderboard: Record<string, TimingDriver>;
   gapHistory: GapHistoryPoint[];
@@ -81,17 +80,7 @@ interface F1StoreState {
   selectedDriverNum: number | null;
   currentUser: CurrentUser | null;
 
-  replayPlayback: {
-    isPlaying: boolean;
-    speed: number;
-    frame: number;
-    maxFrame: number;
-    currentLap?: number;
-    totalLaps?: number;
-  };
-  setReplayPlayback: (playback: Partial<{ isPlaying: boolean; speed: number; frame: number; maxFrame: number; currentLap: number; totalLaps: number; }>) => void;
   setActiveSession: (session: any) => void;
-  setReplaySession: (replay: { year: number, gp: string, lap?: number } | null) => void;
   setDrivers: (drivers: any[]) => void;
   updateLeaderboard: (leaderboard: Record<string, TimingDriver>) => void;
   updateTelemetryPoint: (point: DriverTelemetry) => void;
@@ -109,7 +98,6 @@ interface F1StoreState {
 
 export const useF1Store = create<F1StoreState>((set) => ({
   activeSession: null,
-  replaySession: null,
   drivers: [],
   leaderboard: {},
   gapHistory: [],
@@ -122,10 +110,7 @@ export const useF1Store = create<F1StoreState>((set) => ({
   liveSignal: true,
   selectedDriverNum: null,
   currentUser: null,
-  replayPlayback: { isPlaying: true, speed: 1, frame: 0, maxFrame: 0 },
-  setReplayPlayback: (playback) => set((state) => ({ replayPlayback: { ...state.replayPlayback, ...playback } })),
   setActiveSession: (session) => set({ activeSession: session }),
-  setReplaySession: (replay) => set({ replaySession: replay }),
   setDrivers: (drivers) => set({ drivers }),
   updateLeaderboard: (leaderboard) => set((state) => {
     // Sample gap history once per lap (not on every tick) so a race's worth of
