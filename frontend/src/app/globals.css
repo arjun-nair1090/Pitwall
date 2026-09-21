@@ -5,6 +5,13 @@
 @layer base {
   html {
     color-scheme: dark;
+    /* Sidebar width: an icon rail below 1024px, and at 1024px+ full width unless collapsed. */
+    --rail-w: 4rem;
+  }
+  @media (min-width: 1024px) {
+    html:not([data-rail="collapsed"]) {
+      --rail-w: 15rem;
+    }
   }
   body {
     margin: 0;

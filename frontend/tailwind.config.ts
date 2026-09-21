@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
 
 // rgb(var(--x) / <alpha-value>) keeps utilities like bg-kerb/60 working.
 const token = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
@@ -37,6 +38,13 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // The sidebar's state is an attribute on <html> (see src/lib/railState.ts), so the stylesheet can
+    // size everything from it before any script runs: `rail-expanded:` / `rail-collapsed:` variants.
+    plugin(({ addVariant }) => {
+      addVariant("rail-expanded", "html:not([data-rail='collapsed']) &");
+      addVariant("rail-collapsed", "html[data-rail='collapsed'] &");
+    }),
+  ],
 };
 export default config;

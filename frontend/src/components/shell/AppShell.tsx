@@ -14,7 +14,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         Skip to content
       </a>
       <Rail />
-      <div className="min-h-dvh md:pl-14">
+      <div className="min-h-dvh transition-[padding-left] duration-200 motion-reduce:transition-none md:pl-[var(--rail-w)]">
         <TopBar />
         <main id="main" tabIndex={-1} className="flex flex-col px-4 pb-24 pt-4 md:px-6 md:pb-8 md:pt-6">
           {children}
