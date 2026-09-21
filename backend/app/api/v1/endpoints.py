@@ -1,7 +1,11 @@
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 from app.services.f1_data_service import f1_service
+from app.services import latest_result
+from app.services.race_debrief import NoResultsError
 
 router = APIRouter()
 
@@ -218,6 +222,17 @@ async def get_historical_races(year: int):
         return races
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/races/latest-result")
+async def get_latest_race_result():
+    """Final classification of the most recent completed race (results only)."""
+    try:
+        return await asyncio.to_thread(latest_result.latest_classification)
+    except NoResultsError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"latest-result failed: {e}")  # log the cause; the client only needs what to try next
+        raise HTTPException(status_code=502, detail="Couldn't load the latest race result. Try again shortly.")
 
 @router.get("/drivers/known-codes")
 async def get_known_driver_codes():
