@@ -5,6 +5,7 @@ import {
   formatRaceDate,
   hasFinished,
   latestRound,
+  nextRace,
   raceLabel,
   SESSION_LABELS,
   seasonYears,
@@ -98,5 +99,27 @@ describe("hasFinished", () => {
     expect(hasFinished({ race_start_utc: "2026-03-08T04:00:00Z" }, NOW)).toBe(true);
     expect(hasFinished({ race_start_utc: "2026-09-21T10:00:00Z" }, NOW)).toBe(false);
     expect(hasFinished({ race_start_utc: null }, NOW)).toBe(false);
+  });
+});
+
+describe("nextRace", () => {
+  const calendar = [
+    race(1, "Past Grand Prix", "2026-03-08T04:00:00Z"),
+    race(15, "Later Grand Prix", "2026-11-01T13:00:00Z"),
+    race(14, "Sooner Grand Prix", "2026-10-05T13:00:00Z"),
+    race(16, "Unscheduled Grand Prix", null),
+  ];
+
+  it("is the earliest race that hasn't finished", () => {
+    expect(nextRace(calendar, NOW)?.event_name).toBe("Sooner Grand Prix");
+  });
+
+  it("still counts a race that has started but isn't over", () => {
+    expect(nextRace([race(9, "Running Grand Prix", "2026-09-21T11:00:00Z")], NOW)?.event_name).toBe("Running Grand Prix");
+  });
+
+  it("is null when the season is over or nothing is dated", () => {
+    expect(nextRace([race(1, "Past Grand Prix", "2026-03-08T04:00:00Z")], NOW)).toBeNull();
+    expect(nextRace([race(2, "Unscheduled", null)], NOW)).toBeNull();
   });
 });

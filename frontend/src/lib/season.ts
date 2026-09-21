@@ -67,3 +67,16 @@ export function hasFinished(race: Pick<CalendarRace, "race_start_utc">, now: num
   const start = race.race_start_utc ? Date.parse(race.race_start_utc) : NaN;
   return Number.isFinite(start) && start + RACE_DURATION_MS <= now;
 }
+
+// The earliest dated race that hasn't finished yet, or null when the season is over.
+export function nextRace(calendar: readonly CalendarRace[], now: number = Date.now()): CalendarRace | null {
+  let best: CalendarRace | null = null;
+  let bestStart = Infinity;
+  for (const r of calendar) {
+    const start = r.race_start_utc ? Date.parse(r.race_start_utc) : NaN;
+    if (!Number.isFinite(start) || hasFinished(r, now) || start >= bestStart) continue;
+    best = r;
+    bestStart = start;
+  }
+  return best;
+}

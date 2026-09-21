@@ -4,9 +4,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import Rail from "./Rail";
 import { MODULES } from "@/lib/modules";
 import { RAIL_KEY } from "@/lib/railState";
+import { usePaletteStore } from "@/store/usePaletteStore";
 import { useF1Store } from "@/store/useTelemetryStore";
 
 let pathname = "/stats";
+const calendar = vi.fn();
+vi.mock("@/hooks/useRaceData", () => ({ useSeasonCalendar: () => calendar() }));
+const UPCOMING = { status: "ready", retry: vi.fn(), data: [
+  { round: 1, country: "X", location: "Y", event_name: "Old Grand Prix", race_start_utc: "2020-03-08T04:00:00Z" },
+  { round: 2, country: "Italy", location: "Monza", event_name: "Italian Grand Prix", race_start_utc: "2999-09-07T13:00:00Z" },
+] };
 vi.mock("next/navigation", () => ({ usePathname: () => pathname }));
 vi.mock("next/link", () => ({ default: ({ children, href, ...rest }: any) => <a href={href} {...rest}>{children}</a> }));
 
@@ -14,7 +21,9 @@ beforeEach(() => {
   pathname = "/stats";
   delete document.documentElement.dataset.rail;
   localStorage.clear();
-  useF1Store.setState({ isConnected: false } as any);
+  useF1Store.setState({ isConnected: false, activeSession: null } as any);
+  usePaletteStore.setState({ open: false });
+  calendar.mockReset().mockReturnValue({ status: "loading", retry: vi.fn() });
 });
 
 describe("Rail", () => {
@@ -75,7 +84,10 @@ describe("Rail", () => {
     it("appears only on Live timing", () => {
       useF1Store.setState({ isConnected: true } as any);
       render(<Rail />);
-      expect(screen.getAllByText(/live now/i)).toHaveLength(1);
+      for (const link of within(screen.getByRole("navigation", { name: "Main" })).getAllByRole("link")) {
+        const isLive = /^Live timing/.test(link.textContent ?? "");
+        expect(/\(live now\)/.test(link.textContent ?? "")).toBe(isLive);
+      }
     });
   });
 
@@ -102,6 +114,44 @@ describe("Rail", () => {
       document.documentElement.dataset.rail = "collapsed";
       render(<Rail />);
       expect(screen.getByRole("button", { name: "Expand sidebar" })).toBeInTheDocument();
+    });
+  });
+
+  describe("search", () => {
+    it("opens the command palette from the sidebar", async () => {
+      render(<Rail />);
+      await userEvent.click(screen.getByRole("button", { name: /^Search/ }));
+      expect(usePaletteStore.getState().open).toBe(true);
+    });
+  });
+
+  describe("status card", () => {
+    it("says when the next race is and links to predictions", () => {
+      calendar.mockReturnValue(UPCOMING);
+      render(<Rail />);
+      const card = screen.getByRole("link", { name: /Next race.*Italian Grand Prix/i });
+      expect(card).toHaveAttribute("href", "/predictions");
+      expect(card).toHaveTextContent(/7 Sep/);
+    });
+
+    it("says a session is live and links to live timing", () => {
+      calendar.mockReturnValue(UPCOMING);
+      useF1Store.setState({ isConnected: true, activeSession: { circuit_short_name: "Monza", session_name: "Race" } } as any);
+      render(<Rail />);
+      const card = screen.getByRole("link", { name: /Live now.*Monza Race/i });
+      expect(card).toHaveAttribute("href", "/live");
+      expect(screen.queryByRole("link", { name: /Next race/i })).not.toBeInTheDocument();
+    });
+
+    it("stays out of the way until the calendar has loaded", () => {
+      render(<Rail />);
+      expect(screen.queryByRole("link", { name: /Next race|Live now/i })).not.toBeInTheDocument();
+    });
+
+    it("stays out of the way when the season is over", () => {
+      calendar.mockReturnValue({ status: "ready", retry: vi.fn(), data: [UPCOMING.data[0]] });
+      render(<Rail />);
+      expect(screen.queryByRole("link", { name: /Next race/i })).not.toBeInTheDocument();
     });
   });
 });
