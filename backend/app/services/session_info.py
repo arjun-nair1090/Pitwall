@@ -137,6 +137,7 @@ def _driver_entry(code: str, driver_laps: pd.DataFrame, result_row: Optional[pd.
         "team": str(field("TeamName", "")),
         "color": team_colour(field("TeamColor", None)),
         "position": int(position) if position is not None else None,
+        "status": str(field("Status", "")).strip() or None,
         "laps": int(driver_laps["LapNumber"].max()) if not driver_laps.empty else 0,
         "fastest_lap": int(fastest["LapNumber"]) if fastest is not None else None,
         "fastest_time": float(fastest["LapTime"].total_seconds()) if fastest is not None else None,

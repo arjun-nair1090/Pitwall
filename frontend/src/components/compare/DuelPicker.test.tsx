@@ -5,7 +5,7 @@ import DuelPicker, { type DuelChoice } from "./DuelPicker";
 import type { SessionDriver } from "@/hooks/useRaceData";
 
 const driver = (code: string, name: string, over: Partial<SessionDriver> = {}): SessionDriver => ({
-  code, name, team: "Team", color: "#3671C6", position: 1, laps: 44, fastest_lap: 32, fastest_time: 106.1, stints: [], ...over,
+  code, name, team: "Team", color: "#3671C6", position: 1, status: "Finished", laps: 44, fastest_lap: 32, fastest_time: 106.1, stints: [], ...over,
 });
 
 const drivers = [

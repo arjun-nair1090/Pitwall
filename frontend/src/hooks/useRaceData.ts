@@ -97,6 +97,7 @@ export interface SessionDriver {
   team: string;
   color: string;
   position: number | null;
+  status: string | null;
   laps: number;
   fastest_lap: number | null;
   fastest_time: number | null;

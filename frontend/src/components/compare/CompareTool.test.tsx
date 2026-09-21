@@ -18,7 +18,7 @@ vi.mock("./DominanceMap", () => ({ default: ({ code1, code2 }: { code1: string; 
 vi.mock("./DuelCharts", () => ({ default: ({ code1, code2 }: { code1: string; code2: string }) => <div data-testid="charts">{code1} vs {code2}</div> }));
 
 const drv = (code: string, name: string, position: number, over: Partial<SessionDriver> = {}): SessionDriver => ({
-  code, name, team: "Team", color: code === "PER" ? "#3671C6" : "#3671C6", position, laps: 44, fastest_lap: 30 + position, fastest_time: 106, stints: [], ...over,
+  code, name, team: "Team", color: "#3671C6", position, status: "Finished", laps: 44, fastest_lap: 30 + position, fastest_time: 106, stints: [], ...over,
 });
 const info = {
   year: 2024, round: 14, event_name: "Belgian Grand Prix", session: "R", total_laps: 44,
