@@ -458,6 +458,7 @@ describe("formatGap", () => {
   it("prefixes a plus and shows three decimals", () => expect(formatGap(0.409)).toBe("+0.409"));
   it("switches to minutes at 60s", () => expect(formatGap(62.345)).toBe("+1:02.345"));
   it("keeps a zero gap", () => expect(formatGap(0)).toBe("+0.000"));
+  it("never shows a negative zero", () => expect(formatGap(-0.0004)).toBe("+0.000"));
   it("renders a dash when missing", () => expect(formatGap(null)).toBe("–"));
 });
 
@@ -552,8 +553,8 @@ export function formatSector(seconds: number | null | undefined): string {
 
 export function formatGap(seconds: number | null | undefined): string {
   if (typeof seconds !== "number" || !Number.isFinite(seconds)) return DASH;
-  const sign = seconds < 0 ? MINUS : "+";
-  return `${sign}${fromMillis(Math.round(Math.abs(seconds) * 1000))}`;
+  const total = Math.round(Math.abs(seconds) * 1000);
+  return `${seconds < 0 && total > 0 ? MINUS : "+"}${fromMillis(total)}`;
 }
 
 export function formatDelta(seconds: number | null | undefined): string {
