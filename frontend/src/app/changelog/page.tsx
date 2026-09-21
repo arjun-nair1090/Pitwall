@@ -9,6 +9,19 @@ interface ChangelogEntry {
 const CHANGELOG: ChangelogEntry[] = [
   {
     date: "2026-09-22",
+    title: "Replay any race, and a round of fixes",
+    items: [
+      "Track map: choose any finished race since 2018 and replay it lap by lap. Every car is where it really was, so the gaps are the true gaps, and 1x is real time. Pick a car for its speed, pedals, gear and DRS; the next lap loads while this one plays. Live is now its own tab.",
+      "Head to head is rebuilt. Only drivers who actually ran laps are offered, teammates are told apart (the second driver is lighter and dashed), the dominance map always matches the laps you chose, and the ghost cars are placed by lap time. Races are picked by round, so Miami, Austin and Las Vegas are no longer one \"United States\".",
+      "Strategy simulator: the race distance is always in view with a lap-budget bar, a plan can't outgrow the race, and one click fills the laps left. Add stints, use 1, 2 or 3 stop quick plans, or load a driver's real strategy and compare against it. The tyre model now separates fuel burn from wear, so tyres no longer appear to get faster with age.",
+      "Advanced analytics: the session dropdown now matches what was analysed, drivers can be ranked by braking, coasting or trail braking, bars use team colours, and each state is explained in plain words.",
+      "Archive: past races and standings show again for every season (the page was silently failing to load them), with a race classification for each round and links to replay it or compare its drivers.",
+      "A new sidebar: labelled, grouped and collapsible, and it pushes the page instead of covering it. Live timing gets a red dot only while a session is genuinely live.",
+      "Fixes: errors such as \"no live session\" are no longer reported as server failures, and tyre letters are readable on every background.",
+    ],
+  },
+  {
+    date: "2026-09-22",
     title: "A new look, and a live workspace",
     items: [
       "A new visual design across every page. Colour now only ever carries meaning: purple for the fastest time, green for a personal best, yellow for off the pace, red for live and alerts, plus tyre and team colours.",
