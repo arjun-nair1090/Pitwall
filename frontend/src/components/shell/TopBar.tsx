@@ -29,7 +29,7 @@ export default function TopBar() {
             <span className="text-mute">{activeSession.session_name}, {activeSession.year}</span>
           </>
         ) : (
-          <span className="text-mute">Syncing sessions…</span>
+          <span className="text-mute">{isConnected ? "Syncing sessions…" : "No live session"}</span>
         )}
       </p>
 
