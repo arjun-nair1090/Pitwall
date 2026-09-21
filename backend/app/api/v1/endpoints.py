@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, field_validator, model_validator
 from typing import List, Dict, Any, Optional
 from app.services.f1_data_service import f1_service
-from app.services import duel_telemetry, latest_result
+from app.services import duel_telemetry, latest_result, race_replay
 from app.services import session_info as session_info_service
 from app.services.race_debrief import NoResultsError
 from app.services.session_info import SessionDataError
@@ -205,17 +205,20 @@ async def get_stats_standings(year: int = Query(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/telemetry/replay")
-async def get_telemetry_replay(year: int = Query(...), gp: str = Query(...), lap_number: Optional[int] = Query(None)):
-    """Fetch downsampled historical telemetry for full race replay."""
+async def get_telemetry_replay(
+    year: int = Query(...),
+    gp: str = Query(""),
+    round: Optional[int] = Query(None),
+    lap_number: int = Query(1),
+):
+    """One lap of a past race on the real session clock: every car's position and car data at
+    each moment of the leader's lap, so the gaps between cars are true."""
+    if not gp and not round:
+        raise HTTPException(status_code=422, detail="Give a race name or a round number.")
     try:
-        replay = await f1_service.get_historical_replay(year, gp, lap_number)
-        if "error" in replay:
-            raise HTTPException(status_code=400, detail=replay["error"])
-        return replay
-    except HTTPException:
-        raise
+        return await asyncio.to_thread(race_replay.replay_payload, year, gp, "R", lap_number, round)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the replay")
 
 class AIChatRequest(BaseModel):
     session_key: int
