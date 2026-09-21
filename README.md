@@ -10,6 +10,18 @@ The F1 Pit Wall Platform is an ultra-high-performance historical telemetry and s
 - **Auto-Lap Progression:** Sit back and watch an entire race unfold. The replay engine automatically fetches and progresses to the next lap when a driver crosses the finish line, pausing gracefully at the end of the race.
 - **Playback Controls:** Fully integrated telemetry player with adjustable playback speeds (1x, 2x, 5x, 10x) and scrubbers.
 
+### Pages that work from a real race
+
+Head to head, Advanced analytics, the Strategy simulator and the Track map replay all start from the
+same picker: a season, then only races that have finished, then only the sessions that weekend ran.
+Races are identified by round number, and any of these pages can be opened on a race from a link, for
+example `/compare?year=2024&round=14&d1=VER&d2=NOR`, `/advanced?year=2024&round=14&session=Q`,
+`/strategy?year=2024&round=14` or `/map?year=2024&round=14`.
+
+The backend endpoints behind them: `GET /api/v1/races/session-info` (drivers, team colours, race
+distance and each driver's real stints), `GET /api/v1/races/results`, `POST /api/v1/telemetry/compare`,
+`POST /api/v1/telemetry/pedal-behavior`, `POST /api/v1/strategy/simulate` and `GET /api/v1/telemetry/replay`.
+
 ### 🏎️ Telemetry Head-to-Head Comparison
 - **High-Fidelity Telemetry:** Compare any two drivers across 6 metrics (Speed, Throttle, Brake, Gear, RPM, DRS) using full 60Hz high-resolution data pulled from FastF1.
 - **Custom Lap Selection:** Compare the fastest laps of the session automatically, or specify exact laps for detailed stint analysis.
