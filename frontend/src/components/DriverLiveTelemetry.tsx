@@ -1,8 +1,24 @@
 "use client";
 
 import React from "react";
+import { Activity, Loader2 } from "lucide-react";
+import EmptyState from "@/components/ui/EmptyState";
+import { cn } from "@/lib/cn";
 import { useF1Store } from "@/store/useTelemetryStore";
-import { Activity } from "lucide-react";
+
+function Meter({ label, value, fill }: { label: string; value: number; fill: string }) {
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs text-mute">
+        <span>{label}</span>
+        <span className="tabular-nums">{Math.round(value)}%</span>
+      </div>
+      <div className="h-6 w-full overflow-hidden rounded-control bg-raised">
+        <div className={cn("h-full transition-all duration-75", fill)} style={{ width: `${Math.min(100, Math.max(0, value))}%` }} />
+      </div>
+    </div>
+  );
+}
 
 export default function DriverLiveTelemetry() {
   const { telemetry, drivers, selectedDriverNum } = useF1Store();
@@ -12,152 +28,96 @@ export default function DriverLiveTelemetry() {
 
   if (!selectedDriverNum || !driver) {
     return (
-      <div className="glass-panel rounded-lg p-6 h-full flex flex-col items-center justify-center border border-white/5 bg-black/60 text-white/40 text-center">
-        <Activity className="h-8 w-8 mb-4 opacity-50" />
-        <p className="text-sm font-mono-f1 uppercase tracking-widest">
-          Select a driver on the map to view live telemetry
-        </p>
-      </div>
+      <EmptyState
+        icon={Activity}
+        title="Select a driver"
+        description="Choose a car on the map to see its live telemetry."
+        className="h-full"
+      />
     );
   }
 
   if (!data) {
     return (
-      <div className="glass-panel rounded-lg p-6 h-full flex flex-col items-center justify-center border border-white/5 bg-black/60 text-white/40">
-        <div className="animate-pulse flex flex-col items-center">
-          <div className="h-8 w-8 border-2 border-f1-red border-t-transparent rounded-full animate-spin mb-4" />
-          <p className="text-xs font-mono-f1">AWAITING TELEMETRY STREAM...</p>
-        </div>
-      </div>
+      <p role="status" className="flex h-full items-center justify-center gap-2 p-6 text-sm text-mute">
+        <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+        Waiting for the telemetry stream…
+      </p>
     );
   }
 
-  // Value bars logic
   const speedPercentage = Math.min((data.speed / 350) * 100, 100);
-  const rpmPercentage = Math.min((data.rpm / 15000) * 100, 100);
+  const drsOpen = data.drs >= 10 && data.drs <= 14;
+  const live = data.live_signal !== false;
 
   return (
-    <div className="glass-panel rounded-lg p-6 h-full flex flex-col border border-white/5 bg-black/80 relative overflow-hidden">
-      {/* Dynamic Background Glow based on team color */}
-      <div 
-        className="absolute inset-0 opacity-10 pointer-events-none transition-colors duration-500"
-        style={{ background: `radial-gradient(circle at top right, ${driver.team_color}, transparent 60%)` }}
-      />
-
-      <div className="relative z-10 flex-1 flex flex-col">
-        {/* Header */}
-        <div className="flex justify-between items-end mb-8 pb-4 border-b border-white/10">
-          <div className="flex items-center gap-4">
-            <div 
-              className="text-4xl font-black italic tracking-tighter"
-              style={{ color: driver.team_color }}
-            >
-              {driver.driver_number}
-            </div>
-            <div>
-              <h2 className="text-xl font-bold uppercase">{driver.full_name}</h2>
-              <div className="text-xs text-white/50 font-mono-f1 uppercase">{driver.team_name}</div>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-[10px] text-white/40 font-mono-f1 uppercase mb-1">Status</div>
-            <div className="flex items-center gap-2">
-              <span className={`h-2 w-2 rounded-full ${data.live_signal !== false ? 'bg-f1-green animate-pulse' : 'bg-white/20'}`} />
-              <span className="text-xs font-bold">{data.live_signal !== false ? 'LIVE' : 'OFFLINE'}</span>
-            </div>
+    <div className="flex h-full flex-col gap-5 overflow-y-auto p-4">
+      <div className="flex items-start justify-between gap-3 border-b border-gantry pb-4">
+        <div className="flex items-center gap-3">
+          <span aria-hidden className="h-10 w-1 rounded-sm" style={{ backgroundColor: driver.team_color }} />
+          <div>
+            <p className="font-semibold text-chalk">{driver.full_name}</p>
+            <p className="text-xs text-mute">
+              #{driver.driver_number} {driver.team_name}
+            </p>
           </div>
         </div>
+        <span className="flex items-center gap-2 text-xs text-mute">
+          <span aria-hidden className={cn("h-2 w-2 rounded-full", live ? "animate-pulse bg-live" : "border border-faint")} />
+          {live ? "Live" : "Offline"}
+        </span>
+      </div>
 
-        {/* Telemetry Grid */}
-        <div className="grid grid-cols-2 gap-6 flex-1">
-          
-          {/* Speed Block */}
-          <div className="bg-white/5 p-4 rounded border border-white/5 flex flex-col justify-between">
-            <div className="text-[10px] text-white/50 font-mono-f1 uppercase">Speed</div>
-            <div className="text-4xl font-mono-f1 font-bold text-white tracking-tighter">
-              {data.speed} <span className="text-sm text-white/40">km/h</span>
-            </div>
-            <div className="h-1.5 w-full bg-white/10 rounded-full mt-3 overflow-hidden">
-              <div 
-                className="h-full bg-white transition-all duration-200" 
-                style={{ width: `${speedPercentage}%` }}
+      <dl className="grid grid-cols-2 gap-4">
+        <div>
+          <dt className="text-xs text-mute">Speed</dt>
+          <dd className="mt-1 text-4xl font-bold leading-none tabular-nums text-chalk">
+            {Math.round(data.speed)} <span className="text-sm font-medium text-mute">km/h</span>
+          </dd>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-raised">
+            <div className="h-full bg-chalk transition-all duration-200" style={{ width: `${speedPercentage}%` }} />
+          </div>
+        </div>
+        <div>
+          <dt className="text-xs text-mute">Gear</dt>
+          <dd className="mt-1 font-display text-5xl font-extrabold leading-none text-chalk">{data.gear === 0 ? "N" : data.gear}</dd>
+        </div>
+      </dl>
+
+      <div>
+        <div className="mb-1 flex items-end justify-between text-xs text-mute">
+          <span>Engine</span>
+          <span className="tabular-nums text-sm font-semibold text-chalk">{data.rpm.toLocaleString()} rpm</span>
+        </div>
+        {/* Shift lights: one segment per 1,000 rpm. The last two are red (near the limiter). */}
+        <div className="flex h-3 gap-1" role="img" aria-label={`${data.rpm} rpm of 15,000`}>
+          {Array.from({ length: 15 }).map((_, i) => {
+            const active = (i + 1) * 1000 <= data.rpm;
+            return (
+              <div
+                key={i}
+                className={cn("flex-1 rounded-sm transition-colors duration-75", active ? (i >= 13 ? "bg-live" : "bg-chalk") : "bg-raised")}
               />
-            </div>
-          </div>
-
-          {/* Gear Block */}
-          <div className="bg-white/5 p-4 rounded border border-white/5 flex flex-col justify-between">
-            <div className="text-[10px] text-white/50 font-mono-f1 uppercase">Gear</div>
-            <div className="text-4xl font-mono-f1 font-bold text-f1-cyan tracking-tighter">
-              {data.gear === 0 ? 'N' : data.gear}
-            </div>
-            <div className="h-1.5 w-full bg-transparent mt-3" /> {/* Spacer to match */}
-          </div>
-
-          {/* RPM Block */}
-          <div className="bg-white/5 p-4 rounded border border-white/5 flex flex-col justify-between col-span-2">
-            <div className="flex justify-between items-end mb-2">
-              <div className="text-[10px] text-white/50 font-mono-f1 uppercase">Engine RPM</div>
-              <div className="text-xl font-mono-f1 font-bold">{data.rpm}</div>
-            </div>
-            {/* RPM LED Bar */}
-            <div className="flex gap-1 h-3 mt-1">
-              {Array.from({ length: 15 }).map((_, i) => {
-                const isActive = (i + 1) * 1000 <= data.rpm;
-                let colorClass = "bg-white/10";
-                if (isActive) {
-                  if (i < 8) colorClass = "bg-f1-green";
-                  else if (i < 13) colorClass = "bg-yellow-400";
-                  else colorClass = "bg-f1-red";
-                }
-                return (
-                  <div 
-                    key={i} 
-                    className={`flex-1 rounded-sm transition-colors duration-75 ${colorClass} ${isActive && i >= 13 ? 'animate-pulse' : ''}`}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Throttle & Brake Pedals */}
-          <div className="col-span-2 grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <div className="text-[10px] text-white/50 font-mono-f1 uppercase flex justify-between">
-                <span>Throttle</span>
-                <span>{data.throttle}%</span>
-              </div>
-              <div className="h-8 w-full bg-white/5 rounded overflow-hidden border border-white/10 relative">
-                <div 
-                  className="absolute bottom-0 left-0 h-full bg-f1-green transition-all duration-75"
-                  style={{ width: `${data.throttle}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <div className="text-[10px] text-white/50 font-mono-f1 uppercase flex justify-between">
-                <span>Brake</span>
-                <span>{data.brake}%</span>
-              </div>
-              <div className="h-8 w-full bg-white/5 rounded overflow-hidden border border-white/10 relative">
-                <div 
-                  className="absolute bottom-0 left-0 h-full bg-f1-red transition-all duration-75"
-                  style={{ width: `${data.brake}%` }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* DRS Status */}
-          <div className="col-span-2 bg-white/5 p-3 rounded border border-white/5 flex items-center justify-between mt-2">
-            <div className="text-[10px] text-white/50 font-mono-f1 uppercase">DRS State</div>
-            <div className={`text-xs font-bold px-3 py-1 rounded ${data.drs >= 10 && data.drs <= 14 ? 'bg-f1-green text-black' : 'bg-white/10 text-white/40'}`}>
-              {data.drs >= 10 && data.drs <= 14 ? 'OPEN / ACTIVE' : 'CLOSED'}
-            </div>
-          </div>
-
+            );
+          })}
         </div>
+      </div>
+
+      <div className="space-y-3">
+        <Meter label="Throttle" value={data.throttle} fill="bg-chalk" />
+        <Meter label="Brake" value={data.brake} fill="bg-live" />
+      </div>
+
+      <div className="flex items-center justify-between rounded-control border border-gantry px-3 py-2">
+        <span className="text-xs text-mute">DRS</span>
+        <span
+          className={cn(
+            "rounded-control px-2 py-1 text-xs font-semibold",
+            drsOpen ? "bg-chalk text-tarmac" : "border border-edge text-mute",
+          )}
+        >
+          {drsOpen ? "Open" : "Closed"}
+        </span>
       </div>
     </div>
   );

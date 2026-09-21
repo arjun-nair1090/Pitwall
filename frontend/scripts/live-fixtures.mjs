@@ -66,8 +66,21 @@ const FIXTURES = {
   },
 };
 
+// A closed circuit-shaped curve in the same coordinate space as the car positions below.
+const TRACK_POINTS = Array.from({ length: 240 }, (_, i) => {
+  const t = (i / 240) * Math.PI * 2;
+  return { x: Math.round(5200 * Math.cos(t) + 1400 * Math.cos(3 * t)), y: Math.round(3300 * Math.sin(t) + 900 * Math.sin(2 * t)) };
+});
+FIXTURES.layout = {
+  x: TRACK_POINTS.map((p) => p.x),
+  y: TRACK_POINTS.map((p) => p.y),
+  circuit_name: "Autodromo Nazionale Monza",
+  location: "Monza",
+};
+
 function bodyFor(url) {
   const path = new URL(url).pathname;
+  if (path.endsWith("/layout")) return FIXTURES.layout;
   if (path.endsWith("/sessions/active")) return FIXTURES.active;
   if (path.endsWith("/drivers")) return FIXTURES.drivers;
   if (path.endsWith("/timing")) return FIXTURES.timing;
@@ -79,7 +92,12 @@ function bodyFor(url) {
 }
 
 export async function installLiveFixtures(browser) {
-  await browser.send("Fetch.enable", { patterns: [{ urlPattern: "*localhost:8000/api/v1/sessions/*", requestStage: "Request" }] });
+  await browser.send("Fetch.enable", {
+    patterns: [
+      { urlPattern: "*localhost:8000/api/v1/sessions/*", requestStage: "Request" },
+      { urlPattern: "*localhost:8000/api/v1/circuits/*", requestStage: "Request" },
+    ],
+  });
   browser.on("Fetch.requestPaused", async ({ requestId, request }) => {
     const body = request.method === "GET" ? bodyFor(request.url) : null;
     if (body === null) {
@@ -96,5 +114,38 @@ export async function installLiveFixtures(browser) {
       ],
       body: Buffer.from(JSON.stringify(body)).toString("base64"),
     }).catch(() => {});
+  });
+}
+
+// Cars spread around the fixture circuit, as the live gateway would stream them.
+export function carFrames() {
+  return DRIVERS.map(([driver_number], i) => {
+    const p = TRACK_POINTS[Math.floor((i / DRIVERS.length) * TRACK_POINTS.length) % TRACK_POINTS.length];
+    return {
+      driver_number, timestamp: new Date().toISOString(), x: p.x, y: p.y, z: 0,
+      speed: 180 + i * 9, throttle: 60 + i * 3, brake: i % 3 === 0 ? 40 : 0, gear: 4 + (i % 4), rpm: 9000 + i * 350, drs: i % 4 === 0 ? 12 : 0,
+    };
+  });
+}
+
+// Replaces only the app's own gateway socket (Next dev's hot-reload socket must stay real).
+export async function installFakeSocket(browser, frames = carFrames()) {
+  await browser.send("Page.addScriptToEvaluateOnNewDocument", {
+    source: `(() => {
+      const frames = ${JSON.stringify(frames)};
+      const Real = window.WebSocket;
+      class Fake {
+        constructor(url) {
+          this.url = url; this.readyState = 0;
+          setTimeout(() => {
+            this.readyState = 1; this.onopen && this.onopen({});
+            frames.forEach((f, i) => setTimeout(() => this.onmessage && this.onmessage({ data: JSON.stringify(f) }), 50 + i * 15));
+          }, 300);
+        }
+        send() {} close() { this.onclose && this.onclose({}); } addEventListener() {} removeEventListener() {}
+      }
+      window.WebSocket = function (url, protocols) { return /pitwall-client/.test(url) ? new Fake(url) : new Real(url, protocols); };
+      Object.assign(window.WebSocket, { CONNECTING: 0, OPEN: 1, CLOSING: 2, CLOSED: 3 });
+    })();`,
   });
 }

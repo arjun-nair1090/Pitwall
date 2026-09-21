@@ -3,6 +3,9 @@
 import React, { useEffect, useState } from "react";
 import { useF1Store } from "@/store/useTelemetryStore";
 import { Play, Pause, SkipBack, SkipForward, FastForward } from "lucide-react";
+import Button from "@/components/ui/Button";
+import IconButton from "@/components/ui/IconButton";
+import Select from "@/components/ui/Select";
 
 export default function TelemetryPlayer() {
   const { replaySession, setReplaySession, replayPlayback, setReplayPlayback } = useF1Store();
@@ -42,99 +45,65 @@ export default function TelemetryPlayer() {
     setReplayPlayback({ frame: Math.max(frame - 100, 0) });
   };
 
-  // Convert frame to an estimated percentage/lap logic if possible, 
-  // but simple percentage string works nicely:
   const progressPercent = Math.round((frame / (maxFrame - 1)) * 100) || 0;
 
   return (
-    <div className="glass-panel border-t-2 border-f1-red bg-black/80 backdrop-blur p-4 rounded-t-lg font-titillium w-full shadow-[0_-5px_20px_rgba(225,6,0,0.15)] flex flex-col gap-3">
-      {/* Top Header */}
-      <div className="flex justify-between items-end">
+    <div className="flex w-full flex-col gap-3 border-t border-gantry bg-kerb p-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h3 className="text-f1-red font-bold text-sm tracking-widest uppercase mb-1 flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-f1-red animate-pulse" />
-            TELEMETRY REPLAY
-          </h3>
-          <p className="text-white/70 text-xs font-semibold">
-            {replaySession.year} SEASON — {replaySession.gp.toUpperCase()}
+          <h3 className="text-sm font-semibold text-chalk">Telemetry replay</h3>
+          <p className="text-xs text-mute">
+            {replaySession.year} {replaySession.gp}
           </p>
         </div>
-        
-        {/* Lap Selector */}
+
         {totalLaps && currentLap && (
-          <div className="flex items-center gap-2 bg-white/5 rounded px-2 py-1">
-            <label htmlFor="lap-select" className="text-xs font-bold text-white/50">LAP</label>
-            <select 
-              id="lap-select" 
-              value={currentLap} 
-              onChange={handleLapChange}
-              className="bg-transparent text-white text-sm font-mono-f1 outline-none border-b border-white/20 focus:border-f1-red cursor-pointer pb-0.5"
-            >
-              {Array.from({ length: totalLaps }, (_, i) => i + 1).map(lap => (
-                <option key={lap} value={lap} className="bg-black text-white">
+          <div className="flex items-end gap-2">
+            <Select label="Lap" value={currentLap} onChange={handleLapChange} selectClassName="w-20 tabular-nums">
+              {Array.from({ length: totalLaps }, (_, i) => i + 1).map((lap) => (
+                <option key={lap} value={lap}>
                   {lap}
                 </option>
               ))}
-            </select>
-            <span className="text-xs text-white/40">/ {totalLaps}</span>
+            </Select>
+            <span className="pb-2.5 text-xs text-mute">of {totalLaps}</span>
           </div>
         )}
 
-        <div className="text-right">
-          <span className="text-xs text-white/50 font-bold bg-white/5 px-2 py-1 rounded">
-            {progressPercent}% COMPLETE
-          </span>
-        </div>
+        <p className="text-xs tabular-nums text-mute">{progressPercent}% of the lap</p>
       </div>
 
-      {/* Scrubber */}
-      <div className="group relative w-full flex items-center">
-        <input
-          type="range"
-          min="0"
-          max={maxFrame - 1}
-          value={frame}
-          onChange={handleSliderChange}
-          className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-0 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-f1-red [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-125"
-          style={{
-            background: `linear-gradient(to right, #e10600 ${progressPercent}%, rgba(255,255,255,0.2) ${progressPercent}%)`
-          }}
-        />
-      </div>
+      <input
+        type="range"
+        aria-label="Replay position"
+        min="0"
+        max={maxFrame - 1}
+        value={frame}
+        onChange={handleSliderChange}
+        className="h-2 w-full cursor-pointer accent-chalk"
+      />
 
-      {/* Controls */}
-      <div className="flex justify-between items-center mt-1">
-        <button
-          onClick={() => setReplaySession(null)}
-          className="text-[10px] text-white/40 hover:text-white font-bold transition-colors px-2 py-1 border border-white/10 rounded hover:bg-white/10"
-        >
-          EXIT REPLAY
-        </button>
+      <div className="flex items-center justify-between">
+        <Button size="sm" variant="ghost" onClick={() => setReplaySession(null)}>
+          Exit replay
+        </Button>
 
-        <div className="flex items-center gap-4">
-          <button onClick={skipBackward} className="text-white/50 hover:text-white transition-colors">
-            <SkipBack className="h-4 w-4" />
-          </button>
-          
-          <button
-            onClick={togglePlay}
-            className="h-10 w-10 bg-f1-red text-white rounded-full flex items-center justify-center hover:bg-red-700 transition-colors shadow-lg hover:scale-105 active:scale-95"
-          >
-            {isPlaying ? <Pause className="h-5 w-5 fill-current" /> : <Play className="h-5 w-5 fill-current ml-1" />}
-          </button>
-
-          <button onClick={skipForward} className="text-white/50 hover:text-white transition-colors">
-            <SkipForward className="h-4 w-4" />
-          </button>
+        <div className="flex items-center gap-2">
+          <IconButton label="Back 100 frames" onClick={skipBackward}>
+            <SkipBack aria-hidden className="h-4 w-4" />
+          </IconButton>
+          <Button variant="primary" onClick={togglePlay} aria-label={isPlaying ? "Pause replay" : "Play replay"} className="w-12 px-0">
+            {isPlaying ? <Pause aria-hidden className="h-5 w-5 fill-current" /> : <Play aria-hidden className="h-5 w-5 fill-current" />}
+          </Button>
+          <IconButton label="Forward 100 frames" onClick={skipForward}>
+            <SkipForward aria-hidden className="h-4 w-4" />
+          </IconButton>
         </div>
 
-        <button
-          onClick={cycleSpeed}
-          className="text-xs font-bold text-f1-yellow bg-f1-yellow/10 px-2 py-1 border border-f1-yellow/20 rounded hover:bg-f1-yellow/20 transition-colors flex items-center gap-1 min-w-[50px] justify-center"
-        >
-          <FastForward className="h-3 w-3" />
+        <Button size="sm" variant="secondary" onClick={cycleSpeed} aria-label={`Playback speed ${speed}x. Change speed`}>
+          <FastForward aria-hidden className="h-3.5 w-3.5" />
           {speed}x
-        </button>
+        </Button>
       </div>
     </div>
   );

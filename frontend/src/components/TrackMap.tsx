@@ -3,8 +3,56 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import axios from "axios";
 import { useF1Store } from "@/store/useTelemetryStore";
-import { X, PlayCircle, Loader2 } from "lucide-react";
+import { X, Loader2, Map as MapIcon } from "lucide-react";
+import Button from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import Pill from "@/components/ui/Pill";
+import { readableTextColor } from "@/lib/color";
 import TelemetryPlayer from "./TelemetryPlayer";
+
+interface MarkerProps {
+  x: number;
+  y: number;
+  code: string;
+  color: string;
+  selected?: boolean;
+  onSelect?: () => void;
+}
+
+// One car on the circuit: a team-coloured dot plus a code pill whose text is chosen by contrast.
+// Live markers are buttons (mouse, touch and keyboard); replay markers are display-only.
+function DriverMarker({ x, y, code, color, selected = false, onSelect }: MarkerProps) {
+  const interactive = onSelect !== undefined;
+  const text = readableTextColor(color);
+  return (
+    <g
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={interactive ? `Select ${code}` : undefined}
+      aria-pressed={interactive ? selected : undefined}
+      className={interactive ? "cursor-pointer" : undefined}
+      onClick={onSelect}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect?.();
+              }
+            }
+          : undefined
+      }
+    >
+      {/* Invisible enlarged hit area: the visible dot scales down to a few px on phones */}
+      <circle cx={x} cy={y} r="24" fill="transparent" />
+      <circle cx={x} cy={y} r={selected ? 11 : 7} fill={color} className="stroke-chalk" strokeWidth="2" />
+      <rect x={x + 12} y={y - 8} width="28" height="16" rx="3" fill={color} />
+      <text x={x + 26} y={y + 4} fontSize="10" fontWeight="700" textAnchor="middle" fill={text} className="pointer-events-none">
+        {code}
+      </text>
+    </g>
+  );
+}
 
 interface LayoutData {
   x: number[];
@@ -232,180 +280,82 @@ export default function TrackMap() {
   }, [drivers]);
 
   return (
-    <div className="glass-panel rounded-lg p-4 pt-16 md:pt-4 h-full flex flex-col items-center justify-center relative border border-white/5 bg-black/60 overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.8)]">
-      
-      {/* Background ambient glow */}
-      <div className="absolute inset-0 bg-gradient-to-br from-f1-blue/10 via-transparent to-f1-cyan/5 pointer-events-none" />
-
-      {/* Header */}
-      <div className="absolute top-4 left-4 z-20">
-        <h2 className="text-sm font-semibold tracking-wider text-f1-cyan uppercase flex items-center gap-2">
-          {isReplayMode ? (
-            <><PlayCircle className="h-4 w-4 animate-pulse text-f1-red" /> REPLAY MODE</>
-          ) : (
-            "LIVE TRACK MAP"
-          )}
-        </h2>
+    <div className="relative flex h-full flex-col items-center justify-center overflow-hidden p-4 pt-14 md:pt-4">
+      <div className="absolute left-3 top-3 z-20 flex flex-wrap items-center gap-2">
+        {isReplayMode && <Pill>Replay</Pill>}
         {layout && (
-          <div className="text-[10px] text-white/50 font-mono-f1 mt-0.5">
-            {targetYear} {layout.circuit_name} - {layout.location}
-          </div>
+          <p className="text-xs text-mute">
+            {targetYear} {layout.circuit_name}, {layout.location}
+          </p>
         )}
       </div>
 
-      {/* Replay Controls / Status */}
       {isReplayMode && (
-        <div className="absolute top-4 right-4 z-20 flex items-center gap-3">
-          {loadingReplay && <Loader2 className="h-4 w-4 animate-spin text-f1-cyan" />}
-          <button 
-            onClick={() => setReplaySession(null)}
-            className="bg-white/10 hover:bg-f1-red/20 border border-white/20 hover:border-f1-red/50 text-white/70 hover:text-f1-red px-2 py-1 rounded text-[10px] font-bold flex items-center gap-1 transition-all"
-          >
-            <X className="h-3 w-3" /> EXIT REPLAY
-          </button>
+        <div className="absolute right-3 top-3 z-20 flex items-center gap-3">
+          {loadingReplay && <Loader2 aria-hidden className="h-4 w-4 animate-spin text-mute" />}
+          <Button size="sm" variant="secondary" onClick={() => setReplaySession(null)}>
+            <X aria-hidden className="h-3.5 w-3.5" />
+            Exit replay
+          </Button>
         </div>
       )}
 
       {loadingLayout ? (
-        <div className="animate-pulse text-xs font-mono-f1 text-white/50 flex flex-col items-center gap-2">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          GENERATING CIRCUIT TOPOLOGY...
-        </div>
+        <p role="status" className="flex items-center gap-2 text-sm text-mute">
+          <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+          Building the circuit outline…
+        </p>
       ) : replayError ? (
-        <div className="text-xs font-mono-f1 text-f1-red/70">{replayError}</div>
+        <p role="alert" className="max-w-md px-6 text-center text-sm text-live-text">{replayError}</p>
       ) : layout ? (
-        <svg
-          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          className="w-full max-h-[400px] h-auto z-10"
-        >
-          <defs>
-            <filter id="crispShadow" x="-10%" y="-10%" width="120%" height="120%">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.4" />
-            </filter>
-          </defs>
-
-          {/* Circuit Outline Base (Asphalt) */}
+        <svg viewBox={`0 0 ${svgWidth} ${svgHeight}`} className="z-10 h-full w-full" role="group" aria-label="Circuit map">
+          {/* Circuit outline: asphalt, then the racing-line dashes */}
+          <path d={pathD} fill="none" className="stroke-gantry" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
           <path
             d={pathD}
             fill="none"
-            stroke="#2d3748"
-            strokeWidth="12"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            filter="url(#crispShadow)"
-          />
-          {/* Circuit Outline Centerline */}
-          <path
-            d={pathD}
-            fill="none"
-            stroke="#ffffff"
+            className="stroke-edge"
             strokeWidth="1.5"
             strokeLinecap="round"
             strokeLinejoin="round"
             strokeDasharray="4 6"
-            className="opacity-70"
           />
 
-          {/* Render Drivers (Replay vs Live) */}
-          {isReplayMode && replayData ? (
-            // --- REPLAY RENDER ---
-            replayData.map((driver) => {
-              // Get current pos, fallback to last known if frame exceeds array
-              const pt = driver.coords[Math.min(replayPlayback.frame, driver.coords.length - 1)];
-              if (!pt) return null;
-              const projected = projectPoint(pt.x, pt.y);
-              return (
-                <g key={driver.code} className="transition-all duration-75">
-                  <circle cx={projected.x} cy={projected.y} r="8" fill={driver.color} stroke="#fff" strokeWidth="2" />
-                  {/* Driver background pill */}
-                  <rect
-                    x={projected.x + 12}
-                    y={projected.y - 8}
-                    width="26"
-                    height="16"
-                    rx="4"
-                    fill={driver.color}
-                    className="opacity-95"
+          {isReplayMode && replayData
+            ? replayData.map((driver) => {
+                // Current position, falling back to the last known one if the frame exceeds the array
+                const pt = driver.coords[Math.min(replayPlayback.frame, driver.coords.length - 1)];
+                if (!pt) return null;
+                const projected = projectPoint(pt.x, pt.y);
+                return <DriverMarker key={driver.code} x={projected.x} y={projected.y} code={driver.code} color={driver.color} />;
+              })
+            : Object.entries(telemetry).map(([driverNumStr, pt]) => {
+                const num = parseInt(driverNumStr);
+                const driver = driversMap.get(num);
+                if (!driver || (pt.x === 0 && pt.y === 0)) return null;
+                const projected = projectPoint(pt.x, pt.y);
+                return (
+                  <DriverMarker
+                    key={num}
+                    x={projected.x}
+                    y={projected.y}
+                    code={driver.code}
+                    color={driver.team_color}
+                    selected={selectedDriverNum === num}
+                    onSelect={() => setSelectedDriverNum(num)}
                   />
-                  <text
-                    x={projected.x + 25}
-                    y={projected.y + 3}
-                    fontSize="10"
-                    fontWeight="900"
-                    textAnchor="middle"
-                    className="font-mono-f1 fill-white pointer-events-none"
-                  >
-                    {driver.code}
-                  </text>
-                </g>
-              );
-            })
-          ) : (
-            // --- LIVE RENDER ---
-            Object.entries(telemetry).map(([driverNumStr, pt]) => {
-              const num = parseInt(driverNumStr);
-              const driver = driversMap.get(num);
-              if (!driver || (pt.x === 0 && pt.y === 0)) return null;
-              
-              const projected = projectPoint(pt.x, pt.y);
-              return (
-                <g 
-                  key={num} 
-                  className={`transition-all duration-300 cursor-pointer ${selectedDriverNum === num ? 'drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]' : ''}`}
-                  onClick={() => setSelectedDriverNum(num)}
-                >
-                  {/* Invisible enlarged hit area: the visible dot scales down to a few px on phones */}
-                  <circle cx={projected.x} cy={projected.y} r="24" fill="transparent" />
-                  {/* Dot Pulse Glow */}
-                  <circle
-                    cx={projected.x}
-                    cy={projected.y}
-                    r={selectedDriverNum === num ? "25" : "15"}
-                    fill={driver.team_color}
-                    className={selectedDriverNum === num ? "opacity-30 animate-pulse" : "opacity-30"}
-                  />
-                  {/* Real Dot */}
-                  <circle
-                    cx={projected.x}
-                    cy={projected.y}
-                    r={selectedDriverNum === num ? "10" : "7"}
-                    fill={driver.team_color}
-                    stroke="#ffffff"
-                    strokeWidth="2"
-                  />
-                  {/* Driver background pill */}
-                  <rect
-                    x={projected.x + 12}
-                    y={projected.y - 8}
-                    width="26"
-                    height="16"
-                    rx="4"
-                    fill={driver.team_color}
-                    className="opacity-90"
-                  />
-                  {/* Acronym label */}
-                  <text
-                    x={projected.x + 25}
-                    y={projected.y + 3}
-                    fontSize="10"
-                    fontWeight="900"
-                    textAnchor="middle"
-                    className="font-mono-f1 fill-white pointer-events-none"
-                  >
-                    {driver.code}
-                  </text>
-                </g>
-              );
-            })
-          )}
+                );
+              })}
         </svg>
       ) : (
-        <div className="text-xs font-mono-f1 text-white/30 text-center px-8">
-          NO MAP DATA AVAILABLE FOR THIS SESSION
-        </div>
+        <EmptyState
+          icon={MapIcon}
+          title="No map data yet"
+          description="The circuit appears when a session is live, or when you load a replay."
+        />
       )}
 
-      {/* Replay Player Overlay at bottom */}
+      {/* Replay player overlay at the bottom */}
       {isReplayMode && replayData && (
         <div className="absolute bottom-0 left-0 right-0 z-30">
           <TelemetryPlayer />
