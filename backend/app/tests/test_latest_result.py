@@ -55,6 +55,21 @@ def test_retirements_are_flagged_and_lapped_cars_are_not():
     assert rows["VER"]["finished"] is True
 
 
+def test_a_lapped_car_has_no_gap_even_when_fastf1_reports_a_time():
+    # FastF1's Time for a lapped car is not a gap to the winner (a car one lap down can
+    # carry +10s while cars on the lead lap are a minute behind), so it must not be shown.
+    frame = _results([
+        ("VER", "Max Verstappen", "Red Bull Racing", 1, 1, "Finished", 5400.0),
+        ("NOR", "Lando Norris", "McLaren", 2, 2, "Finished", 86.7),
+        ("LIN", "Arvid Lindblad", "Racing Bulls", 3, 3, "Lapped", 10.4),
+        ("ALO", "Fernando Alonso", "Aston Martin", 4, 4, "+1 Lap", 33.8),
+    ])
+    rows = {r["code"]: r for r in latest_result.build_classification(frame)}
+    assert rows["NOR"]["gap_seconds"] == 86.7
+    assert rows["LIN"]["gap_seconds"] is None and rows["LIN"]["finished"] is True
+    assert rows["ALO"]["gap_seconds"] is None and rows["ALO"]["finished"] is True
+
+
 def test_missing_results_raise():
     for bad in (None, pd.DataFrame(), pd.DataFrame({"Abbreviation": ["VER"]})):
         with pytest.raises(NoResultsError):

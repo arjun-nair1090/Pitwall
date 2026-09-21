@@ -75,9 +75,12 @@ def build_classification(results: Optional[pd.DataFrame]) -> List[Dict[str, Any]
             "grid": grid,
             "status": status,
             "finished": _finished(status),
-            # For the winner FastF1's Time is the total race time; for everyone else it is the gap.
+            # For the winner FastF1's Time is the total race time; for a car on the lead lap it is
+            # the gap to the winner. For a lapped car it is NOT a gap to the winner (a car one lap
+            # down can carry +10s while cars on the lead lap are a minute behind), so it is dropped
+            # and the status ("Lapped", "+1 Lap") is shown instead.
             "race_time_seconds": elapsed if position == 1 else None,
-            "gap_seconds": None if position == 1 else elapsed,
+            "gap_seconds": elapsed if position != 1 and status in (None, "Finished") else None,
         })
     return rows
 
