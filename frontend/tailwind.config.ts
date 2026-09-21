@@ -19,6 +19,10 @@ const config: Config = {
           yellow: "#ffd12b",
           green: "#00b259",
           blue: "#00a2ed",
+          // Secondary data accent (used as text-f1-cyan, bg-f1-cyan/10, ... across the
+          // dashboard). It was referenced 24 times but never defined, so those classes
+          // silently rendered nothing. Matches the cyan in globals.css.
+          cyan: "#66fcf1",
           dark: "#15151e",
           gray: "#38383f",
           light: "#f3f3f3",

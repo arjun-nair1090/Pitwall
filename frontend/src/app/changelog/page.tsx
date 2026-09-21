@@ -8,6 +8,17 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-09-22",
+    title: "Race debriefs, what-if strategy, and a mobile pass",
+    items: [
+      "New Race Debrief: an auto-written summary of any race since 2018 with the podium, fastest lap, tyre strategies, movers, retirements and safety cars. Every debrief has a shareable link.",
+      "What-if strategy: move a real driver's pit stop or change a tyre compound and see the estimated effect on their race time, with a plain-English explanation and a confidence rating.",
+      "Mobile: the navigation scrolls instead of clipping, live timing and the track map stack properly on phones, and the map dots are big enough to tap.",
+      "Fixes: race locking for predictions now uses the true UTC start time, the prediction form offers the season's real drivers and only open races, and validation errors show as messages instead of blanking the page.",
+      "A new home page, and a Live link in the navigation (the live dashboard was previously only reachable by URL).",
+    ],
+  },
+  {
     date: "2026-09-21",
     title: "Accounts and the prediction game",
     items: [
