@@ -15,16 +15,6 @@ export interface DriverTelemetry {
   live_signal?: boolean;
 }
 
-export interface HistoricalRace {
-  year: number;
-  round: string;
-  raceName: string;
-  circuitName: string;
-  locality: string;
-  country: string;
-  date: string;
-}
-
 export interface TimingDriver {
   position?: number;
   lap_number?: number;
@@ -75,7 +65,6 @@ export interface CurrentUser {
 
 interface F1StoreState {
   activeSession: any | null;
-  historicalRace: HistoricalRace | null;
   replaySession: { year: number, gp: string, lap?: number } | null;
   drivers: any[];
   leaderboard: Record<string, TimingDriver>;
@@ -102,7 +91,6 @@ interface F1StoreState {
   };
   setReplayPlayback: (playback: Partial<{ isPlaying: boolean; speed: number; frame: number; maxFrame: number; currentLap: number; totalLaps: number; }>) => void;
   setActiveSession: (session: any) => void;
-  setHistoricalRace: (race: HistoricalRace | null) => void;
   setReplaySession: (replay: { year: number, gp: string, lap?: number } | null) => void;
   setDrivers: (drivers: any[]) => void;
   updateLeaderboard: (leaderboard: Record<string, TimingDriver>) => void;
@@ -121,7 +109,6 @@ interface F1StoreState {
 
 export const useF1Store = create<F1StoreState>((set) => ({
   activeSession: null,
-  historicalRace: null,
   replaySession: null,
   drivers: [],
   leaderboard: {},
@@ -138,7 +125,6 @@ export const useF1Store = create<F1StoreState>((set) => ({
   replayPlayback: { isPlaying: true, speed: 1, frame: 0, maxFrame: 0 },
   setReplayPlayback: (playback) => set((state) => ({ replayPlayback: { ...state.replayPlayback, ...playback } })),
   setActiveSession: (session) => set({ activeSession: session }),
-  setHistoricalRace: (race) => set({ historicalRace: race }),
   setReplaySession: (replay) => set({ replaySession: replay }),
   setDrivers: (drivers) => set({ drivers }),
   updateLeaderboard: (leaderboard) => set((state) => {

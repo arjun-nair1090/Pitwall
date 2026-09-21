@@ -34,3 +34,20 @@ export function readableTextColor(background: string): string {
   if (!channels(background)) return WHITE;
   return contrastRatio(background, DARK) > contrastRatio(background, WHITE) ? DARK : WHITE;
 }
+
+// Straight-line distance between two colours in RGB space (0 to about 441). Non-hex input counts
+// as far apart, so an unknown colour is never mistaken for a match.
+export function colorDistance(a: string, b: string): number {
+  const ca = channels(a);
+  const cb = channels(b);
+  if (!ca || !cb) return Number.POSITIVE_INFINITY;
+  return Math.hypot(ca[0] - cb[0], ca[1] - cb[1], ca[2] - cb[2]);
+}
+
+// Mix a colour towards white. `amount` is 0 (unchanged) to 1 (white).
+export function lighten(hex: string, amount: number): string {
+  const c = channels(hex);
+  if (!c) return hex;
+  const mixed = c.map((v) => Math.round(v + (255 - v) * Math.min(Math.max(amount, 0), 1)));
+  return `#${mixed.map((v) => v.toString(16).padStart(2, "0")).join("").toUpperCase()}`;
+}

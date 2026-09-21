@@ -48,6 +48,17 @@ export function formatLapTime(seconds: number | null | undefined): string {
   return `${minutes}:${pad(Math.floor(rest / 1000), 2)}.${pad(rest % 1000, 3)}`;
 }
 
+// A whole race or session: h:mm:ss.mmm, dropping the hour when there isn't one.
+export function formatRaceTime(seconds: number | null | undefined): string {
+  if (!isTime(seconds)) return DASH;
+  const total = Math.round(seconds * 1000);
+  const hours = Math.floor(total / 3600000);
+  const minutes = Math.floor((total % 3600000) / 60000);
+  const rest = total % 60000;
+  const tail = `${pad(Math.floor(rest / 1000), 2)}.${pad(rest % 1000, 3)}`;
+  return hours > 0 ? `${hours}:${pad(minutes, 2)}:${tail}` : `${minutes}:${tail}`;
+}
+
 export function formatSector(seconds: number | null | undefined): string {
   if (!isTime(seconds)) return DASH;
   const total = Math.round(seconds * 1000);

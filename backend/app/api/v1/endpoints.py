@@ -76,6 +76,8 @@ async def get_active_session():
         if not metadata:
             raise HTTPException(status_code=404, detail="Active session not found")
         return metadata
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -105,6 +107,8 @@ async def get_session_weather(session_key: int):
         if not weather:
             raise HTTPException(status_code=404, detail="Weather data not available")
         return weather
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -136,6 +140,8 @@ async def get_circuit_layout(session_key: int, year: int = 2024, gp: str = "Belg
         if "error" in layout:
             raise HTTPException(status_code=400, detail=layout["error"])
         return layout
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -193,6 +199,8 @@ async def get_stats_standings(year: int = Query(...)):
         if "error" in standings:
             raise HTTPException(status_code=400, detail=standings["error"])
         return standings
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -204,6 +212,8 @@ async def get_telemetry_replay(year: int = Query(...), gp: str = Query(...), lap
         if "error" in replay:
             raise HTTPException(status_code=400, detail=replay["error"])
         return replay
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

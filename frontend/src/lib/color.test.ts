@@ -34,3 +34,21 @@ describe("readableTextColor", () => {
     expect(readableTextColor("")).toBe(WHITE);
   });
 });
+
+describe("colorDistance and lighten", () => {
+  it("measures how far apart two colours are", async () => {
+    const { colorDistance } = await import("./color");
+    expect(colorDistance("#000000", "#000000")).toBe(0);
+    expect(colorDistance("#000000", "#FFFFFF")).toBeCloseTo(441.67, 1);
+    expect(colorDistance("#3671C6", "3671c6")).toBe(0);
+    expect(colorDistance("nope", "#FFFFFF")).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it("mixes towards white", async () => {
+    const { lighten } = await import("./color");
+    expect(lighten("#000000", 0.5)).toBe("#808080");
+    expect(lighten("#3671C6", 0)).toBe("#3671C6");
+    expect(lighten("#3671C6", 1)).toBe("#FFFFFF");
+    expect(lighten("nope", 0.5)).toBe("nope");
+  });
+});
