@@ -1,102 +1,158 @@
 "use client";
 
-import React from "react";
-import { useF1Store } from "@/store/useTelemetryStore";
+import { motion, useReducedMotion } from "framer-motion";
+import { Radio } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import CompoundBadge from "@/components/CompoundBadge";
+import EmptyState from "@/components/ui/EmptyState";
+import { cn } from "@/lib/cn";
+import { fieldBests, mergeBests, type BestKey, type Bests } from "@/lib/sessionBests";
+import { classifyTime, formatGap, formatLapTime, formatSector, TIMING_TEXT_CLASS } from "@/lib/timing";
+import { useF1Store } from "@/store/useTelemetryStore";
+
+// Below this panel width the three sector columns are dropped so the essentials stay readable.
+const SECTORS_MIN_WIDTH = 640;
+const BASE_COLUMNS = "2.25rem 4px minmax(3.25rem,1fr) 5rem 4.5rem 5.25rem";
+const TYRE_COLUMN = "3.75rem";
+const SECTOR_COLUMNS = "4.25rem 4.25rem 4.25rem";
+
+function useElementWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
 
 export default function LiveTiming() {
   const { leaderboard, drivers, selectedDriverNum, setSelectedDriverNum } = useF1Store();
+  const reducedMotion = useReducedMotion() ?? false;
+  const [containerRef, width] = useElementWidth<HTMLDivElement>();
+  const showSectors = width >= SECTORS_MIN_WIDTH;
 
-  const driversMap = React.useMemo(() => {
-    return new Map(drivers.map((d) => [d.driver_number, d]));
-  }, [drivers]);
+  const driversMap = useMemo(() => new Map(drivers.map((d) => [d.driver_number, d])), [drivers]);
 
-  // Sort by position
-  const sortedLeaderboard = React.useMemo(() => {
-    return Object.entries(leaderboard)
-      .map(([numStr, timing]) => ({
-        number: parseInt(numStr),
-        timing,
-        driver: driversMap.get(parseInt(numStr)),
-      }))
+  // Best seen this visit, per driver. The live feed does not include session personal bests, so
+  // "personal best" (green) means the driver's fastest value since this page was opened, while
+  // "overall best" (purple) is the fastest of those across the field.
+  // `samples` counts the timing snapshots seen per driver. On a driver's first snapshot there is
+  // nothing to compare against, so only an overall best (purple) is claimed, never green or yellow.
+  const bestsRef = useRef(new Map<number, { bests: Bests; samples: number }>());
+  const lastBoardRef = useRef<unknown>(null);
+
+  const { rows, overall } = useMemo(() => {
+    const list = Object.entries(leaderboard)
+      .map(([numStr, timing]) => ({ number: parseInt(numStr), timing, driver: driversMap.get(parseInt(numStr)) }))
+      .filter((r) => r.driver)
       .sort((a, b) => (a.timing.position || 99) - (b.timing.position || 99));
+
+    // Count a snapshot once per leaderboard object (memo can run twice per render in StrictMode).
+    if (lastBoardRef.current !== leaderboard) {
+      lastBoardRef.current = leaderboard;
+      for (const { number, timing } of list) {
+        const prev = bestsRef.current.get(number) ?? { bests: {}, samples: 0 };
+        const seen: Bests = { lap: timing.last_lap_time, s1: timing.s1, s2: timing.s2, s3: timing.s3 };
+        bestsRef.current.set(number, { bests: mergeBests(prev.bests, seen), samples: prev.samples + 1 });
+      }
+    }
+    const overallBest = fieldBests(Array.from(bestsRef.current.values()).map((entry) => entry.bests));
+    return { rows: list, overall: overallBest };
   }, [leaderboard, driversMap]);
 
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        icon={Radio}
+        title="Waiting for timing data"
+        description="Positions and gaps appear here once a session is live."
+        className="h-full"
+      />
+    );
+  }
+
+  const columns = [BASE_COLUMNS, showSectors ? SECTOR_COLUMNS : null, TYRE_COLUMN].filter(Boolean).join(" ");
+  const head = "px-1 py-2 text-xs font-medium text-mute";
+
   return (
-    <div className="glass-panel rounded-lg p-4 h-full flex flex-col overflow-hidden border border-white/5">
-      <div className="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
-        <h2 className="text-sm font-bold tracking-widest text-f1-red uppercase flex items-center gap-2 font-titillium">
-          <span className="h-2 w-2 rounded-full bg-f1-red animate-pulse" />
-          Live Timing & Gaps
-        </h2>
-        <span className="hidden sm:inline text-xs text-white/40 font-titillium font-semibold tracking-wider">LAPS COMPLETED</span>
-      </div>
-
-      {sortedLeaderboard.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-6">
-          <span className="h-2 w-2 rounded-full bg-white/20 animate-pulse" />
-          <p className="text-white/50 text-sm font-titillium font-semibold tracking-wide">Waiting for timing data</p>
-          <p className="text-white/30 text-xs font-titillium">Positions and gaps appear here once a session is live.</p>
+    <div ref={containerRef} className="h-full overflow-auto">
+      <div role="table" aria-label="Live timing tower" className="min-w-max text-sm tabular-nums">
+        <div role="rowgroup" className="sticky top-0 z-10 bg-kerb">
+          <div role="row" className="grid items-center border-b border-gantry pr-2" style={{ gridTemplateColumns: columns }}>
+            <span role="columnheader" className={cn(head, "text-center")}>Pos</span>
+            <span role="columnheader" aria-hidden className="w-1" />
+            <span role="columnheader" className={head}>Driver</span>
+            <span role="columnheader" className={cn(head, "text-right")}>Gap</span>
+            <span role="columnheader" className={cn(head, "text-right")}>Interval</span>
+            <span role="columnheader" className={cn(head, "text-right")}>Last lap</span>
+            {showSectors && (["S1", "S2", "S3"] as const).map((s) => (
+              <span key={s} role="columnheader" className={cn(head, "text-right")}>{s}</span>
+            ))}
+            <span role="columnheader" className={cn(head, "pl-3")}>Tyre</span>
+          </div>
         </div>
-      ) : (
-      <div className="flex-1 overflow-auto custom-scrollbar">
-        <table className="w-full text-left border-collapse text-sm font-titillium tracking-wide tabular-nums">
-          <thead className="sticky top-0 bg-black/80 backdrop-blur-md z-10">
-            <tr className="text-white/40 border-b border-f1-red/30 pb-2 text-xs">
-              <th className="py-2 font-bold px-1">POS</th>
-              <th className="py-2 font-bold px-1">DRIVER</th>
-              <th className="py-2 font-bold px-1">GAP</th>
-              <th className="py-2 font-bold px-1">INT</th>
-              <th className="py-2 font-bold px-1">LAST LAP</th>
-              <th className="hidden md:table-cell py-2 font-bold px-1">S1</th>
-              <th className="hidden md:table-cell py-2 font-bold px-1">S2</th>
-              <th className="hidden md:table-cell py-2 font-bold px-1">S3</th>
-              <th className="py-2 font-bold px-1">TYRE</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedLeaderboard.map(({ number, timing, driver }) => {
-              if (!driver) return null;
-              const isSelected = selectedDriverNum === number;
 
+        <div role="rowgroup">
+          {rows.map(({ number, timing, driver }) => {
+            const isSelected = selectedDriverNum === number;
+            const own = bestsRef.current.get(number) ?? { bests: {}, samples: 0 };
+            const cell = (key: BestKey, value: number | undefined, format: (n: number | null | undefined) => string) => {
+              const kind = classifyTime(value, own.bests[key], overall[key]);
+              const claimed = kind === "off-pace" || kind === "personal-best" ? (own.samples > 1 ? kind : "none") : kind;
               return (
-                <tr
-                  key={number}
-                  onClick={() => setSelectedDriverNum(isSelected ? null : number)}
-                  className={`border-b border-white/5 cursor-pointer transition-colors hover:bg-white/5 ${
-                    isSelected ? "bg-white/10 border-l-2 border-l-f1-red" : "border-l-2 border-l-transparent"
-                  }`}
-                >
-                  <td className="py-2.5 px-1 font-bold">{timing.position || "-"}</td>
-                  <td className="py-2.5 px-1 flex items-center gap-2 font-semibold">
-                    <span
-                      className="inline-block w-1.5 h-4 rounded-sm"
-                      style={{ backgroundColor: driver.team_color }}
-                    />
-                    <span className="uppercase tracking-widest">{driver.code}</span>
-                  </td>
-                  <td className="py-2.5 px-1 font-medium text-white/90">
-                    {timing.gap_to_leader === 0 ? "LEADER" : timing.gap_to_leader ? `+${timing.gap_to_leader.toFixed(3)}` : "-"}
-                  </td>
-                  <td className="py-2.5 px-1 text-white/60">
-                    {timing.gap_to_next === 0 ? "-" : timing.gap_to_next ? `+${timing.gap_to_next.toFixed(3)}` : "-"}
-                  </td>
-                  <td className="py-2.5 px-1 text-white/90 font-bold">
-                    {timing.last_lap_time ? timing.last_lap_time.toFixed(3) : "-"}
-                  </td>
-                  <td className="hidden md:table-cell py-2.5 px-1 text-white/70">{timing.s1 ? timing.s1.toFixed(3) : "-"}</td>
-                  <td className="hidden md:table-cell py-2.5 px-1 text-white/70">{timing.s2 ? timing.s2.toFixed(3) : "-"}</td>
-                  <td className="hidden md:table-cell py-2.5 px-1 text-white/70">{timing.s3 ? timing.s3.toFixed(3) : "-"}</td>
-                  <td className="py-2.5 px-1">
-                    {timing.compound ? <CompoundBadge compound={timing.compound} age={timing.tyre_age} /> : "-"}
-                  </td>
-                </tr>
+                <span role="cell" className={cn("px-1 text-right", TIMING_TEXT_CLASS[claimed])}>
+                  {format(value)}
+                </span>
               );
-            })}
-          </tbody>
-        </table>
+            };
+            return (
+              <motion.div
+                key={number}
+                role="row"
+                layout={!reducedMotion}
+                transition={{ type: "spring", stiffness: 380, damping: 36 }}
+                className={cn(
+                  "grid h-10 items-center border-b border-gantry/60 pr-2 transition-colors hover:bg-raised/60",
+                  isSelected && "bg-raised",
+                )}
+                style={{ gridTemplateColumns: columns }}
+              >
+                <span role="cell" className="text-center font-display text-xl font-extrabold leading-none text-chalk">
+                  {timing.position || "–"}
+                </span>
+                <span role="cell" aria-hidden className="h-6 w-1 rounded-sm" style={{ backgroundColor: driver!.team_color }} />
+                <span role="cell" className="min-w-0 px-1">
+                  <button
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedDriverNum(isSelected ? null : number)}
+                    className="rounded-control px-1 py-2 font-semibold text-chalk hover:underline"
+                  >
+                    {driver!.code}
+                  </button>
+                </span>
+                <span role="cell" className="px-1 text-right text-chalk">
+                  {timing.gap_to_leader === 0 ? "Leader" : timing.gap_to_leader ? formatGap(timing.gap_to_leader) : "–"}
+                </span>
+                <span role="cell" className="px-1 text-right text-mute">
+                  {timing.gap_to_next ? formatGap(timing.gap_to_next) : "–"}
+                </span>
+                {cell("lap", timing.last_lap_time, formatLapTime)}
+                {showSectors && cell("s1", timing.s1, formatSector)}
+                {showSectors && cell("s2", timing.s2, formatSector)}
+                {showSectors && cell("s3", timing.s3, formatSector)}
+                <span role="cell" className="pl-3">
+                  {timing.compound ? <CompoundBadge compound={timing.compound} age={timing.tyre_age} /> : "–"}
+                </span>
+              </motion.div>
+            );
+          })}
+        </div>
       </div>
-      )}
     </div>
   );
 }

@@ -72,13 +72,13 @@ export default function Workspace({ name, panels, defaults, rowHeight = 56, rese
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<HTMLDivElement | null>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
-  const firstReset = useRef(true);
+  // Compare with the previous key rather than "skip the first run": React StrictMode runs effects
+  // twice on mount, and a run-once flag would then wipe the saved layout on every page load.
+  const lastResetKey = useRef(resetKey);
 
   useEffect(() => {
-    if (firstReset.current) {
-      firstReset.current = false;
-      return;
-    }
+    if (resetKey === lastResetKey.current) return;
+    lastResetKey.current = resetKey;
     resetLayouts(name);
     setLayouts(defaults);
   }, [resetKey]); // eslint-disable-line react-hooks/exhaustive-deps
