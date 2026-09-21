@@ -199,8 +199,22 @@ async def get_historical_races(year: int):
     try:
         import fastf1
         schedule = fastf1.get_event_schedule(year)
-        # Filter out pre-season testing and return countries
-        races = [{"country": str(row["Country"]), "location": str(row["Location"]), "event_name": str(row["EventName"])} for _, row in schedule.iterrows() if str(row["EventFormat"]) != "testing"]
+        from app.services.predictions_service import race_start_utc
+
+        # Filter out pre-season testing. `event_name` is the exact FastF1 EventName
+        # and `race_start_utc` the real lights-out instant (null if unknown), so
+        # clients can tell open races from finished ones without guessing.
+        races = []
+        for _, row in schedule.iterrows():
+            if str(row["EventFormat"]) == "testing":
+                continue
+            start = race_start_utc(row)
+            races.append({
+                "country": str(row["Country"]),
+                "location": str(row["Location"]),
+                "event_name": str(row["EventName"]),
+                "race_start_utc": start.strftime("%Y-%m-%dT%H:%M:%SZ") if start is not None else None,
+            })
         return races
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
