@@ -11,6 +11,23 @@ from app.services.session_info import SessionDataError
 
 router = APIRouter()
 
+# FastF1's session identifiers, keyed by the names used in the event schedule.
+_SESSION_CODES = {
+    "Practice 1": "FP1", "Practice 2": "FP2", "Practice 3": "FP3",
+    "Qualifying": "Q", "Sprint Qualifying": "SQ", "Sprint Shootout": "SS",
+    "Sprint": "S", "Race": "R",
+}
+
+
+def _weekend_sessions(schedule_row) -> List[str]:
+    """The sessions this race weekend actually ran, in order (a sprint weekend has no FP2, say)."""
+    codes = []
+    for i in range(1, 6):
+        code = _SESSION_CODES.get(str(schedule_row.get(f"Session{i}")))
+        if code:
+            codes.append(code)
+    return codes
+
 
 def _analysis_error(error: Exception, what: str) -> HTTPException:
     """Turn a failure while loading session data into the right HTTP error.
@@ -251,6 +268,7 @@ async def get_historical_races(year: int):
                 "country": str(row["Country"]),
                 "location": str(row["Location"]),
                 "event_name": str(row["EventName"]),
+                "sessions": _weekend_sessions(row),
                 "race_start_utc": start.strftime("%Y-%m-%dT%H:%M:%SZ") if start is not None else None,
             })
         return races
