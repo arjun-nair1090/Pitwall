@@ -232,3 +232,88 @@ def test_endpoint_502_with_a_generic_message_on_failure():
     assert res.status_code == 502
     assert "secret internal detail" not in res.json()["detail"]
     assert "Try again" in res.json()["detail"]
+
+
+@pytest.fixture(autouse=True)
+def _fresh_result_caches():
+    latest_result.reset_caches()
+    yield
+    latest_result.reset_caches()
+
+
+# --- any race's results (archive) ---------------------------------------------------
+
+def _archive_results() -> pd.DataFrame:
+    frame = _results()
+    frame["Points"] = [25.0, 18.0, 15.0, 12.0, 0.0]
+    frame["TeamColor"] = ["3671C6", "FF8000", "E8002D", "E8002D", None]
+    return frame
+
+
+def test_race_results_adds_points_and_team_colours_to_the_classification():
+    result = latest_result.race_results(2024, 14, load_results=lambda year, event: _archive_results())
+    assert result["year"] == 2024 and result["round"] == 14
+    first, _, _, _, last = result["classification"]
+    assert (first["code"], first["points"], first["color"]) == ("VER", 25.0, "#3671C6")
+    assert (last["code"], last["points"], last["color"]) == ("ALO", 0.0, "#9AA3B2")  # no colour recorded
+
+
+def test_race_results_handles_a_missing_points_column():
+    result = latest_result.race_results(2024, 14, load_results=lambda year, event: _results())
+    assert all(row["points"] is None for row in result["classification"])
+
+
+def test_race_results_asks_for_the_round_and_is_cached():
+    calls = []
+
+    def load(year, event):
+        calls.append((year, event))
+        return _archive_results()
+
+    latest_result.race_results(2023, 5, load_results=load)
+    latest_result.race_results(2023, 5, load_results=load)
+    assert calls == [(2023, 5)]
+
+
+def test_race_results_raises_when_unpublished():
+    with pytest.raises(NoResultsError):
+        latest_result.race_results(2026, 24, load_results=lambda year, event: pd.DataFrame())
+
+
+def test_results_endpoint_returns_the_classification():
+    payload = {"year": 2024, "round": 14, "classification": []}
+    with patch("app.api.v1.endpoints.latest_result.race_results", return_value=payload):
+        res = client.get("/api/v1/races/results", params={"year": 2024, "round": 14})
+    assert res.status_code == 200 and res.json() == payload
+
+
+def test_results_endpoint_404_when_unpublished():
+    with patch("app.api.v1.endpoints.latest_result.race_results", side_effect=NoResultsError("This race has no final classification yet.")):
+        res = client.get("/api/v1/races/results", params={"year": 2026, "round": 24})
+    assert res.status_code == 404 and "no final classification" in res.json()["detail"]
+
+
+def test_results_endpoint_502_hides_internals():
+    with patch("app.api.v1.endpoints.latest_result.race_results", side_effect=ConnectionError("secret")):
+        res = client.get("/api/v1/races/results", params={"year": 2024, "round": 14})
+    assert res.status_code == 502 and "secret" not in res.json()["detail"]
+
+
+def test_results_endpoint_needs_year_and_round():
+    assert client.get("/api/v1/races/results", params={"year": 2024}).status_code == 422
+
+
+def test_race_results_reports_an_unknown_round_as_missing_not_as_an_outage():
+    def load(year, event):
+        raise ValueError("Invalid round: 24")
+
+    with pytest.raises(NoResultsError, match="round 24"):
+        latest_result.race_results(2026, 24, load_results=load)
+
+
+def test_race_results_lets_real_failures_through():
+    def load(year, event):
+        raise ConnectionError("network down")
+
+    with pytest.raises(ConnectionError):
+        latest_result.race_results(2026, 3, load_results=load)
