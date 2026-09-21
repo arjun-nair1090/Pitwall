@@ -5,6 +5,7 @@ import axios from "axios";
 import Link from "next/link";
 import { Trophy, Target, Lock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useF1Store } from "@/store/useTelemetryStore";
+import ErrorState from "@/components/ErrorState";
 
 interface RaceOption {
   country: string;
@@ -42,23 +43,40 @@ export default function PredictionsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [optionsError, setOptionsError] = useState("");
+  const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+  const [leaderboardError, setLeaderboardError] = useState("");
+
+  const loadFormOptions = () => {
+    setOptionsError("");
+    Promise.all([
+      axios.get(`/api/v1/races/historical?year=${year}`),
+      axios.get("/api/v1/drivers/known-codes"),
+    ])
+      .then(([racesRes, driversRes]) => {
+        const opts: RaceOption[] = racesRes.data;
+        setRaces(opts);
+        if (!opts.some((r) => r.event_name === eventName)) {
+          setEventName(opts[0]?.event_name || "");
+        }
+        setAvailableDrivers(driversRes.data.driver_standings.map((d: any) => d.driver_code));
+      })
+      .catch(() => setOptionsError("Couldn't load the race calendar or driver list."));
+  };
+
+  const loadLeaderboard = () => {
+    setLeaderboardLoading(true);
+    setLeaderboardError("");
+    axios
+      .get("/api/v1/leaderboard", { params: { year } })
+      .then((res) => setLeaderboard(res.data))
+      .catch(() => setLeaderboardError("Couldn't load the leaderboard."))
+      .finally(() => setLeaderboardLoading(false));
+  };
 
   useEffect(() => {
-    axios.get(`/api/v1/races/historical?year=${year}`).then((res) => {
-      const opts: RaceOption[] = res.data;
-      setRaces(opts);
-      if (!opts.some((r) => r.event_name === eventName)) {
-        setEventName(opts[0]?.event_name || "");
-      }
-    }).catch(() => {});
-
-    axios.get("/api/v1/drivers/known-codes").then((res) => {
-      setAvailableDrivers(res.data.driver_standings.map((d: any) => d.driver_code));
-    }).catch(() => {});
-
-    axios.get("/api/v1/leaderboard", { params: { year } }).then((res) => {
-      setLeaderboard(res.data);
-    }).catch(() => {});
+    loadFormOptions();
+    loadLeaderboard();
 
     if (currentUser) {
       axios.get("/api/v1/predictions/me", { params: { year } }).then((res) => {
@@ -113,6 +131,14 @@ export default function PredictionsPage() {
         </div>
       ) : (
         <form onSubmit={submitPrediction} className="glass-panel p-6 rounded-xl border border-white/5 space-y-4">
+          {optionsError && (
+            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg font-titillium flex items-center justify-between gap-3 text-sm">
+              <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{optionsError}</span>
+              <button type="button" onClick={loadFormOptions} className="font-bold underline underline-offset-2 hover:text-white">
+                Retry
+              </button>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-titillium font-bold text-white/60 mb-2">YEAR</label>
@@ -185,7 +211,15 @@ export default function PredictionsPage() {
           <Trophy className="w-5 h-5 text-f1-red" />
           Leaderboard ({year})
         </h2>
-        {leaderboard.length === 0 ? (
+        {leaderboardLoading ? (
+          <div className="space-y-2 animate-pulse" role="status" aria-label="Loading leaderboard">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-11 bg-white/5 rounded-md" />
+            ))}
+          </div>
+        ) : leaderboardError ? (
+          <ErrorState title="Leaderboard unavailable" message={leaderboardError} onRetry={loadLeaderboard} />
+        ) : leaderboard.length === 0 ? (
           <p className="text-white/40 font-titillium text-sm">No scored predictions yet for {year}.</p>
         ) : (
           <div className="space-y-1">

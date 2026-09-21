@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { FlaskConical, Loader2, AlertTriangle, Plus, Trash2 } from "lucide-react";
+import CompoundBadge from "@/components/CompoundBadge";
 
 interface Stint {
   compound: string;
@@ -38,17 +39,25 @@ export default function StrategySimulatorPage() {
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [optionsError, setOptionsError] = useState("");
+
+  const loadOptions = () => {
+    setOptionsError("");
+    Promise.all([
+      axios.get(`/api/v1/races/historical?year=${year}`),
+      axios.get("/api/v1/drivers/known-codes"),
+    ])
+      .then(([racesRes, driversRes]) => {
+        const gps = racesRes.data.map((r: any) => r.country);
+        setAvailableGPs(gps);
+        if (!gps.includes(gp)) setGp(gps[0] || "");
+        setAvailableDrivers(driversRes.data.driver_standings.map((d: any) => d.driver_code));
+      })
+      .catch(() => setOptionsError("Couldn't load the race calendar or driver list."));
+  };
 
   useEffect(() => {
-    axios.get(`/api/v1/races/historical?year=${year}`).then((res) => {
-      const gps = res.data.map((r: any) => r.country);
-      setAvailableGPs(gps);
-      if (!gps.includes(gp)) setGp(gps[0] || "");
-    }).catch(() => {});
-
-    axios.get("/api/v1/drivers/known-codes").then((res) => {
-      setAvailableDrivers(res.data.driver_standings.map((d: any) => d.driver_code));
-    }).catch(() => {});
+    loadOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [year]);
 
@@ -94,6 +103,14 @@ export default function StrategySimulatorPage() {
       </div>
 
       <div className="glass-panel p-6 rounded-xl border border-white/5 space-y-6">
+        {optionsError && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-lg font-titillium flex items-center justify-between gap-3 text-sm">
+            <span className="flex items-center gap-2"><AlertTriangle className="w-4 h-4" />{optionsError}</span>
+            <button type="button" onClick={loadOptions} className="font-bold underline underline-offset-2 hover:text-white">
+              Retry
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-titillium font-bold text-white/60 mb-2">YEAR</label>
@@ -125,6 +142,7 @@ export default function StrategySimulatorPage() {
             {stints.map((stint, i) => (
               <div key={i} className="flex items-center gap-3 bg-black/30 p-3 rounded-md border border-white/5">
                 <span className="text-xs text-white/40 font-bold w-16">STINT {i + 1}</span>
+                <CompoundBadge compound={stint.compound} />
                 <select value={stint.compound} onChange={(e) => updateStint(i, { compound: e.target.value })} className="bg-black/50 border border-white/10 text-white rounded-md px-3 py-1.5 text-sm font-titillium">
                   {COMPOUNDS.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>

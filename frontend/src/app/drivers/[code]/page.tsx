@@ -2,7 +2,9 @@
 
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Loader2, User, Trophy, FileText } from "lucide-react";
+import { User, Trophy, FileText } from "lucide-react";
+import TableSkeleton from "@/components/TableSkeleton";
+import ErrorState from "@/components/ErrorState";
 
 interface DriverStanding {
   position: number;
@@ -41,7 +43,7 @@ export default function DriverSeasonPage({
 
   const driverCode = params.code.toUpperCase();
 
-  useEffect(() => {
+  const fetchData = () => {
     setLoading(true);
     setError("");
     axios
@@ -49,6 +51,11 @@ export default function DriverSeasonPage({
       .then((res) => setData(res.data))
       .catch((err) => setError(err.response?.data?.detail || "Failed to load driver season data."))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [driverCode, year]);
 
   return (
@@ -77,17 +84,20 @@ export default function DriverSeasonPage({
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-lg font-titillium">
-          {error}
-        </div>
-      )}
-
       {loading ? (
-        <div className="flex flex-col items-center justify-center h-64 gap-4">
-          <Loader2 className="w-8 h-8 text-f1-red animate-spin" />
-          <p className="text-white/50 font-titillium tracking-widest text-sm">LOADING...</p>
+        <div className="space-y-8">
+          <div className="glass-panel p-6 rounded-xl border border-white/5 grid grid-cols-2 md:grid-cols-4 gap-6 animate-pulse" role="status" aria-label="Loading">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-2.5 w-14 bg-white/10 rounded" />
+                <div className="h-7 w-20 bg-white/5 rounded" />
+              </div>
+            ))}
+          </div>
+          <TableSkeleton rows={4} columns={2} />
         </div>
+      ) : error ? (
+        <ErrorState title="Couldn't load driver season" message={error} onRetry={fetchData} />
       ) : data ? (
         <div className="space-y-8">
           {data.standing ? (

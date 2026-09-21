@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useF1Store } from "@/store/useTelemetryStore";
 import { Brain, ShieldAlert, Zap } from "lucide-react";
+import CompoundBadge from "@/components/CompoundBadge";
 
 interface UndercutThreat {
   leader: string;
@@ -250,7 +251,7 @@ export default function AIEngineerConsole() {
                         {Object.values(strategyData.pit_windows).slice(0, 10).map((window) => (
                           <tr key={window.driver_code} className="border-b border-white/5">
                             <td className="py-1.5 font-bold text-white">{window.driver_code}</td>
-                            <td className="py-1.5">{window.compound}</td>
+                            <td className="py-1.5"><CompoundBadge compound={window.compound} showLabel /></td>
                             <td className="py-1.5">{window.tyre_age} laps</td>
                             <td className="py-1.5 text-f1-yellow">+{window.estimated_deg_loss_seconds}s</td>
                             <td className="py-1.5 font-bold">

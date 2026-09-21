@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useF1Store } from "@/store/useTelemetryStore";
+import CompoundBadge from "@/components/CompoundBadge";
 
 export default function LiveTiming() {
   const { leaderboard, drivers, selectedDriverNum, setSelectedDriverNum } = useF1Store();
@@ -50,12 +51,6 @@ export default function LiveTiming() {
             {sortedLeaderboard.map(({ number, timing, driver }) => {
               if (!driver) return null;
               const isSelected = selectedDriverNum === number;
-              
-              // Tyres
-              const tyreColor = 
-                timing.compound?.toLowerCase().includes("soft") ? "text-f1-red" :
-                timing.compound?.toLowerCase().includes("medium") ? "text-f1-yellow" :
-                timing.compound?.toLowerCase().includes("hard") ? "text-white" : "text-f1-green";
 
               return (
                 <tr
@@ -85,8 +80,8 @@ export default function LiveTiming() {
                   <td className="py-2.5 px-1 text-white/70">{timing.s1 ? timing.s1.toFixed(3) : "-"}</td>
                   <td className="py-2.5 px-1 text-white/70">{timing.s2 ? timing.s2.toFixed(3) : "-"}</td>
                   <td className="py-2.5 px-1 text-white/70">{timing.s3 ? timing.s3.toFixed(3) : "-"}</td>
-                  <td className={`py-2.5 px-1 font-bold ${tyreColor}`}>
-                    {timing.compound ? `${timing.compound[0]}${timing.tyre_age ? ` (${timing.tyre_age})` : ""}` : "-"}
+                  <td className="py-2.5 px-1">
+                    {timing.compound ? <CompoundBadge compound={timing.compound} age={timing.tyre_age} /> : "-"}
                   </td>
                 </tr>
               );

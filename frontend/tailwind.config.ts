@@ -22,7 +22,15 @@ const config: Config = {
           dark: "#15151e",
           gray: "#38383f",
           light: "#f3f3f3",
-        }
+        },
+        // Real F1 tire-compound colors. Keep in sync with src/lib/compounds.ts.
+        compound: {
+          soft: "#e10600",
+          medium: "#ffd12b",
+          hard: "#f3f3f3",
+          inter: "#43b02a",
+          wet: "#0067ad",
+        },
       },
     },
   },
