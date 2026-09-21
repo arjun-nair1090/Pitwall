@@ -1,6 +1,7 @@
 from openai import OpenAI
 from anthropic import Anthropic
 from app.core.config import settings
+from app.services.llm_utils import extract_text, supports_effort
 
 class AICommentator:
     def __init__(self):
@@ -27,23 +28,31 @@ class AICommentator:
 
         if self.anthropic_client:
             try:
-                response = self.anthropic_client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=100,
-                    messages=[{"role": "user", "content": prompt}]
+                kwargs = dict(
+                    model=settings.ANTHROPIC_MODEL,
+                    # Thinking counts toward max_tokens; a tiny cap can be spent
+                    # entirely on thinking and leave an empty answer.
+                    max_tokens=1024,
+                    messages=[{"role": "user", "content": prompt}],
                 )
-                return response.content[0].text.strip()
+                if supports_effort(settings.ANTHROPIC_MODEL):
+                    kwargs["output_config"] = {"effort": "low"}
+                text = extract_text(self.anthropic_client.messages.create(**kwargs))
+                if text:
+                    return text
             except Exception as e:
                 print(f"Anthropic Commentator Error: {e}")
 
         if self.openai_client:
             try:
                 response = self.openai_client.chat.completions.create(
-                    model="gpt-4o",
+                    model=settings.OPENAI_MODEL,
                     messages=[{"role": "user", "content": prompt}],
                     max_tokens=100
                 )
-                return response.choices[0].message.content.strip()
+                text = (response.choices[0].message.content or "").strip()
+                if text:
+                    return text
             except Exception as e:
                 print(f"OpenAI Commentator Error: {e}")
 

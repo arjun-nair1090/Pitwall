@@ -1,6 +1,6 @@
 import asyncio
 import os
-from typing import TypedDict, Dict, Any, List
+from typing import TypedDict, Dict, Any, List, Optional
 from datetime import datetime
 from openai import OpenAI
 from anthropic import Anthropic
@@ -8,6 +8,7 @@ from langgraph.graph import StateGraph, START, END
 from app.core.config import settings
 from app.services.f1_data_service import f1_service
 from app.services import rag_service
+from app.services.llm_utils import extract_text, supports_effort
 
 # Define LangGraph state schema
 class AgentState(TypedDict):
@@ -85,6 +86,58 @@ class AIEngineer:
                 
         return md
 
+    async def generate_text(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int = 4096,
+        effort: str = "low",
+    ) -> Optional[str]:
+        """Generate text with Anthropic, falling back to OpenAI. None if neither works.
+
+        The SDK calls are blocking, so they run in a worker thread -- called
+        directly they would stall the event loop (and every other request) for the
+        whole round trip. Returning None (never raising) lets callers fall back to
+        a deterministic answer instead of failing the request.
+        """
+        if self.anthropic_client:
+            try:
+                kwargs: Dict[str, Any] = dict(
+                    model=settings.ANTHROPIC_MODEL,
+                    # Current models think by default and thinking counts toward
+                    # max_tokens, so leave headroom beyond the visible answer.
+                    max_tokens=max_tokens,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": user_prompt}],
+                )
+                if supports_effort(settings.ANTHROPIC_MODEL):
+                    kwargs["output_config"] = {"effort": effort}
+                response = await asyncio.to_thread(self.anthropic_client.messages.create, **kwargs)
+                text = extract_text(response)
+                if text:
+                    return text
+            except Exception as e:
+                print(f"Anthropic API Error: {e}")
+
+        if self.openai_client:
+            try:
+                response = await asyncio.to_thread(
+                    self.openai_client.chat.completions.create,
+                    model=settings.OPENAI_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    max_tokens=max_tokens,
+                )
+                text = (response.choices[0].message.content or "").strip()
+                if text:
+                    return text
+            except Exception as e:
+                print(f"OpenAI API Error: {e}")
+
+        return None
+
     async def call_llm(self, question: str, context_md: str) -> str:
         """Query LLM models using OpenAI or Anthropic SDKs."""
         system_prompt = (
@@ -97,33 +150,11 @@ class AIEngineer:
         )
         
         user_prompt = f"{context_md}\n\nUser Question: {question}\nResponse:"
-        
-        if self.anthropic_client:
-            try:
-                response = self.anthropic_client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=800,
-                    system=system_prompt,
-                    messages=[{"role": "user", "content": user_prompt}]
-                )
-                return response.content[0].text
-            except Exception as e:
-                print(f"Anthropic API Error: {e}")
-                
-        if self.openai_client:
-            try:
-                response = self.openai_client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
-                    max_tokens=800
-                )
-                return response.choices[0].message.content
-            except Exception as e:
-                print(f"OpenAI API Error: {e}")
-        
+
+        answer = await self.generate_text(system_prompt, user_prompt)
+        if answer:
+            return answer
+
         fallback_msg = (
             "**[PIT WALL AI ENGINEER MESSAGE]**\n"
             "LLM API client is offline or credentials are not configured. However, F1 Live Context is active:\n\n"

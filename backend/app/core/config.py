@@ -51,6 +51,10 @@ class Settings(BaseModel):
 
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    # Model IDs are configuration: hardcoded IDs go stale when a model is retired,
+    # which silently degrades every AI feature to its fallback.
+    ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
     FASTF1_SESSION_TYPE: str = os.getenv("FASTF1_SESSION_TYPE", "Race")
     FASTF1_YEAR: int = int(os.getenv("FASTF1_YEAR", "2024"))
     FASTF1_CACHE_DIR: str = os.getenv("FASTF1_CACHE_DIR", "data/fastf1_cache")
