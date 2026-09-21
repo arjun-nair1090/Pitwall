@@ -13,6 +13,8 @@ import TeamRadioConsole from "@/components/TeamRadioConsole";
 // browsers because of the collapsing address bar).
 export default function LiveDashboardPage() {
   return (
+    <>
+    <h1 className="sr-only">Live timing</h1>
     <div className="flex-1 flex flex-col gap-4">
       <div className="grid grid-cols-12 gap-4 flex-1">
         {/* Left Side: Timing Board + Gap Evolution (5 cols) */}
@@ -41,5 +43,6 @@ export default function LiveDashboardPage() {
         <TeamRadioConsole />
       </div>
     </div>
+    </>
   );
 }

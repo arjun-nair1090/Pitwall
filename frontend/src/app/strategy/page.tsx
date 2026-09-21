@@ -115,17 +115,17 @@ export default function StrategySimulatorPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-titillium font-bold text-white/60 mb-2">YEAR</label>
-            <input type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red" />
+            <input aria-label="Year" type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red" />
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs font-titillium font-bold text-white/60 mb-2">GRAND PRIX</label>
-            <select value={gp} onChange={(e) => setGp(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red">
+            <select aria-label="Grand Prix" value={gp} onChange={(e) => setGp(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red">
               {availableGPs.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs font-titillium font-bold text-white/60 mb-2">COMPARE TO DRIVER (OPTIONAL)</label>
-            <select value={driverCode} onChange={(e) => setDriverCode(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red">
+            <select aria-label="Compare To Driver (Optional)" value={driverCode} onChange={(e) => setDriverCode(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red">
               <option value="">None</option>
               {availableDrivers.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
@@ -144,10 +144,11 @@ export default function StrategySimulatorPage() {
               <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-black/30 p-3 rounded-md border border-white/5">
                 <span className="text-xs text-white/40 font-bold w-16">STINT {i + 1}</span>
                 <CompoundBadge compound={stint.compound} />
-                <select value={stint.compound} onChange={(e) => updateStint(i, { compound: e.target.value })} className="bg-black/50 border border-white/10 text-white rounded-md px-3 py-1.5 text-sm font-titillium">
+                <select aria-label={`Stint ${i + 1} compound`} value={stint.compound} onChange={(e) => updateStint(i, { compound: e.target.value })} className="bg-black/50 border border-white/10 text-white rounded-md px-3 py-1.5 text-sm font-titillium">
                   {COMPOUNDS.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <input
+                  aria-label={`Stint ${i + 1} laps`}
                   type="number"
                   value={stint.laps}
                   onChange={(e) => updateStint(i, { laps: parseInt(e.target.value) || 0 })}

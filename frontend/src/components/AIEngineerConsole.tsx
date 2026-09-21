@@ -101,7 +101,7 @@ export default function AIEngineerConsole() {
           ...prev,
           {
             sender: "ai",
-            text: "Error: Unable to connect to Race Engineering context. Please verify OpenAI API key settings.",
+            text: "Error: Unable to reach the race engineer right now. Check that the backend is running and an AI provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY) is configured.",
           },
         ]);
       })
@@ -169,6 +169,7 @@ export default function AIEngineerConsole() {
             <form onSubmit={handleSendChat} className="flex gap-2">
               <input
                 type="text"
+                aria-label="Ask the AI race engineer"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 placeholder="Ask pit wall: e.g. Why is VER losing time?"
