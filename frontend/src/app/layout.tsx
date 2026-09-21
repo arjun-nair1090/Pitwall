@@ -4,6 +4,7 @@ import NavigationBar from "@/components/NavigationBar";
 import BackgroundScene from "@/components/BackgroundScene";
 import LiveAlertBanner from "@/components/LiveAlertBanner";
 import localFont from "next/font/local";
+import "@/design/tokens.css";
 import "./globals.css";
 
 // Self-hosted (see src/fonts/) instead of next/font/google: the Google Fonts fetch
