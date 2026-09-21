@@ -126,7 +126,7 @@ export default function WhatIfPanel({ facts }: WhatIfPanelProps) {
           id="whatif-driver"
           value={driver}
           onChange={(e) => setDriver(e.target.value)}
-          className="w-full md:w-72 bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40"
+          className="w-full md:w-72 bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 "
         >
           {drivers.map((d) => (
             <option key={d.code} value={d.code}>{d.code}{nameFor[d.code] ? ` — ${nameFor[d.code]}` : ""}</option>
@@ -158,7 +158,7 @@ export default function WhatIfPanel({ facts }: WhatIfPanelProps) {
                   step={1}
                   value={shift}
                   onChange={(e) => setShifts((prev) => prev.map((v, j) => (j === i ? parseInt(e.target.value) : v)))}
-                  className="flex-1 min-w-[140px] accent-f1-red"
+                  className="flex-1 min-w-[140px] accent-chalk"
                 />
                 <span className="text-sm tabular-nums text-chalk w-36 text-right">
                   {shift === 0 ? "no change" : `${shift > 0 ? "+" : "−"}${Math.abs(shift)} laps → lap ${after}`}

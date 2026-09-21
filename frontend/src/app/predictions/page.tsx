@@ -208,7 +208,7 @@ export default function PredictionsPage() {
           id="prediction-season"
           value={year}
           onChange={(e) => setYear(parseInt(e.target.value))}
-          className="bg-kerb border border-gantry text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40"
+          className="bg-kerb border border-gantry text-chalk rounded-panel px-4 py-2 "
         >
           {Array.from({ length: currentYear - FIRST_SEASON + 1 }, (_, i) => currentYear - i).map((y) => (
             <option key={y} value={y}>{y}</option>
@@ -235,7 +235,7 @@ export default function PredictionsPage() {
               value={eventName}
               onChange={(e) => setEventName(e.target.value)}
               disabled={optionsLoading || races.length === 0}
-              className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40 disabled:opacity-50"
+              className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 disabled:opacity-50"
             >
               {optionsLoading && <option value="">Loading…</option>}
               {!optionsLoading && openRaces.length === 0 && <option value="">No open races</option>}
@@ -261,7 +261,7 @@ export default function PredictionsPage() {
                   value={picks[i]}
                   onChange={(e) => setPick(i, e.target.value)}
                   disabled={optionsLoading || !selectedIsOpen}
-                  className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40 disabled:opacity-50"
+                  className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 disabled:opacity-50"
                 >
                   <option value="">Select driver</option>
                   {drivers.map((d) => (

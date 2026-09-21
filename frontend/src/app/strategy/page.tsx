@@ -114,17 +114,17 @@ export default function StrategySimulatorPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-bold text-mute mb-2">YEAR</label>
-            <input aria-label="Year" type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40" />
+            <input aria-label="Year" type="number" value={year} onChange={(e) => setYear(parseInt(e.target.value))} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 " />
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-mute mb-2">Grand Prix</label>
-            <select aria-label="Grand Prix" value={gp} onChange={(e) => setGp(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
+            <select aria-label="Grand Prix" value={gp} onChange={(e) => setGp(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 ">
               {availableGPs.map((g) => <option key={g} value={g}>{g}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-xs font-bold text-mute mb-2">Compare to driver (optional)</label>
-            <select aria-label="Compare To Driver (Optional)" value={driverCode} onChange={(e) => setDriverCode(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
+            <select aria-label="Compare To Driver (Optional)" value={driverCode} onChange={(e) => setDriverCode(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 ">
               <option value="">None</option>
               {availableDrivers.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>

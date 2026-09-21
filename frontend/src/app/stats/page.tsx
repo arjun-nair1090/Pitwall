@@ -72,7 +72,7 @@ export default function StatsPage() {
           <select aria-label="Season"
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value))}
-            className="bg-kerb border border-gantry text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40 transition-colors"
+            className="bg-kerb border border-gantry text-chalk rounded-panel px-4 py-2 transition-colors"
           >
             {Array.from({ length: currentYear - 2018 + 1 }, (_, i) => currentYear - i).map((y) => (
               <option key={y} value={y}>{y}</option>

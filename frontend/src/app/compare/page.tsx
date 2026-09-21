@@ -210,11 +210,11 @@ export default function ComparePage() {
         <form onSubmit={handleCompare} className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div>
             <label className="block text-xs font-bold text-mute mb-2">YEAR</label>
-            <input aria-label="Year" type="number" value={year} onChange={e => setYear(parseInt(e.target.value))} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40" />
+            <input aria-label="Year" type="number" value={year} onChange={e => setYear(parseInt(e.target.value))} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 " />
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs font-bold text-mute mb-2">Grand Prix</label>
-            <select aria-label="Grand Prix" value={gp} onChange={e => setGp(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
+            <select aria-label="Grand Prix" value={gp} onChange={e => setGp(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 ">
               {availableGPs.map(g => (
                 <option key={g} value={g}>{g}</option>
               ))}
@@ -222,7 +222,7 @@ export default function ComparePage() {
           </div>
           <div>
             <label className="block text-xs font-bold text-mute mb-2">Session</label>
-            <select aria-label="Session" value={session} onChange={e => setSession(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
+            <select aria-label="Session" value={session} onChange={e => setSession(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 ">
               <option value="FP1">FP1</option>
               <option value="FP2">FP2</option>
               <option value="FP3">FP3</option>
@@ -235,7 +235,7 @@ export default function ComparePage() {
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-bold text-mute mb-2">Driver 1</label>
-              <select aria-label="Driver 1" value={driver1} onChange={e => setDriver1(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
+              <select aria-label="Driver 1" value={driver1} onChange={e => setDriver1(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 ">
                 {availableDrivers.map(d => (
                   <option key={d} value={d}>{d}</option>
                 ))}
@@ -243,13 +243,13 @@ export default function ComparePage() {
             </div>
             <div>
               <label className="block text-xs font-bold text-mute mb-2">Lap (optional)</label>
-              <input aria-label="Lap (Optional)" type="number" placeholder="Fastest" value={driver1Lap} onChange={e => setDriver1Lap(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40" />
+              <input aria-label="Lap (Optional)" type="number" placeholder="Fastest" value={driver1Lap} onChange={e => setDriver1Lap(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 " />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="block text-xs font-bold text-mute mb-2">Driver 2</label>
-              <select aria-label="Driver 2" value={driver2} onChange={e => setDriver2(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
+              <select aria-label="Driver 2" value={driver2} onChange={e => setDriver2(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 ">
                 {availableDrivers.map(d => (
                   <option key={d} value={d}>{d}</option>
                 ))}
@@ -257,7 +257,7 @@ export default function ComparePage() {
             </div>
             <div>
               <label className="block text-xs font-bold text-mute mb-2">Lap (optional)</label>
-              <input aria-label="Lap (Optional)" type="number" placeholder="Fastest" value={driver2Lap} onChange={e => setDriver2Lap(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40" />
+              <input aria-label="Lap (Optional)" type="number" placeholder="Fastest" value={driver2Lap} onChange={e => setDriver2Lap(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 " />
             </div>
           </div>
           <div className="md:col-span-6 flex justify-end mt-2">

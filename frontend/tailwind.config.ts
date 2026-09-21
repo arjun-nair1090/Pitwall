@@ -14,7 +14,6 @@ const config: Config = {
       fontFamily: {
         display: ["var(--font-display)", "Impact", "Arial Narrow", "sans-serif"],
         sans: ["var(--font-ui)", "system-ui", "Segoe UI", "Roboto", "sans-serif"],
-        titillium: ["var(--font-titillium)", "sans-serif"], // legacy, removed in Plan 2 cleanup
       },
       borderRadius: {
         panel: "var(--radius-panel)",
@@ -35,28 +34,6 @@ const config: Config = {
           yellow: token("timing-yellow"),
         },
         live: { DEFAULT: token("f1-red"), text: token("f1-red-text") },
-
-        // ---- legacy (removed in Plan 2 cleanup) ----
-        background: "var(--background)",
-        foreground: "var(--foreground)",
-        f1: {
-          red: "#e10600",
-          yellow: "#ffd12b",
-          green: "#00b259",
-          blue: "#00a2ed",
-          cyan: "#66fcf1",
-          dark: "#15151e",
-          gray: "#38383f",
-          light: "#f3f3f3",
-        },
-        // Real F1 tyre-compound colours. Keep in sync with src/lib/compounds.ts.
-        compound: {
-          soft: "#e10600",
-          medium: "#ffd12b",
-          hard: "#f3f3f3",
-          inter: "#43b02a",
-          wet: "#0067ad",
-        },
       },
     },
   },
