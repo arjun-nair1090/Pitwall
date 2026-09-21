@@ -153,3 +153,57 @@ def test_calendar_skips_session_names_it_does_not_know(monkeypatch):
     races = client.get("/api/v1/races/historical", params={"year": 2026}).json()
     assert "Mystery Session" not in str(races[0]["sessions"])
     assert races[0]["sessions"] == ["R"]  # only the fake calendar's Race slot is recognised
+
+
+# ---- our own 4xx answers are not turned into 500s ----
+
+def _async_returning(value):
+    async def fn(*args, **kwargs):
+        return value
+    return fn
+
+
+def test_no_live_session_is_a_404_not_a_500(monkeypatch):
+    from app.services.f1_data_service import f1_service
+
+    monkeypatch.setattr(f1_service, "get_latest_session_key", _async_returning(9999))
+    monkeypatch.setattr(f1_service, "sync_session_metadata", _async_returning(None))
+    response = client.get("/api/v1/sessions/active")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Active session not found"
+
+
+def test_missing_weather_is_a_404_not_a_500(monkeypatch):
+    from app.services.f1_data_service import f1_service
+
+    monkeypatch.setattr(f1_service, "get_live_weather", _async_returning(None))
+    response = client.get("/api/v1/sessions/9999/weather")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Weather data not available"
+
+
+def test_standings_for_a_season_without_data_is_a_400_with_a_plain_message(monkeypatch):
+    from app.services.f1_data_service import f1_service
+
+    monkeypatch.setattr(f1_service, "get_season_standings", _async_returning({"error": "No standings data available for this year."}))
+    response = client.get("/api/v1/stats/standings", params={"year": 2999})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "No standings data available for this year."
+
+
+def test_circuit_layout_error_is_a_400_with_a_plain_message(monkeypatch):
+    from app.services.f1_data_service import f1_service
+
+    monkeypatch.setattr(f1_service, "get_circuit_layout", lambda *a: {"error": "No layout for that race."})
+    response = client.get("/api/v1/circuits/0/layout", params={"year": 2999, "gp": "Nowhere"})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "No layout for that race."
+
+
+def test_replay_error_is_a_400_with_a_plain_message(monkeypatch):
+    from app.services.f1_data_service import f1_service
+
+    monkeypatch.setattr(f1_service, "get_historical_replay", _async_returning({"error": "No replay for that race."}))
+    response = client.get("/api/v1/telemetry/replay", params={"year": 2999, "gp": "Nowhere"})
+    assert response.status_code == 400
+    assert response.json()["detail"] == "No replay for that race."

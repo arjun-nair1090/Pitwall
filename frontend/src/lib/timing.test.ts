@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  classifyTime, formatDelta, formatGap, formatLapTime, formatSector,
+  classifyTime, formatDelta, formatGap, formatLapTime, formatRaceTime, formatSector,
   teamColor, TIMING_TEXT_CLASS, UNKNOWN_TEAM_COLOR,
 } from "./timing";
 
@@ -74,5 +74,24 @@ describe("teamColor", () => {
   it("falls back for unknown or missing teams", () => {
     expect(teamColor("Some New Team")).toBe(UNKNOWN_TEAM_COLOR);
     expect(teamColor(null)).toBe(UNKNOWN_TEAM_COLOR);
+  });
+});
+
+describe("formatRaceTime", () => {
+  it("shows hours, minutes, seconds and milliseconds for a full race", () => {
+    expect(formatRaceTime(5526.35)).toBe("1:32:06.350");
+    expect(formatRaceTime(4797.566)).toBe("1:19:57.566");
+  });
+  it("drops the hour for a short session", () => {
+    expect(formatRaceTime(3599.5)).toBe("59:59.500");
+    expect(formatRaceTime(90.123)).toBe("1:30.123");
+  });
+  it("rounds to the millisecond without overflowing a minute", () => {
+    expect(formatRaceTime(59.9996)).toBe("1:00.000");
+  });
+  it("shows an en dash when there is no time", () => {
+    expect(formatRaceTime(null)).toBe("–");
+    expect(formatRaceTime(undefined)).toBe("–");
+    expect(formatRaceTime(0)).toBe("–");
   });
 });
