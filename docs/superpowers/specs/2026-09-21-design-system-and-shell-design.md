@@ -44,7 +44,9 @@ this sub-project delivers.
 
 ## Non-goals
 
-New analysis modules, backend changes, a light theme, translations.
+New analysis modules, a light theme, translations, and backend changes other than
+one additive read-only endpoint, `GET /api/v1/races/latest-result`, which feeds the
+landing race tower.
 
 ## Visual language
 
@@ -57,12 +59,17 @@ monospace data labels are removed.
 |---|---|---|
 | `tarmac` | page ground | `#13161B` |
 | `kerb` | panel surface | `#1B1F26` |
-| `gantry` | hairlines, dividers | `#2A303A` |
+| `raised` | inputs, hover, nested surfaces | `#232832` |
+| `gantry` | hairlines, dividers (decorative) | `#2A303A` |
+| `edge` | form-control borders (3:1 UI contrast) | `#6C7789` |
 | `chalk` | primary text | `#E8EBEF` |
+| `mute` | secondary text | `#A6AEBB` |
+| `faint` | tertiary text, non-essential meta | `#8790A0` |
 | `timing-purple` | overall best | `#B57BFF` |
 | `timing-green` | personal best | `#35D07F` |
 | `timing-yellow` | off pace, caution | `#F6C945` |
-| `f1-red` | live indicator and alerts only | `#E10600` |
+| `f1-red` | live indicator and alerts, non-text only | `#E10600` |
+| `f1-red-text` | red used as text (F1 red is 3.3:1 on panels) | `#FF6B60` |
 
 Tyre compound colours stay as in `lib/compounds.ts`. Team colours come from a
 single lookup in `lib/timing.ts`. Every text/background pair is checked against
@@ -70,7 +77,9 @@ WCAG AA programmatically; failing pairs are adjusted, not excused.
 
 **Type.** Big Shoulders Display for headlines and position numerals. Barlow
 Semi Condensed for UI and data, with tabular numerals so lap times align. Both
-via `next/font/google` with system fallbacks. Tabular figures are confirmed by
+self-hosted as woff2 via `next/font/local` (the project already self-hosts fonts
+because the Google fetch at build time hard-fails on restricted networks), with
+system fallbacks. Tabular figures are confirmed by
 measuring the rendered glyph widths; if they fail, the data face becomes IBM
 Plex Sans Condensed. Labels use sentence case.
 
@@ -118,6 +127,9 @@ frontend/src/
   second window cannot share state cleanly). Layouts are versioned so a future
   panel change does not break saved layouts. Fallback if the dependency cannot
   be installed: fixed responsive layout with expand and collapse, no drag.
+  react-grid-layout is pinned to 1.5.4 (the 2.x line changed its API). Drag and
+  resize are pointer-only; keyboard users get expand/collapse and a "Reset layout"
+  action.
 - Legacy Tailwind names (`f1-cyan`, `glass-panel`, `font-titillium`) remain as
   aliases until the last page is migrated, then are deleted.
 - The 3D `RacingScene`, `BackgroundScene` and the `three`, `@react-three/fiber`,
@@ -151,7 +163,8 @@ reachable palette and panel actions, no horizontal page scroll at 390px.
 
 ## Verification
 
-- `tsc --noEmit`, `next lint` and a production `next build` pass.
+- `tsc --noEmit` (run explicitly, because next.config ignores type errors during
+  builds), `next lint` and a production `next build` pass.
 - Vitest covers `timing.ts`, registry search and `layoutStore`.
 - A Chrome DevTools Protocol sweep runs every route at 390, 768 and 1280px and
   fails on overflow, uncaught exceptions, unlabelled controls, missing `h1`, and

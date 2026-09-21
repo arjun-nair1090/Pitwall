@@ -32,7 +32,7 @@ jobs:
         run: python -m pytest -q
 
   frontend:
-    name: Frontend (tsc + build)
+    name: Frontend (tsc + tests + build)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -51,6 +51,9 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
+
+      - name: Unit tests
+        run: npx vitest run
 
       - name: Build
         run: npx next build

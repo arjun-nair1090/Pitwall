@@ -68,9 +68,10 @@ backend/app/api/v1/endpoints.py (modified: one route)
 
 Run (from `frontend/`):
 ```bash
-npm install react-grid-layout@1.5.4
-npm install -D @types/react-grid-layout@^1.3.5 vitest jsdom @vitejs/plugin-react @testing-library/react @testing-library/jest-dom @testing-library/user-event
+npm install react-grid-layout@1.5.4 --save-exact
+npm install -D "@types/react-grid-layout@^1.3.5" "vitest@^3" "@vitejs/plugin-react@^4" "jsdom@^26" "@testing-library/react@^16" "@testing-library/dom@^10" "@testing-library/jest-dom@^6" "@testing-library/user-event@^14"
 ```
+(Executed note: vitest 5 was rejected by npm because it wants `@types/node` 22+ and the project pins 20 with CI on Node 20; vitest 3 / plugin-react 4 / jsdom 26 are the compatible line. `@testing-library/dom` is a required peer of Testing Library 16. `npm audit` reports a critical/high finding in `next` 14.2.35, which pre-dates this work.)
 Expected: installs without peer errors. If `react-grid-layout` fails to install, stop and record it: Plan 2 Task 3 uses its documented fallback.
 
 - [ ] **Step 3: Add config files**
