@@ -162,6 +162,7 @@ export default function HistoricalArchive() {
           
           {/* Season Year selector */}
           <select
+            aria-label="Season"
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value))}
             className="bg-black border border-white/20 text-white px-2 py-1 rounded font-bold focus:outline-none focus:border-f1-red"

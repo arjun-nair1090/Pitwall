@@ -6,6 +6,8 @@ import TelemetryComparison from "@/components/TelemetryComparison";
 
 export default function ArchivePage() {
   return (
+    <>
+    <h1 className="sr-only">Archives</h1>
     <div className="flex-1 grid grid-cols-12 gap-4">
       {/* Left Side Archives List (4 cols) */}
       <div className="col-span-12 xl:col-span-4 h-full">
@@ -17,5 +19,6 @@ export default function ArchivePage() {
         <TelemetryComparison />
       </div>
     </div>
+    </>
   );
 }

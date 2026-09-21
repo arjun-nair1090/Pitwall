@@ -70,7 +70,7 @@ export default function StatsPage() {
 
         <div className="flex items-center gap-4">
           <label className="text-sm font-titillium font-bold text-white/60">SEASON</label>
-          <select
+          <select aria-label="Season"
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value))}
             className="bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red transition-colors"

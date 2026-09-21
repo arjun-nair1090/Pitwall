@@ -308,6 +308,7 @@ export default function TelemetryComparison() {
         </h2>
         <div className="flex gap-1.5 text-[10px] items-center">
           <select
+            aria-label="Driver 1"
             value={d1}
             onChange={(e) => setD1(e.target.value)}
             className="bg-black/60 border border-white/15 text-white px-1.5 py-0.5 rounded font-mono focus:outline-none"
@@ -319,6 +320,7 @@ export default function TelemetryComparison() {
           </select>
           <span className="text-white/30 font-bold">VS</span>
           <select
+            aria-label="Driver 2"
             value={d2}
             onChange={(e) => setD2(e.target.value)}
             className="bg-black/60 border border-white/15 text-white px-1.5 py-0.5 rounded font-mono focus:outline-none"
