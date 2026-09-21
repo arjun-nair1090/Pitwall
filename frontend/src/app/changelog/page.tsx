@@ -8,6 +8,15 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-09-21",
+    title: "Accounts and the prediction game",
+    items: [
+      "Sign up and log in with an email and password. Sessions use httpOnly cookies with CSRF protection, and logging out revokes the session server-side.",
+      "New Predictions page: call the top 3 for an upcoming race. Picks lock automatically once the race session starts, checked against the official schedule.",
+      "Public leaderboard scored against real official results: 25 points for an exact podium, 10 points per driver named anywhere in the real top 3.",
+    ],
+  },
+  {
     date: "2026-09-20",
     title: "AI memory, strategy simulation, and shareability",
     items: [
