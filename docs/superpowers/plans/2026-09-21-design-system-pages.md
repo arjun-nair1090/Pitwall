@@ -16,6 +16,7 @@ Every task's requirements implicitly include this section. It repeats Plan 1's c
 
 - Palette tokens exactly: tarmac `#13161B`, kerb `#1B1F26`, raised `#232832`, gantry `#2A303A`, edge `#6C7789`, chalk `#E8EBEF`, mute `#A6AEBB`, faint `#8790A0`, timing purple `#B57BFF` / green `#35D07F` / yellow `#F6C945`, F1 red `#E10600` (non-text only), F1 red text `#FF6B60`.
 - Colour only carries meaning (timing semantics, live/danger, tyre compounds, team colours). No cyan, no brand accent, no all-caps labels, no monospace data labels. Sentence-case copy.
+- Numerals: `font-display` (Big Shoulders) has proportional digits (measured), so use it only for single values (headlines, one big number) or centred in a fixed-width cell (position numerals). Every aligned column of digits (times, gaps, points) uses the UI face with `tabular-nums`.
 - Shape: panels `rounded-panel` (6px), controls `rounded-control` (4px), pills full; hairline borders, no shadows for hierarchy.
 - Motion: only the start-lights intro, live-tower row reordering, and interaction feedback; honour `prefers-reduced-motion`.
 - Accessibility floor: `:focus-visible` ring on every control (never `outline-none` without a `focus-visible:` replacement), AA contrast, labelled controls, exactly one `h1` per page, 40px touch targets on mobile, no horizontal scroll at 390px.
