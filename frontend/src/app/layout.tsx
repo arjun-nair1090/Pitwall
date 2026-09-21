@@ -6,22 +6,9 @@ import localFont from "next/font/local";
 import "@/design/tokens.css";
 import "./globals.css";
 
-// Self-hosted (see src/fonts/) instead of next/font/google: the Google Fonts fetch
-// at `next build` time has no fallback and hard-fails the build on flaky/blocked
-// networks (corporate proxies, some CI/Docker build contexts).
-const titillium = localFont({
-  src: [
-    { path: "../fonts/TitilliumWeb-200.woff2", weight: "200", style: "normal" },
-    { path: "../fonts/TitilliumWeb-300.woff2", weight: "300", style: "normal" },
-    { path: "../fonts/TitilliumWeb-400.woff2", weight: "400", style: "normal" },
-    { path: "../fonts/TitilliumWeb-600.woff2", weight: "600", style: "normal" },
-    { path: "../fonts/TitilliumWeb-700.woff2", weight: "700", style: "normal" },
-    { path: "../fonts/TitilliumWeb-900.woff2", weight: "900", style: "normal" },
-  ],
-  variable: "--font-titillium",
-  display: "swap",
-});
-
+// Self-hosted (see src/fonts/) instead of next/font/google: the Google Fonts fetch at `next build`
+// time has no fallback and hard-fails the build on flaky or blocked networks (corporate proxies,
+// some CI/Docker build contexts).
 const display = localFont({
   src: [
     { path: "../fonts/big-shoulders-display-latin-700-normal.woff2", weight: "700", style: "normal" },
@@ -60,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${display.variable} ${ui.variable} ${titillium.variable}`}>
+    <html lang="en" className={`${display.variable} ${ui.variable}`}>
       <body className="bg-tarmac font-sans text-chalk antialiased">
         <AppInitializer>
           <LiveAlertBanner />

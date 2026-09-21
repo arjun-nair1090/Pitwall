@@ -134,7 +134,7 @@ function DebriefContent() {
               linked.current = { year: null, race: null };
               setYear(parseInt(e.target.value));
             }}
-            className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40"
+            className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 "
           >
             {Array.from({ length: currentYear - FIRST_SEASON + 1 }, (_, i) => currentYear - i).map((y) => (
               <option key={y} value={y}>{y}</option>
@@ -148,7 +148,7 @@ function DebriefContent() {
             value={eventName}
             onChange={(e) => setEventName(e.target.value)}
             disabled={racesLoading || races.length === 0}
-            className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40 disabled:opacity-50"
+            className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 disabled:opacity-50"
           >
             {racesLoading && <option value="">Loading…</option>}
             {!racesLoading && races.length === 0 && <option value="">No completed races yet</option>}

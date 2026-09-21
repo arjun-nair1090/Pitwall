@@ -311,7 +311,7 @@ export default function TelemetryComparison() {
             aria-label="Driver 1"
             value={d1}
             onChange={(e) => setD1(e.target.value)}
-            className="bg-kerb border border-gantry text-chalk px-1.5 py-0.5 rounded-control tabular-nums focus:outline-none"
+            className="bg-kerb border border-gantry text-chalk px-1.5 py-0.5 rounded-control tabular-nums "
             style={{ color: d1Color }}
           >
             {driverCodes.map((code) => (
@@ -323,7 +323,7 @@ export default function TelemetryComparison() {
             aria-label="Driver 2"
             value={d2}
             onChange={(e) => setD2(e.target.value)}
-            className="bg-kerb border border-gantry text-chalk px-1.5 py-0.5 rounded-control tabular-nums focus:outline-none"
+            className="bg-kerb border border-gantry text-chalk px-1.5 py-0.5 rounded-control tabular-nums "
             style={{ color: d2Color }}
           >
             {driverCodes.map((code) => (
