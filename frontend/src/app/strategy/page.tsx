@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { FlaskConical, Loader2, AlertTriangle, Plus, Trash2 } from "lucide-react";
 import CompoundBadge from "@/components/CompoundBadge";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 interface Stint {
   compound: string;
@@ -84,7 +85,7 @@ export default function StrategySimulatorPage() {
       });
       setResult(res.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Simulation failed.");
+      setError(getApiErrorMessage(err, "Simulation failed."));
     } finally {
       setLoading(false);
     }

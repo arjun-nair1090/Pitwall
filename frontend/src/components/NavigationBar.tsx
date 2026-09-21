@@ -1,14 +1,32 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import axios from "axios";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useF1Store } from "@/store/useTelemetryStore";
-import { Activity, Map, Archive, Home, FlaskConical, GitCommit, Target } from "lucide-react";
+import { Activity, Map, Archive, Home, FlaskConical, GitCommit, Target, LogIn, LogOut } from "lucide-react";
 
 export default function NavigationBar() {
   const pathname = usePathname();
-  const { activeSession, isConnected, weather } = useF1Store();
+  const { activeSession, isConnected, weather, currentUser, setCurrentUser } = useF1Store();
+  const [logoutFailed, setLogoutFailed] = useState(false);
+
+  const handleLogout = async () => {
+    setLogoutFailed(false);
+    try {
+      await axios.post("/api/v1/auth/logout");
+    } catch (err: any) {
+      // 401 means the session was already gone server-side, so we're logged out
+      // either way. Anything else (offline, server error) means the session may
+      // still be live -- don't pretend otherwise.
+      if (err?.response?.status !== 401) {
+        setLogoutFailed(true);
+        return;
+      }
+    }
+    setCurrentUser(null);
+  };
 
   const navLinks = [
     { name: "Map", path: "/map", icon: <Map className="h-4 w-4" /> },
@@ -86,6 +104,28 @@ export default function NavigationBar() {
           <GitCommit className="h-3.5 w-3.5" />
           Changelog
         </Link>
+        {currentUser ? (
+          <div className="flex items-center gap-3 pl-4 border-l border-white/10 text-[11px] uppercase">
+            <span className="text-white/70 max-w-[120px] truncate" title={currentUser.email}>{currentUser.display_name}</span>
+            <button
+              onClick={handleLogout}
+              className={`flex items-center gap-1.5 py-1.5 transition-colors ${logoutFailed ? "text-f1-red" : "text-white/40 hover:text-white/70"}`}
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              {logoutFailed ? "Retry logout" : "Log out"}
+            </button>
+          </div>
+        ) : (
+          <Link
+            href="/login"
+            className={`flex items-center gap-1.5 pl-4 border-l border-white/10 uppercase text-[11px] py-1.5 transition-colors ${
+              pathname === "/login" ? "text-f1-red" : "text-white/40 hover:text-white/70"
+            }`}
+          >
+            <LogIn className="h-3.5 w-3.5" />
+            Log in
+          </Link>
+        )}
       </div>
     </header>
   );

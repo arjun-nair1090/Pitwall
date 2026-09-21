@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import axios from "axios";
 import { Loader2, Download } from "lucide-react";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 interface DominanceSegment {
   minisector: number;
@@ -63,7 +64,7 @@ export default function DominanceMap({ year, gp, session, driver1, driver2, tele
       })
       .catch((err) => {
         console.error(err);
-        setError(err.response?.data?.detail || "Failed to load dominance map.");
+        setError(getApiErrorMessage(err, "Failed to load dominance map."));
       })
       .finally(() => {
         setLoading(false);

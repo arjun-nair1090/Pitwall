@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import axios from "axios";
 import { useF1Store } from "@/store/useTelemetryStore";
 import { Activity, Zap, Gauge, GitCompare } from "lucide-react";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 interface TelemetryPoint {
   distance: number[];
@@ -103,9 +104,9 @@ export default function TelemetryComparison() {
         }
       })
       .catch((err) => {
-        const detail = err?.response?.data?.detail || err.message || "Unknown error";
-        setError(`API error: ${detail}`);
-        console.error("Failed to load telemetry comparison:", detail);
+        const message = getApiErrorMessage(err, "Failed to load the telemetry comparison.");
+        setError(message);
+        console.error("Failed to load telemetry comparison:", message);
       })
       .finally(() => {
         setLoading(false);

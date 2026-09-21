@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Trophy, Medal } from "lucide-react";
 import TableSkeleton from "@/components/TableSkeleton";
 import ErrorState from "@/components/ErrorState";
+import { getApiErrorMessage } from "@/lib/apiError";
 
 interface DriverStanding {
   position: number;
@@ -48,7 +49,7 @@ export default function StatsPage() {
       const res = await axios.get<StandingsResponse>(`/api/v1/stats/standings?year=${year}`);
       setStandings(res.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || "Failed to load standings.");
+      setError(getApiErrorMessage(err, "Failed to load standings."));
     } finally {
       setLoading(false);
     }
