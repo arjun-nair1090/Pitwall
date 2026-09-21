@@ -29,9 +29,16 @@ export default function LiveTiming() {
           <span className="h-2 w-2 rounded-full bg-f1-red animate-pulse" />
           Live Timing & Gaps
         </h2>
-        <span className="text-xs text-white/40 font-titillium font-semibold tracking-wider">LAPS COMPLETED</span>
+        <span className="hidden sm:inline text-xs text-white/40 font-titillium font-semibold tracking-wider">LAPS COMPLETED</span>
       </div>
 
+      {sortedLeaderboard.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-6">
+          <span className="h-2 w-2 rounded-full bg-white/20 animate-pulse" />
+          <p className="text-white/50 text-sm font-titillium font-semibold tracking-wide">Waiting for timing data</p>
+          <p className="text-white/30 text-xs font-titillium">Positions and gaps appear here once a session is live.</p>
+        </div>
+      ) : (
       <div className="flex-1 overflow-auto custom-scrollbar">
         <table className="w-full text-left border-collapse text-sm font-titillium tracking-wide">
           <thead className="sticky top-0 bg-black/80 backdrop-blur-md z-10">
@@ -41,9 +48,9 @@ export default function LiveTiming() {
               <th className="py-2 font-bold px-1">GAP</th>
               <th className="py-2 font-bold px-1">INT</th>
               <th className="py-2 font-bold px-1">LAST LAP</th>
-              <th className="py-2 font-bold px-1">S1</th>
-              <th className="py-2 font-bold px-1">S2</th>
-              <th className="py-2 font-bold px-1">S3</th>
+              <th className="hidden md:table-cell py-2 font-bold px-1">S1</th>
+              <th className="hidden md:table-cell py-2 font-bold px-1">S2</th>
+              <th className="hidden md:table-cell py-2 font-bold px-1">S3</th>
               <th className="py-2 font-bold px-1">TYRE</th>
             </tr>
           </thead>
@@ -77,9 +84,9 @@ export default function LiveTiming() {
                   <td className="py-2.5 px-1 text-white/90 font-bold">
                     {timing.last_lap_time ? timing.last_lap_time.toFixed(3) : "-"}
                   </td>
-                  <td className="py-2.5 px-1 text-white/70">{timing.s1 ? timing.s1.toFixed(3) : "-"}</td>
-                  <td className="py-2.5 px-1 text-white/70">{timing.s2 ? timing.s2.toFixed(3) : "-"}</td>
-                  <td className="py-2.5 px-1 text-white/70">{timing.s3 ? timing.s3.toFixed(3) : "-"}</td>
+                  <td className="hidden md:table-cell py-2.5 px-1 text-white/70">{timing.s1 ? timing.s1.toFixed(3) : "-"}</td>
+                  <td className="hidden md:table-cell py-2.5 px-1 text-white/70">{timing.s2 ? timing.s2.toFixed(3) : "-"}</td>
+                  <td className="hidden md:table-cell py-2.5 px-1 text-white/70">{timing.s3 ? timing.s3.toFixed(3) : "-"}</td>
                   <td className="py-2.5 px-1">
                     {timing.compound ? <CompoundBadge compound={timing.compound} age={timing.tyre_age} /> : "-"}
                   </td>
@@ -89,6 +96,7 @@ export default function LiveTiming() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

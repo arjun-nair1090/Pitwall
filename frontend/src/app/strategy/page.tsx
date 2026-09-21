@@ -91,9 +91,9 @@ export default function StrategySimulatorPage() {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-8 animate-fade-in flex flex-col">
+    <div className="w-full py-4 md:p-8 max-w-5xl mx-auto space-y-8 animate-fade-in flex flex-col">
       <div className="border-b border-white/10 pb-6">
-        <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
+        <h1 className="text-3xl md:text-4xl font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
           <FlaskConical className="w-8 h-8 text-f1-red" />
           Strategy Simulator
         </h1>
@@ -140,7 +140,7 @@ export default function StrategySimulatorPage() {
           </div>
           <div className="space-y-2">
             {stints.map((stint, i) => (
-              <div key={i} className="flex items-center gap-3 bg-black/30 p-3 rounded-md border border-white/5">
+              <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-2 bg-black/30 p-3 rounded-md border border-white/5">
                 <span className="text-xs text-white/40 font-bold w-16">STINT {i + 1}</span>
                 <CompoundBadge compound={stint.compound} />
                 <select value={stint.compound} onChange={(e) => updateStint(i, { compound: e.target.value })} className="bg-black/50 border border-white/10 text-white rounded-md px-3 py-1.5 text-sm font-titillium">

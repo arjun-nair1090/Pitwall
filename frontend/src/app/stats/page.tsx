@@ -55,10 +55,10 @@ export default function StatsPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
+    <div className="w-full py-4 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6">
         <div>
-          <h1 className="text-4xl font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
+          <h1 className="text-3xl md:text-4xl font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
             <Trophy className="w-8 h-8 text-f1-red" />
             Season Statistics
           </h1>

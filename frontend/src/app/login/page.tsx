@@ -34,7 +34,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="p-8 max-w-md mx-auto space-y-8 animate-fade-in">
+    <div className="w-full py-4 md:p-8 max-w-md mx-auto space-y-8 animate-fade-in">
       <h1 className="text-3xl font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
         {mode === "login" ? <LogIn className="w-7 h-7 text-f1-red" /> : <UserPlus className="w-7 h-7 text-f1-red" />}
         {mode === "login" ? "Log In" : "Sign Up"}

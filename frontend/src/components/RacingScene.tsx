@@ -23,9 +23,28 @@ export default function RacingScene() {
     camera.position.z = 100;
     camera.position.y = 15;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // Phones/tablets: cheaper rendering (no MSAA, capped pixel ratio, fewer particles)
+    // and no motion at all if the user has asked the OS to reduce it.
+    const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // WebGL can be unavailable or refuse a new context (browser context limit,
+    // blocklisted GPU). The flat background underneath is a fine fallback -- don't
+    // let a decorative layer take the whole landing page down.
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: !isCoarsePointer,
+        alpha: true,
+        powerPreference: "low-power",
+      });
+    } catch (err) {
+      console.warn("RacingScene: WebGL unavailable, falling back to flat background", err);
+      return;
+    }
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    // Full devicePixelRatio is 3x on many phones (9x the pixels) for a background layer.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isCoarsePointer ? 1.5 : 2));
     container.appendChild(renderer.domElement);
 
     // Create a 3D grid to simulate a digital race track surface
@@ -34,7 +53,7 @@ export default function RacingScene() {
     scene.add(gridHelper);
 
     // Create drifting digital particle points
-    const particleCount = 250;
+    const particleCount = isCoarsePointer ? 120 : 250;
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
@@ -100,14 +119,37 @@ export default function RacingScene() {
       cancelAnimationFrame(animationFrameId);
     };
     const handleVisibilityChange = () => {
+      if (prefersReducedMotion) return;
       if (document.hidden) {
         stopAnimating();
       } else {
         animate();
       }
     };
-    if (!document.hidden) animate();
+    if (prefersReducedMotion) {
+      renderer.render(scene, camera); // one still frame, no loop
+    } else if (!document.hidden) {
+      animate();
+    }
     document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    // Mobile browsers reclaim WebGL contexts under memory pressure. Without
+    // preventDefault the context can never be restored; without stopping the
+    // loop we'd keep issuing draw calls against a dead context.
+    const canvas = renderer.domElement;
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      stopAnimating();
+    };
+    const handleContextRestored = () => {
+      if (prefersReducedMotion || document.hidden) {
+        renderer.render(scene, camera);
+      } else {
+        animate();
+      }
+    };
+    canvas.addEventListener("webglcontextlost", handleContextLost);
+    canvas.addEventListener("webglcontextrestored", handleContextRestored);
 
     // Handle resize (debounced — resizing the window shouldn't thrash the renderer)
     let resizeTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -118,6 +160,7 @@ export default function RacingScene() {
         camera.aspect = container.clientWidth / container.clientHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(container.clientWidth, container.clientHeight);
+        if (prefersReducedMotion) renderer.render(scene, camera);
       }, 150);
     };
     window.addEventListener("resize", handleResize);
@@ -125,6 +168,8 @@ export default function RacingScene() {
     return () => {
       window.removeEventListener("resize", handleResize);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      canvas.removeEventListener("webglcontextlost", handleContextLost);
+      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
       clearTimeout(resizeTimeout);
       cancelAnimationFrame(animationFrameId);
       if (container.contains(renderer.domElement)) {

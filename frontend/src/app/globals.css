@@ -30,6 +30,14 @@
 }
 
 @layer utilities {
+  /* Hide the scrollbar on horizontally-scrolling strips (e.g. the mobile nav) */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
   .neon-border-red {
     box-shadow: 0 0 10px rgba(225, 6, 0, 0.2);
     border: 1px solid rgba(225, 6, 0, 0.4);

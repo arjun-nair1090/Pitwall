@@ -32,7 +32,7 @@ function AlertCard({ id, severity, message, timestamp }: { id: string; severity:
       <button
         onClick={() => dismissAlert(id)}
         aria-label="Dismiss alert"
-        className="shrink-0 rounded p-1 text-white/40 hover:text-white/90 hover:bg-white/10 transition-colors"
+        className="shrink-0 rounded p-2 md:p-1 text-white/40 hover:text-white/90 hover:bg-white/10 transition-colors"
       >
         <X className="h-3.5 w-3.5" />
       </button>
@@ -46,7 +46,7 @@ export default function LiveAlertBanner() {
   if (alerts.length === 0) return null;
 
   return (
-    <div className="pointer-events-none fixed top-4 right-4 z-50 flex w-full max-w-sm flex-col gap-2">
+    <div className="pointer-events-none fixed top-4 left-4 right-4 sm:left-auto z-50 flex sm:w-full sm:max-w-sm flex-col gap-2">
       {alerts.map((alert) => (
         <AlertCard key={alert.id} {...alert} />
       ))}
