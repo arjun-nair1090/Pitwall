@@ -56,24 +56,23 @@ export default function StatsPage() {
   };
 
   return (
-    <div className="w-full py-4 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6">
+    <div className="w-full py-4 md:p-8 max-w-7xl mx-auto space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5">
         <div>
-          <h1 className="text-3xl md:text-4xl font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
-            <Trophy className="w-8 h-8 text-f1-red" />
-            Season Statistics
+          <h1 className="font-display text-3xl font-extrabold leading-none tracking-tight text-chalk md:text-4xl">
+            Season stats
           </h1>
-          <p className="text-white/50 text-sm font-titillium tracking-wide mt-1">
+          <p className="mt-2 max-w-prose text-sm text-mute">
             World Championship Standings
           </p>
         </div>
 
         <div className="flex items-center gap-4">
-          <label className="text-sm font-titillium font-bold text-white/60">SEASON</label>
+          <label className="text-sm font-bold text-mute">Season</label>
           <select aria-label="Season"
             value={year}
             onChange={(e) => setYear(parseInt(e.target.value))}
-            className="bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red transition-colors"
+            className="bg-kerb border border-gantry text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40 transition-colors"
           >
             {Array.from({ length: currentYear - 2018 + 1 }, (_, i) => currentYear - i).map((y) => (
               <option key={y} value={y}>{y}</option>
@@ -92,33 +91,33 @@ export default function StatsPage() {
       ) : standings ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Driver Standings */}
-          <div className="glass-panel p-6 rounded-xl border border-white/5">
-            <h2 className="text-xl font-bold tracking-widest text-white uppercase mb-6 flex items-center gap-2">
-              <Medal className="w-5 h-5 text-f1-yellow" />
+          <div className="rounded-panel border border-gantry bg-kerb p-6">
+            <h2 className="text-xl font-bold text-chalk mb-6 flex items-center gap-2">
+              <Medal className="w-5 h-5 text-mute" />
               Drivers' Championship
             </h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-left font-titillium tabular-nums">
+              <table className="w-full text-left tabular-nums">
                 <thead>
-                  <tr className="text-white/40 border-b border-white/10 text-xs">
+                  <tr className="text-faint border-b border-gantry text-xs">
                     <th className="pb-3 font-bold px-2">POS</th>
-                    <th className="pb-3 font-bold px-2">DRIVER</th>
+                    <th className="pb-3 font-bold px-2">Driver</th>
                     <th className="pb-3 font-bold px-2">TEAM</th>
                     <th className="pb-3 font-bold px-2 text-right">PTS</th>
                   </tr>
                 </thead>
                 <tbody>
                   {standings.driver_standings.map((driver) => (
-                    <tr key={driver.driver_code} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                      <td className="py-3 px-2 font-bold text-white/80">{driver.position}</td>
+                    <tr key={driver.driver_code} className="border-b border-gantry hover:bg-raised transition-colors">
+                      <td className="py-3 px-2 font-bold text-mute">{driver.position}</td>
                       <td className="py-3 px-2">
                         <Link href={`/drivers/${driver.driver_code}?year=${year}`} className="flex flex-col hover:opacity-80 transition-opacity">
-                          <span className="font-bold text-white">{driver.driver_name}</span>
-                          <span className="text-xs text-white/40">{driver.driver_code}</span>
+                          <span className="font-bold text-chalk">{driver.driver_name}</span>
+                          <span className="text-xs text-faint">{driver.driver_code}</span>
                         </Link>
                       </td>
-                      <td className="py-3 px-2 text-white/60 text-sm">{driver.team_name}</td>
-                      <td className="py-3 px-2 text-right font-black text-f1-red">{driver.points}</td>
+                      <td className="py-3 px-2 text-mute text-sm">{driver.team_name}</td>
+                      <td className="py-3 px-2 text-right font-black text-chalk">{driver.points}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -127,15 +126,15 @@ export default function StatsPage() {
           </div>
 
           {/* Constructor Standings */}
-          <div className="glass-panel p-6 rounded-xl border border-white/5 h-fit">
-            <h2 className="text-xl font-bold tracking-widest text-white uppercase mb-6 flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-f1-red" />
+          <div className="rounded-panel border border-gantry bg-kerb p-6 h-fit">
+            <h2 className="text-xl font-bold text-chalk mb-6 flex items-center gap-2">
+              <Trophy className="w-5 h-5 text-mute" />
               Constructors' Championship
             </h2>
             <div className="overflow-x-auto">
-              <table className="w-full text-left font-titillium tabular-nums">
+              <table className="w-full text-left tabular-nums">
                 <thead>
-                  <tr className="text-white/40 border-b border-white/10 text-xs">
+                  <tr className="text-faint border-b border-gantry text-xs">
                     <th className="pb-3 font-bold px-2">POS</th>
                     <th className="pb-3 font-bold px-2">TEAM</th>
                     <th className="pb-3 font-bold px-2 text-center">WINS</th>
@@ -144,11 +143,11 @@ export default function StatsPage() {
                 </thead>
                 <tbody>
                   {standings.constructor_standings.map((team) => (
-                    <tr key={team.team_name} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                      <td className="py-3 px-2 font-bold text-white/80">{team.position}</td>
-                      <td className="py-3 px-2 font-bold text-white">{team.team_name}</td>
-                      <td className="py-3 px-2 text-center text-white/60">{team.wins}</td>
-                      <td className="py-3 px-2 text-right font-black text-f1-red">{team.points}</td>
+                    <tr key={team.team_name} className="border-b border-gantry hover:bg-raised transition-colors">
+                      <td className="py-3 px-2 font-bold text-mute">{team.position}</td>
+                      <td className="py-3 px-2 font-bold text-chalk">{team.team_name}</td>
+                      <td className="py-3 px-2 text-center text-mute">{team.wins}</td>
+                      <td className="py-3 px-2 text-right font-black text-chalk">{team.points}</td>
                     </tr>
                   ))}
                 </tbody>

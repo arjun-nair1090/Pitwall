@@ -171,40 +171,40 @@ export default function DominanceMap({ year, gp, session, driver1, driver2, tele
   };
 
   return (
-    <div className="glass-panel rounded-lg p-4 h-full flex flex-col items-center justify-center relative border border-white/5 bg-black/60 overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.8)]">
+    <div className="rounded-panel border border-gantry bg-kerb p-4 h-full flex flex-col items-center justify-center relative overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.8)]">
       {/* Background ambient glow */}
-      <div className="absolute inset-0 bg-gradient-to-br from-f1-blue/10 via-transparent to-f1-cyan/5 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-br via-transparent pointer-events-none" />
 
       {/* Header */}
       <div className="absolute top-4 left-4 z-20">
-        <h2 className="text-sm font-semibold tracking-wider text-f1-cyan uppercase flex items-center gap-2">
+        <h2 className="text-sm font-semibold text-chalk flex items-center gap-2">
           DOMINANCE MAP
         </h2>
         {data && (
-          <div className="text-[10px] text-white/50 font-mono-f1 mt-0.5">
+          <div className="text-[10px] text-faint tabular-nums mt-0.5">
             {driver1} vs {driver2} • SECTOR SPEED
           </div>
         )}
       </div>
 
       {loading ? (
-        <div className="animate-pulse text-xs font-mono-f1 text-white/50 flex flex-col items-center gap-2">
+        <div className="animate-pulse text-xs tabular-nums text-faint flex flex-col items-center gap-2">
           <Loader2 className="h-5 w-5 animate-spin" />
           CALCULATING MINI-SECTORS...
         </div>
       ) : error ? (
-        <div className="text-xs font-mono-f1 text-f1-red/70">{error}</div>
+        <div className="text-xs tabular-nums text-live-text">{error}</div>
       ) : data && bounds ? (
         <>
           {/* Legend */}
           <div className="absolute bottom-4 left-4 z-20 flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full" style={{ backgroundColor: data.driver1.color }} />
-              <span className="text-xs font-mono-f1 text-white/80">{data.driver1.code} Faster</span>
+              <span className="text-xs tabular-nums text-mute">{data.driver1.code} Faster</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-4 h-4 rounded-full" style={{ backgroundColor: data.driver2.color }} />
-              <span className="text-xs font-mono-f1 text-white/80">{data.driver2.code} Faster</span>
+              <span className="text-xs tabular-nums text-mute">{data.driver2.code} Faster</span>
             </div>
             {(telemetry1 && telemetry2) && (
               <button 
@@ -212,18 +212,18 @@ export default function DominanceMap({ year, gp, session, driver1, driver2, tele
                   if (frame >= Math.max(telemetry1.length, telemetry2.length) - 1) setFrame(0);
                   setIsPlaying(!isPlaying);
                 }}
-                className="mt-2 bg-f1-cyan/20 hover:bg-f1-cyan/40 border border-f1-cyan/50 text-f1-cyan px-3 py-1.5 rounded-md text-[10px] font-bold font-mono-f1 flex items-center justify-center transition-all"
+                className="mt-2 bg-raised hover:bg-raised border border-edge text-chalk px-3 py-1.5 rounded-panel text-[10px] font-bold tabular-nums flex items-center justify-center transition-all"
               >
-                {isPlaying ? "PAUSE GHOST CARS" : "PLAY GHOST CARS"}
+                {isPlaying ? "Pause ghost cars" : "Play ghost cars"}
               </button>
             )}
             <button
               onClick={exportAsPng}
               disabled={exporting}
-              className="mt-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white/80 px-3 py-1.5 rounded-md text-[10px] font-bold font-mono-f1 flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
+              className="mt-2 bg-raised hover:bg-raised border border-gantry text-mute px-3 py-1.5 rounded-panel text-[10px] font-bold tabular-nums flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
             >
               <Download className="h-3 w-3" />
-              {exporting ? "EXPORTING..." : "EXPORT PNG"}
+              {exporting ? "Exporting…" : "Export PNG"}
             </button>
           </div>
 
@@ -288,7 +288,7 @@ export default function DominanceMap({ year, gp, session, driver1, driver2, tele
           </svg>
         </>
       ) : (
-        <div className="text-xs font-mono-f1 text-white/30 text-center px-8">
+        <div className="text-xs tabular-nums text-faint text-center px-8">
           SELECT TWO DRIVERS TO GENERATE DOMINANCE MAP
         </div>
       )}

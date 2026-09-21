@@ -33,12 +33,12 @@ interface Channel {
 }
 
 const CHANNELS: Channel[] = [
-  { key: "speed",    label: "SPEED",    unit: "km/h", min: 0,    max: 360,  height: 80 },
-  { key: "throttle", label: "THROTTLE", unit: "%",    min: 0,    max: 100,  height: 44 },
-  { key: "brake",    label: "BRAKE",    unit: "",     min: 0,    max: 1,    height: 30 },
-  { key: "rpm",      label: "RPM",      unit: "",     min: 5000, max: 15000,height: 44 },
-  { key: "gear",     label: "GEAR",     unit: "",     min: 0,    max: 8,    height: 36 },
-  { key: "drs",      label: "DRS",      unit: "",     min: 0,    max: 14,   height: 24 },
+  { key: "speed",    label: "Speed",    unit: "km/h", min: 0,    max: 360,  height: 80 },
+  { key: "throttle", label: "Throttle", unit: "%",    min: 0,    max: 100,  height: 44 },
+  { key: "brake",    label: "Brake",    unit: "",     min: 0,    max: 1,    height: 30 },
+  { key: "rpm",      label: "Rpm",      unit: "",     min: 5000, max: 15000,height: 44 },
+  { key: "gear",     label: "Gear",     unit: "",     min: 0,    max: 8,    height: 36 },
+  { key: "drs",      label: "Drs",      unit: "",     min: 0,    max: 14,   height: 24 },
 ];
 
 const PAD = { top: 4, right: 12, bottom: 16, left: 40 };
@@ -299,10 +299,10 @@ export default function TelemetryComparison() {
   }, [data]);
 
   return (
-    <div className="glass-panel rounded-lg p-3 h-full flex flex-col border border-white/5 bg-black/30 min-h-0">
+    <div className="rounded-panel border border-gantry bg-kerb p-3 h-full flex flex-col min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between mb-2 border-b border-white/5 pb-2 flex-shrink-0">
-        <h2 className="text-xs font-semibold tracking-wider text-f1-cyan uppercase flex items-center gap-1.5">
+      <div className="flex items-center justify-between mb-2 border-b border-gantry pb-2 flex-shrink-0">
+        <h2 className="text-xs font-semibold text-chalk flex items-center gap-1.5">
           <GitCompare className="h-3.5 w-3.5" />
           Lap Telemetry Comparison
         </h2>
@@ -311,19 +311,19 @@ export default function TelemetryComparison() {
             aria-label="Driver 1"
             value={d1}
             onChange={(e) => setD1(e.target.value)}
-            className="bg-black/60 border border-white/15 text-white px-1.5 py-0.5 rounded font-mono focus:outline-none"
+            className="bg-kerb border border-gantry text-chalk px-1.5 py-0.5 rounded-control tabular-nums focus:outline-none"
             style={{ color: d1Color }}
           >
             {driverCodes.map((code) => (
               <option key={code} value={code} style={{ color: "white" }}>{code}</option>
             ))}
           </select>
-          <span className="text-white/30 font-bold">VS</span>
+          <span className="text-faint font-bold">VS</span>
           <select
             aria-label="Driver 2"
             value={d2}
             onChange={(e) => setD2(e.target.value)}
-            className="bg-black/60 border border-white/15 text-white px-1.5 py-0.5 rounded font-mono focus:outline-none"
+            className="bg-kerb border border-gantry text-chalk px-1.5 py-0.5 rounded-control tabular-nums focus:outline-none"
             style={{ color: d2Color }}
           >
             {driverCodes.map((code) => (
@@ -333,21 +333,21 @@ export default function TelemetryComparison() {
           <button
             onClick={fetchComparison}
             disabled={loading}
-            className="bg-f1-cyan hover:bg-f1-cyan/85 disabled:opacity-50 text-black font-bold px-2.5 py-0.5 rounded transition-colors"
+            className="h-8 rounded-control bg-chalk px-3 text-sm font-semibold text-tarmac transition-colors hover:bg-white disabled:opacity-50"
           >
-            {loading ? "LOADING…" : "COMPARE"}
+            {loading ? "Loading…" : "Compare"}
           </button>
         </div>
       </div>
 
       {/* Lap time header */}
       {data && (
-        <div className="flex gap-4 mb-2 text-[10px] font-mono flex-shrink-0">
+        <div className="flex gap-4 mb-2 text-[10px] tabular-nums flex-shrink-0">
           <span style={{ color: d1Color }} className="font-bold">
             {d1} {formatLapTime(data.driver1.lap_time)}
           </span>
           {lapDelta !== null && (
-            <span className={lapDelta < 0 ? "text-emerald-400" : "text-red-400"}>
+            <span className={lapDelta < 0 ? "text-timing-green" : "text-chalk"}>
               {lapDelta < 0 ? "▲" : "▼"} {Math.abs(lapDelta).toFixed(3)}s
             </span>
           )}
@@ -361,8 +361,8 @@ export default function TelemetryComparison() {
       {error && !loading && (
         <div className="flex-1 flex items-center justify-center text-center px-4">
           <div>
-            <Activity className="h-6 w-6 text-red-500/60 mx-auto mb-2" />
-            <p className="text-[10px] text-red-400 font-mono">{error}</p>
+            <Activity className="h-6 w-6 text-mute mx-auto mb-2" />
+            <p className="text-[10px] text-live-text tabular-nums">{error}</p>
           </div>
         </div>
       )}
@@ -371,9 +371,9 @@ export default function TelemetryComparison() {
       {loading && (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <Zap className="h-5 w-5 text-f1-cyan/60 mx-auto mb-2 animate-pulse" />
-            <p className="text-[10px] text-white/40 font-mono">LOADING FASTEST LAP TELEMETRY…</p>
-            <p className="text-[9px] text-white/20 font-mono mt-1">FastF1 data via cache</p>
+            <Zap className="h-5 w-5 text-mute mx-auto mb-2 animate-pulse" />
+            <p className="text-[10px] text-faint tabular-nums">LOADING FASTEST LAP TELEMETRY…</p>
+            <p className="text-[9px] text-faint tabular-nums mt-1">FastF1 data via cache</p>
           </div>
         </div>
       )}
@@ -382,9 +382,9 @@ export default function TelemetryComparison() {
       {!activeSession && !loading && !error && (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <Gauge className="h-6 w-6 text-white/20 mx-auto mb-2" />
-            <p className="text-[10px] text-white/30 font-mono">AWAITING SESSION DATA</p>
-            <p className="text-[9px] text-white/20 font-mono mt-1">Select a session to compare lap telemetry</p>
+            <Gauge className="h-6 w-6 text-faint mx-auto mb-2" />
+            <p className="text-[10px] text-faint tabular-nums">Waiting for session data</p>
+            <p className="text-[9px] text-faint tabular-nums mt-1">Select a session to compare lap telemetry</p>
           </div>
         </div>
       )}
@@ -401,7 +401,7 @@ export default function TelemetryComparison() {
             <div key={ch.key} className="relative flex-shrink-0" style={{ height: ch.height }}>
               {/* Channel label */}
               <div className="absolute left-0 top-0 bottom-0 w-9 flex items-center">
-                <span className="text-[8px] font-mono text-white/30 uppercase leading-tight">
+                <span className="text-[8px] tabular-nums text-faint leading-tight">
                   {ch.label}
                 </span>
               </div>
@@ -414,7 +414,7 @@ export default function TelemetryComparison() {
           ))}
 
           {/* Distance axis */}
-          <div className="flex-shrink-0 flex justify-between text-[8px] font-mono text-white/20 px-10">
+          <div className="flex-shrink-0 flex justify-between text-[8px] tabular-nums text-faint px-10">
             <span>0m</span>
             {data && (
               <span>{Math.round(data.driver1.distance[data.driver1.distance.length - 1])}m</span>
@@ -423,9 +423,9 @@ export default function TelemetryComparison() {
 
           {/* Hover tooltip */}
           {hoverValues && (
-            <div className="absolute top-1 right-1 bg-black/90 border border-white/10 rounded p-2 text-[9px] font-mono space-y-0.5 z-20 pointer-events-none min-w-[130px]">
-              <div className="text-white/40 mb-1">{hoverValues.dist}m</div>
-              <div className="grid grid-cols-3 gap-x-2 text-white/60 text-[8px] mb-0.5">
+            <div className="absolute top-1 right-1 bg-kerb border border-gantry rounded-control p-2 text-[9px] tabular-nums space-y-0.5 z-20 pointer-events-none min-w-[130px]">
+              <div className="text-faint mb-1">{hoverValues.dist}m</div>
+              <div className="grid grid-cols-3 gap-x-2 text-mute text-[8px] mb-0.5">
                 <span></span>
                 <span style={{ color: d1Color }}>{d1}</span>
                 <span style={{ color: d2Color }}>{d2}</span>
@@ -439,7 +439,7 @@ export default function TelemetryComparison() {
                 ["DRS", hoverValues.drs1, hoverValues.drs2],
               ].map(([label, v1, v2]) => (
                 <div key={label} className="grid grid-cols-3 gap-x-2">
-                  <span className="text-white/30">{label}</span>
+                  <span className="text-faint">{label}</span>
                   <span style={{ color: d1Color }} className="font-bold">{v1}</span>
                   <span style={{ color: d2Color }} className="font-bold">{v2}</span>
                 </div>

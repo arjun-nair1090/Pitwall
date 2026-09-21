@@ -72,7 +72,7 @@ export default function ComparePage() {
     axios.get(`/api/v1/races/historical?year=${year}`)
       .then(res => {
         if (isSubscribed && res.data && res.data.length > 0) {
-          const gps = res.data.map((r: any) => r.country);
+          const gps: string[] = Array.from(new Set<string>(res.data.map((r: any) => r.country)));
           setAvailableGPs(gps);
           if (!gps.includes(gp)) setGp(gps[0]);
         }
@@ -193,37 +193,36 @@ export default function ComparePage() {
   };
 
   return (
-    <div className="w-full py-4 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in flex flex-col">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6 shrink-0">
+    <div className="w-full py-4 md:p-8 max-w-7xl mx-auto space-y-8 flex flex-col">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-5 shrink-0">
         <div>
-          <h1 className="text-3xl md:text-4xl font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
-            <Zap className="w-8 h-8 text-f1-red" />
-            Head-to-Head
+          <h1 className="font-display text-3xl font-extrabold leading-none tracking-tight text-chalk md:text-4xl">
+            Head to head
           </h1>
-          <p className="text-white/50 text-sm font-titillium tracking-wide mt-1">
+          <p className="mt-2 max-w-prose text-sm text-mute">
             Fastest Lap Telemetry Overlay
           </p>
         </div>
       </div>
 
       {/* Control Panel */}
-      <div className="glass-panel p-6 rounded-xl border border-white/5 shrink-0">
+      <div className="rounded-panel border border-gantry bg-kerb p-6 shrink-0">
         <form onSubmit={handleCompare} className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div>
-            <label className="block text-xs font-titillium font-bold text-white/60 mb-2">YEAR</label>
-            <input aria-label="Year" type="number" value={year} onChange={e => setYear(parseInt(e.target.value))} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red" />
+            <label className="block text-xs font-bold text-mute mb-2">YEAR</label>
+            <input aria-label="Year" type="number" value={year} onChange={e => setYear(parseInt(e.target.value))} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40" />
           </div>
           <div className="md:col-span-2">
-            <label className="block text-xs font-titillium font-bold text-white/60 mb-2">GRAND PRIX</label>
-            <select aria-label="Grand Prix" value={gp} onChange={e => setGp(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red">
+            <label className="block text-xs font-bold text-mute mb-2">Grand Prix</label>
+            <select aria-label="Grand Prix" value={gp} onChange={e => setGp(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
               {availableGPs.map(g => (
                 <option key={g} value={g}>{g}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-titillium font-bold text-white/60 mb-2">SESSION</label>
-            <select aria-label="Session" value={session} onChange={e => setSession(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red">
+            <label className="block text-xs font-bold text-mute mb-2">Session</label>
+            <select aria-label="Session" value={session} onChange={e => setSession(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
               <option value="FP1">FP1</option>
               <option value="FP2">FP2</option>
               <option value="FP3">FP3</option>
@@ -235,34 +234,34 @@ export default function ComparePage() {
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs font-titillium font-bold text-white/60 mb-2">DRIVER 1</label>
-              <select aria-label="Driver 1" value={driver1} onChange={e => setDriver1(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red">
+              <label className="block text-xs font-bold text-mute mb-2">Driver 1</label>
+              <select aria-label="Driver 1" value={driver1} onChange={e => setDriver1(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
                 {availableDrivers.map(d => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-titillium font-bold text-white/60 mb-2">LAP (OPTIONAL)</label>
-              <input aria-label="Lap (Optional)" type="number" placeholder="Fastest" value={driver1Lap} onChange={e => setDriver1Lap(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red" />
+              <label className="block text-xs font-bold text-mute mb-2">Lap (optional)</label>
+              <input aria-label="Lap (Optional)" type="number" placeholder="Fastest" value={driver1Lap} onChange={e => setDriver1Lap(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs font-titillium font-bold text-white/60 mb-2">DRIVER 2</label>
-              <select aria-label="Driver 2" value={driver2} onChange={e => setDriver2(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red">
+              <label className="block text-xs font-bold text-mute mb-2">Driver 2</label>
+              <select aria-label="Driver 2" value={driver2} onChange={e => setDriver2(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40">
                 {availableDrivers.map(d => (
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-titillium font-bold text-white/60 mb-2">LAP (OPTIONAL)</label>
-              <input aria-label="Lap (Optional)" type="number" placeholder="Fastest" value={driver2Lap} onChange={e => setDriver2Lap(e.target.value)} className="w-full bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red" />
+              <label className="block text-xs font-bold text-mute mb-2">Lap (optional)</label>
+              <input aria-label="Lap (Optional)" type="number" placeholder="Fastest" value={driver2Lap} onChange={e => setDriver2Lap(e.target.value)} className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 focus:outline-none focus:border-live/40" />
             </div>
           </div>
           <div className="md:col-span-6 flex justify-end mt-2">
-            <button type="submit" disabled={loading} className="bg-f1-red hover:bg-red-700 text-white font-titillium font-bold py-2 px-8 rounded-md transition-colors flex items-center gap-2">
+            <button type="submit" disabled={loading} className="bg-chalk text-tarmac hover:bg-white hover:bg-live/90 font-bold py-2 px-8 rounded-panel transition-colors flex items-center gap-2">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               COMPARE
             </button>
@@ -271,7 +270,7 @@ export default function ComparePage() {
       </div>
 
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-lg font-titillium flex items-center gap-3 shrink-0">
+        <div className="bg-live/10 border border-live/40 text-live-text p-4 rounded-panel flex items-center gap-3 shrink-0">
           <AlertTriangle className="w-5 h-5" />
           {error}
         </div>
@@ -282,36 +281,36 @@ export default function ComparePage() {
         <div className="flex flex-col gap-6">
           {/* Summary Cards */}
           <div className="grid grid-cols-2 gap-6 shrink-0">
-            <div className="glass-panel p-6 rounded-xl border border-f1-red/30 flex justify-between items-center bg-gradient-to-r from-f1-red/10 to-transparent">
+            <div className="rounded-panel border border-gantry bg-kerb p-6 border-live/40 flex justify-between items-center bg-gradient-to-r to-transparent">
               <div>
-                <h2 className="text-3xl font-black text-white">{data.driver1.code}</h2>
-                <p className="text-white/60 font-titillium text-sm uppercase mt-1">Tyre: {data.driver1.compound}</p>
+                <h2 className="text-3xl font-black text-chalk">{data.driver1.code}</h2>
+                <p className="text-mute text-sm mt-1">Tyre: {data.driver1.compound}</p>
               </div>
               <div className="text-right flex items-center gap-4">
-                <p className="text-3xl font-titillium font-bold text-f1-red">{formatLapTime(data.driver1.lap_time)}</p>
+                <p className="text-3xl font-bold text-chalk">{formatLapTime(data.driver1.lap_time)}</p>
                 <a
                   href={getResultCardUrl(data.driver1.code)}
                   download={`${data.driver1.code}-${year}-${gp}.png`}
                   title="Download shareable result card"
-                  className="text-white/30 hover:text-f1-red transition-colors"
+                  className="text-faint hover:text-chalk transition-colors"
                 >
                   <Download className="w-5 h-5" />
                 </a>
               </div>
             </div>
 
-            <div className="glass-panel p-6 rounded-xl border border-f1-blue/30 flex justify-between items-center bg-gradient-to-r from-f1-blue/10 to-transparent">
+            <div className="rounded-panel border border-gantry bg-kerb p-6 border-edge flex justify-between items-center bg-gradient-to-r to-transparent">
               <div>
-                <h2 className="text-3xl font-black text-white">{data.driver2.code}</h2>
-                <p className="text-white/60 font-titillium text-sm uppercase mt-1">Tyre: {data.driver2.compound}</p>
+                <h2 className="text-3xl font-black text-chalk">{data.driver2.code}</h2>
+                <p className="text-mute text-sm mt-1">Tyre: {data.driver2.compound}</p>
               </div>
               <div className="text-right flex items-center gap-4">
-                <p className="text-3xl font-titillium font-bold text-f1-blue">{formatLapTime(data.driver2.lap_time)}</p>
+                <p className="text-3xl font-bold text-chalk">{formatLapTime(data.driver2.lap_time)}</p>
                 <a
                   href={getResultCardUrl(data.driver2.code)}
                   download={`${data.driver2.code}-${year}-${gp}.png`}
                   title="Download shareable result card"
-                  className="text-white/30 hover:text-f1-blue transition-colors"
+                  className="text-faint hover:text-chalk transition-colors"
                 >
                   <Download className="w-5 h-5" />
                 </a>
@@ -320,7 +319,7 @@ export default function ComparePage() {
           </div>
 
           {/* Dominance Map */}
-          <div className="glass-panel p-6 rounded-xl border border-white/5 flex flex-col gap-6 shrink-0 h-[600px]">
+          <div className="rounded-panel border border-gantry bg-kerb p-6 flex flex-col gap-6 shrink-0 h-[600px]">
             <DominanceMap 
               year={year} 
               gp={gp} 
@@ -333,11 +332,11 @@ export default function ComparePage() {
           </div>
 
           {/* Telemetry Charts Container */}
-          <div className="glass-panel p-6 rounded-xl border border-white/5 flex flex-col gap-6">
+          <div className="rounded-panel border border-gantry bg-kerb p-6 flex flex-col gap-6">
             
             {/* Speed */}
             <div className="w-full h-[300px]">
-              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">Speed (km/h)</h3>
+              <h3 className="text-sm font-bold text-chalk mb-2">Speed (km/h)</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
@@ -357,7 +356,7 @@ export default function ComparePage() {
 
             {/* Throttle */}
             <div className="w-full h-[150px]">
-              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">Throttle (%)</h3>
+              <h3 className="text-sm font-bold text-chalk mb-2">Throttle (%)</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
@@ -376,7 +375,7 @@ export default function ComparePage() {
 
             {/* Brake */}
             <div className="w-full h-[150px]">
-              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">Brake</h3>
+              <h3 className="text-sm font-bold text-chalk mb-2">Brake</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
@@ -395,7 +394,7 @@ export default function ComparePage() {
 
             {/* Gear */}
             <div className="w-full h-[150px]">
-              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">Gear</h3>
+              <h3 className="text-sm font-bold text-chalk mb-2">Gear</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
@@ -414,7 +413,7 @@ export default function ComparePage() {
 
             {/* RPM */}
             <div className="w-full h-[150px]">
-              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">RPM</h3>
+              <h3 className="text-sm font-bold text-chalk mb-2">RPM</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
@@ -433,7 +432,7 @@ export default function ComparePage() {
 
             {/* DRS */}
             <div className="w-full h-[100px]">
-              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">DRS</h3>
+              <h3 className="text-sm font-bold text-chalk mb-2">DRS</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
@@ -452,7 +451,7 @@ export default function ComparePage() {
 
             {/* Acceleration */}
             <div className="w-full h-[150px]">
-              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">Acceleration (m/s²)</h3>
+              <h3 className="text-sm font-bold text-chalk mb-2">Acceleration (m/s²)</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
@@ -471,7 +470,7 @@ export default function ComparePage() {
 
             {/* Speed Difference */}
             <div className="w-full h-[150px]">
-              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">Speed Diff (km/h)</h3>
+              <h3 className="text-sm font-bold text-chalk mb-2">Speed Diff (km/h)</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
@@ -490,7 +489,7 @@ export default function ComparePage() {
 
             {/* Distance Difference */}
             <div className="w-full h-[150px]">
-              <h3 className="text-sm font-bold font-titillium text-white mb-2 uppercase tracking-wider">Distance Diff (m)</h3>
+              <h3 className="text-sm font-bold text-chalk mb-2">Distance Diff (m)</h3>
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} syncId="telemetrySync" margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />

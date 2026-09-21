@@ -22,8 +22,8 @@ export default function StintBar({ stints, label }: StintBarProps) {
 
   return (
     <div>
-      {label && <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1">{label}</div>}
-      <div className="flex h-6 gap-0.5 rounded overflow-hidden" role="img" aria-label={description}>
+      {label && <div className="text-[10px] text-faint mb-1">{label}</div>}
+      <div className="flex h-6 gap-0.5 rounded-control overflow-hidden" role="img" aria-label={description}>
         {stints.map((stint, i) => {
           const style = getCompoundStyle(stint.compound);
           return (
