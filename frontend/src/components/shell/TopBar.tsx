@@ -11,7 +11,7 @@ import { useF1Store } from "@/store/useTelemetryStore";
 import AccountControl from "./AccountControl";
 
 export default function TopBar() {
-  const { activeSession, isConnected, weather } = useF1Store();
+  const { activeSession, isConnected, apiStatus, weather } = useF1Store();
   const setOpen = usePaletteStore((s) => s.setOpen);
   const [modKey, setModKey] = useState("Ctrl");
   useEffect(() => {
@@ -28,8 +28,10 @@ export default function TopBar() {
             <span className="font-semibold text-chalk">{activeSession.circuit_short_name}</span>{" "}
             <span className="text-mute">{activeSession.session_name}, {activeSession.year}</span>
           </>
+        ) : apiStatus === "unreachable" ? (
+          <span role="alert" className="text-live-text">Can't reach the API. Check that the backend is running.</span>
         ) : (
-          <span className="text-mute">{isConnected ? "Syncing sessions…" : "No live session"}</span>
+          <span className="text-mute">{apiStatus === "ok" ? "No live session right now" : "Checking for a live session…"}</span>
         )}
       </p>
 
@@ -41,10 +43,18 @@ export default function TopBar() {
             <span>{weather.rainfall === 1 ? "Wet" : "Dry"}</span>
           </p>
         )}
-        <span className="flex items-center gap-2 text-xs text-mute">
-          <span aria-hidden className={cn("h-2 w-2 rounded-full", isConnected ? "animate-pulse bg-live" : "border border-faint")} />
-          {isConnected ? "Live" : "Offline"}
+        <span className={cn("flex items-center gap-2 text-xs", apiStatus === "unreachable" ? "text-live-text" : "text-mute")}>
+          <span
+            aria-hidden
+            className={cn("h-2 w-2 rounded-full", isConnected ? "animate-pulse bg-live" : apiStatus === "unreachable" ? "bg-live" : "border border-faint")}
+          />
+          {isConnected ? "Live" : apiStatus === "unreachable" ? "API offline" : apiStatus === "ok" ? "Standby" : "Connecting…"}
         </span>
+        {apiStatus === "unreachable" && (
+          <Button size="sm" variant="ghost" aria-label="Retry connection" onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        )}
         <Button size="sm" variant="secondary" onClick={() => setOpen(true)} aria-label="Search" aria-keyshortcuts="Control+K">
           <Search aria-hidden className="h-4 w-4" />
           <span className="hidden sm:inline">Search</span>
