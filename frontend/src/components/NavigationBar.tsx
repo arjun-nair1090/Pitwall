@@ -38,14 +38,14 @@ export default function NavigationBar() {
         </div>
       </div>
 
-      <nav className="flex bg-white/5 border border-white/10 rounded overflow-hidden p-0.5 mx-4">
+      <nav className="flex w-full md:w-auto max-w-full bg-white/5 border border-white/10 rounded overflow-x-auto p-0.5 md:mx-4 scrollbar-none">
         {navLinks.map((link) => {
           const isActive = pathname === link.path;
           return (
             <Link
               key={link.path}
               href={link.path}
-              className={`flex items-center gap-2 px-4 py-1.5 text-xs font-bold uppercase transition-colors rounded-sm ${
+              className={`flex shrink-0 items-center gap-2 px-3 md:px-4 py-2.5 md:py-1.5 text-xs font-bold uppercase whitespace-nowrap transition-colors rounded-sm ${
                 isActive ? "bg-f1-red text-white" : "text-white/40 hover:text-white"
               }`}
             >
@@ -57,9 +57,9 @@ export default function NavigationBar() {
       </nav>
 
       {/* Live status indicators */}
-      <div className="flex items-center gap-4 text-xs font-mono-f1 mt-4 md:mt-0">
+      <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs font-mono-f1 mt-3 md:mt-0">
         {weather && (
-          <div className="flex items-center gap-3 text-white/60 text-[11px] border-r border-white/10 pr-4">
+          <div className="flex items-center gap-3 text-white/60 text-[11px] md:border-r md:border-white/10 md:pr-4">
             <span>AIR: {weather.air_temperature}°C</span>
             <span>TRACK: {weather.track_temperature}°C</span>
             <span>RAIN: {weather.rainfall === 1 ? "WET" : "DRY"}</span>
@@ -72,13 +72,14 @@ export default function NavigationBar() {
             }`}
           />
           <span className="uppercase text-[11px] text-white/70">
-            {isConnected ? "TELEMETRY LINK STABLE" : "TELEMETRY DISCONNECTED"}
+            <span className="sm:hidden">{isConnected ? "LIVE" : "OFFLINE"}</span>
+            <span className="hidden sm:inline">{isConnected ? "TELEMETRY LINK STABLE" : "TELEMETRY DISCONNECTED"}</span>
           </span>
         </div>
         <Link
           href="/changelog"
           title="Changelog"
-          className={`flex items-center gap-1.5 pl-4 border-l border-white/10 uppercase text-[11px] transition-colors ${
+          className={`flex items-center gap-1.5 pl-4 border-l border-white/10 uppercase text-[11px] py-1.5 transition-colors ${
             pathname === "/changelog" ? "text-f1-red" : "text-white/40 hover:text-white/70"
           }`}
         >

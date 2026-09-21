@@ -232,7 +232,7 @@ export default function TrackMap() {
   }, [drivers]);
 
   return (
-    <div className="glass-panel rounded-lg p-4 h-full flex flex-col items-center justify-center relative border border-white/5 bg-black/60 overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.8)]">
+    <div className="glass-panel rounded-lg p-4 pt-16 md:pt-4 h-full flex flex-col items-center justify-center relative border border-white/5 bg-black/60 overflow-hidden shadow-[inset_0_0_80px_rgba(0,0,0,0.8)]">
       
       {/* Background ambient glow */}
       <div className="absolute inset-0 bg-gradient-to-br from-f1-blue/10 via-transparent to-f1-cyan/5 pointer-events-none" />
@@ -276,7 +276,7 @@ export default function TrackMap() {
       ) : layout ? (
         <svg
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-          className="w-full max-h-[400px] h-auto drop-shadow-2xl z-10"
+          className="w-full max-h-[400px] h-auto z-10"
         >
           <defs>
             <filter id="crispShadow" x="-10%" y="-10%" width="120%" height="120%">
@@ -316,7 +316,7 @@ export default function TrackMap() {
               const projected = projectPoint(pt.x, pt.y);
               return (
                 <g key={driver.code} className="transition-all duration-75">
-                  <circle cx={projected.x} cy={projected.y} r="8" fill={driver.color} stroke="#fff" strokeWidth="2" filter="url(#crispShadow)" />
+                  <circle cx={projected.x} cy={projected.y} r="8" fill={driver.color} stroke="#fff" strokeWidth="2" />
                   {/* Driver background pill */}
                   <rect
                     x={projected.x + 12}
@@ -354,14 +354,15 @@ export default function TrackMap() {
                   className={`transition-all duration-300 cursor-pointer ${selectedDriverNum === num ? 'drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]' : ''}`}
                   onClick={() => setSelectedDriverNum(num)}
                 >
+                  {/* Invisible enlarged hit area: the visible dot scales down to a few px on phones */}
+                  <circle cx={projected.x} cy={projected.y} r="24" fill="transparent" />
                   {/* Dot Pulse Glow */}
                   <circle
                     cx={projected.x}
                     cy={projected.y}
                     r={selectedDriverNum === num ? "25" : "15"}
                     fill={driver.team_color}
-                    className="opacity-30 animate-pulse"
-                    filter="url(#crispShadow)"
+                    className={selectedDriverNum === num ? "opacity-30 animate-pulse" : "opacity-30"}
                   />
                   {/* Real Dot */}
                   <circle
@@ -371,7 +372,6 @@ export default function TrackMap() {
                     fill={driver.team_color}
                     stroke="#ffffff"
                     strokeWidth="2"
-                    filter="url(#crispShadow)"
                   />
                   {/* Driver background pill */}
                   <rect
