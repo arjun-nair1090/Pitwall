@@ -2,17 +2,20 @@
 
 import React, { useEffect } from "react";
 import { AlertTriangle, Flag, Info, X } from "lucide-react";
+import IconButton from "@/components/ui/IconButton";
+import { cn } from "@/lib/cn";
 import { useF1Store } from "@/store/useTelemetryStore";
 
 const AUTO_DISMISS_MS = 12000;
 
-const SEVERITY_STYLES: Record<string, { border: string; bg: string; text: string; Icon: typeof Info }> = {
-  critical: { border: "border-f1-red/50", bg: "bg-f1-red/10", text: "text-f1-red", Icon: AlertTriangle },
-  warning: { border: "border-f1-yellow/50", bg: "bg-f1-yellow/10", text: "text-f1-yellow", Icon: Flag },
-  info: { border: "border-white/20", bg: "bg-black/70", text: "text-white/90", Icon: Info },
+// Colour is the severity: red for critical, yellow for caution, neutral for information.
+const SEVERITY_STYLES: Record<string, { border: string; text: string; Icon: typeof Info }> = {
+  critical: { border: "border-live/60", text: "text-live-text", Icon: AlertTriangle },
+  warning: { border: "border-timing-yellow/60", text: "text-timing-yellow", Icon: Flag },
+  info: { border: "border-edge", text: "text-chalk", Icon: Info },
 };
 
-function AlertCard({ id, severity, message, timestamp }: { id: string; severity: string; message: string; timestamp: number }) {
+function AlertCard({ id, severity, message }: { id: string; severity: string; message: string; timestamp: number }) {
   const dismissAlert = useF1Store((s) => s.dismissAlert);
   const style = SEVERITY_STYLES[severity] || SEVERITY_STYLES.info;
   const { Icon } = style;
@@ -24,18 +27,14 @@ function AlertCard({ id, severity, message, timestamp }: { id: string; severity:
 
   return (
     <div
-      className={`glass-panel pointer-events-auto flex items-start gap-3 rounded-lg border ${style.border} ${style.bg} p-3 pr-2 shadow-lg backdrop-blur-md animate-fade-in`}
+      className={cn("pointer-events-auto flex items-start gap-3 rounded-panel border bg-kerb p-3 pr-2", style.border)}
       role="alert"
     >
-      <Icon className={`h-4 w-4 mt-0.5 shrink-0 ${style.text}`} />
-      <p className={`flex-1 text-xs font-titillium font-semibold leading-snug ${style.text}`}>{message}</p>
-      <button
-        onClick={() => dismissAlert(id)}
-        aria-label="Dismiss alert"
-        className="shrink-0 rounded p-2 md:p-1 text-white/40 hover:text-white/90 hover:bg-white/10 transition-colors"
-      >
-        <X className="h-3.5 w-3.5" />
-      </button>
+      <Icon aria-hidden className={cn("mt-0.5 h-4 w-4 shrink-0", style.text)} />
+      <p className={cn("flex-1 text-sm font-medium leading-snug", style.text)}>{message}</p>
+      <IconButton label="Dismiss alert" onClick={() => dismissAlert(id)}>
+        <X aria-hidden className="h-4 w-4" />
+      </IconButton>
     </div>
   );
 }
@@ -45,8 +44,9 @@ export default function LiveAlertBanner() {
 
   if (alerts.length === 0) return null;
 
+  // top-16 sits below the 48px top bar, so toasts never cover Search, Log in or page actions.
   return (
-    <div className="pointer-events-none fixed top-4 left-4 right-4 sm:left-auto z-50 flex sm:w-full sm:max-w-sm flex-col gap-2">
+    <div className="pointer-events-none fixed left-4 right-4 top-16 z-50 flex flex-col gap-2 sm:left-auto sm:w-full sm:max-w-sm">
       {alerts.map((alert) => (
         <AlertCard key={alert.id} {...alert} />
       ))}

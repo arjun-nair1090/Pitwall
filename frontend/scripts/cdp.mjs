@@ -24,12 +24,19 @@ export async function launch(port = 9333) {
   const ws = new WebSocket(page.webSocketDebuggerUrl);
   await new Promise((r) => (ws.onopen = r));
   let id = 0; const pending = new Map();
-  ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && pending.has(d.id)) { pending.get(d.id)(d); pending.delete(d.id); } };
+  const listeners = new Map();
+  ws.onmessage = (m) => {
+    const d = JSON.parse(m.data);
+    if (d.id && pending.has(d.id)) { pending.get(d.id)(d); pending.delete(d.id); }
+    else if (d.method && listeners.has(d.method)) for (const fn of listeners.get(d.method)) fn(d.params);
+  };
   const send = (method, params = {}) => new Promise((res, rej) => { const i = ++id; pending.set(i, (d) => (d.error ? rej(new Error(JSON.stringify(d.error))) : res(d.result))); ws.send(JSON.stringify({ id: i, method, params })); });
   await send("Page.enable"); await send("Runtime.enable");
 
   const api = {
     send,
+    // Subscribe to a CDP event, e.g. on("Fetch.requestPaused", (params) => ...).
+    on(method, fn) { listeners.set(method, [...(listeners.get(method) || []), fn]); },
     async viewport(width, height, mobile = false) {
       await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: mobile ? 2 : 1, mobile });
       await send("Emulation.setTouchEmulationEnabled", { enabled: mobile });

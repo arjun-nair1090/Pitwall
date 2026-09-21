@@ -159,7 +159,12 @@ export const useF1Store = create<F1StoreState>((set) => ({
     raceControl: [msg, ...state.raceControl].slice(0, 50)
   })),
   setRaceControlMessages: (msgs) => set({ raceControl: msgs }),
-  pushAlert: (alert) => set((state) => ({ alerts: [alert, ...state.alerts].slice(0, 8) })),
+  // An id identifies one event ("session-9999", "flag-<time>-<flag>"), so a repeat of a showing alert
+  // is ignored rather than stacked (React StrictMode runs the initial sync effect twice in dev).
+  pushAlert: (alert) =>
+    set((state) =>
+      state.alerts.some((a) => a.id === alert.id) ? state : { alerts: [alert, ...state.alerts].slice(0, 8) },
+    ),
   dismissAlert: (id) => set((state) => ({ alerts: state.alerts.filter((a) => a.id !== id) })),
   setIsConnected: (status) => set({ isConnected: status }),
   setLiveSignal: (signal) => set({ liveSignal: signal }),

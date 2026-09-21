@@ -2,9 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { RotateCw, ShieldAlert } from "lucide-react";
 import { useF1Store } from "@/store/useTelemetryStore";
-import { Brain, ShieldAlert, Zap } from "lucide-react";
 import CompoundBadge from "@/components/CompoundBadge";
+import Button from "@/components/ui/Button";
+import DataTable, { type Column } from "@/components/ui/DataTable";
+import EmptyState from "@/components/ui/EmptyState";
+import Tabs, { tabPanelProps } from "@/components/ui/Tabs";
+import { cn } from "@/lib/cn";
 
 interface UndercutThreat {
   leader: string;
@@ -38,10 +43,34 @@ interface StrategyData {
   };
 }
 
+type Tab = "engineer" | "strategist";
+const TABS = [
+  { id: "engineer", label: "Race engineer" },
+  { id: "strategist", label: "Strategist" },
+] as const;
+
+// Pit-window status is a warning scale: critical is danger red, open is caution yellow.
+const STATUS_CLASS: Record<string, string> = {
+  CRITICAL: "text-live-text",
+  OPEN: "text-timing-yellow",
+};
+
+const WINDOW_COLUMNS: Column<PitWindow>[] = [
+  { key: "driver", header: "Driver", cell: (w) => <span className="font-semibold">{w.driver_code}</span> },
+  { key: "tyre", header: "Tyre", cell: (w) => <CompoundBadge compound={w.compound} showLabel /> },
+  { key: "age", header: "Age", align: "right", cell: (w) => `${w.tyre_age} laps` },
+  { key: "deg", header: "Degradation", align: "right", cell: (w) => `+${w.estimated_deg_loss_seconds}s` },
+  {
+    key: "status",
+    header: "Status",
+    cell: (w) => <span className={cn("font-semibold", STATUS_CLASS[w.status] ?? "text-mute")}>{w.status}</span>,
+  },
+];
+
 export default function AIEngineerConsole() {
   const { activeSession } = useF1Store();
-  const [activeTab, setActiveTab] = useState<"engineer" | "strategist">("engineer");
-  
+  const [activeTab, setActiveTab] = useState<Tab>("engineer");
+
   // AI Engineer State
   const [chatInput, setChatInput] = useState("");
   const [chatLog, setChatLog] = useState<Array<{ sender: "user" | "ai"; text: string }>>([
@@ -101,7 +130,7 @@ export default function AIEngineerConsole() {
           ...prev,
           {
             sender: "ai",
-            text: "Error: Unable to reach the race engineer right now. Check that the backend is running and an AI provider key (ANTHROPIC_API_KEY or OPENAI_API_KEY) is configured.",
+            text: "Couldn't reach the race engineer. Check that the backend is running and that an AI key (ANTHROPIC_API_KEY or OPENAI_API_KEY) is set.",
           },
         ]);
       })
@@ -111,178 +140,99 @@ export default function AIEngineerConsole() {
   };
 
   return (
-    <div className="glass-panel rounded-lg flex flex-col h-full overflow-hidden border border-white/5 bg-black/30">
-      {/* Tabs Headers */}
-      <div className="flex border-b border-white/10 bg-white/5">
-        <button
-          onClick={() => setActiveTab("engineer")}
-          className={`flex-1 py-2.5 text-xs font-semibold tracking-wider uppercase flex items-center justify-center gap-2 transition-colors border-r border-white/5 ${
-            activeTab === "engineer"
-              ? "text-f1-cyan bg-black/40 border-b-2 border-b-f1-cyan"
-              : "text-white/40 hover:text-white/80"
-          }`}
-        >
-          <Brain className="h-3.5 w-3.5" />
-          AI Race Engineer
-        </button>
-        <button
-          onClick={() => setActiveTab("strategist")}
-          className={`flex-1 py-2.5 text-xs font-semibold tracking-wider uppercase flex items-center justify-center gap-2 transition-colors ${
-            activeTab === "strategist"
-              ? "text-f1-red bg-black/40 border-b-2 border-b-f1-red"
-              : "text-white/40 hover:text-white/80"
-          }`}
-        >
-          <Zap className="h-3.5 w-3.5" />
-          AI Strategist
-        </button>
-      </div>
+    <div className="flex h-full min-h-0 flex-col">
+      <Tabs tabs={TABS} value={activeTab} onChange={(id) => setActiveTab(id as Tab)} idBase="engineer" label="Race engineer views" className="shrink-0 px-2" />
 
-      {/* Tab Contents */}
-      <div className="flex-1 overflow-auto p-4 flex flex-col justify-between">
-        {activeTab === "engineer" ? (
-          /* Tab: AI Engineer Chat */
-          <div className="flex flex-col h-full justify-between">
-            <div className="flex-1 overflow-y-auto space-y-3 mb-4 max-h-[300px]">
-              {chatLog.map((chat, idx) => (
-                <div
-                  key={idx}
-                  className={`text-xs p-2.5 rounded-lg max-w-[85%] leading-relaxed ${
-                    chat.sender === "user"
-                      ? "ml-auto bg-f1-cyan/15 text-f1-cyan border border-f1-cyan/20"
-                      : "mr-auto bg-white/5 text-white/95 border border-white/5"
-                  }`}
-                >
-                  <p className="font-bold text-[9px] uppercase tracking-wider mb-0.5 text-white/50">
-                    {chat.sender === "user" ? "RACE ENGINEERING" : "CO-DRIVERS / ENGINE ROOM"}
-                  </p>
-                  <div className="whitespace-pre-wrap font-mono-f1">{chat.text}</div>
-                </div>
-              ))}
-              {chatLoading && (
-                <div className="text-[10px] text-f1-cyan font-mono-f1 animate-pulse">
-                  INGESTING TELEMETRY & PROCESSING INFERENCE CLUSTER...
-                </div>
-              )}
-            </div>
-
-            <form onSubmit={handleSendChat} className="flex gap-2">
-              <input
-                type="text"
-                aria-label="Ask the AI race engineer"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask pit wall: e.g. Why is VER losing time?"
-                className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-f1-cyan font-mono-f1"
-              />
-              <button
-                type="submit"
-                disabled={chatLoading}
-                className="bg-f1-cyan hover:bg-f1-cyan/80 text-black text-xs font-bold px-4 py-2 rounded transition-colors uppercase disabled:opacity-50"
-              >
-                ASK
-              </button>
-            </form>
-          </div>
-        ) : (
-          /* Tab: AI Strategist */
-          <div className="space-y-4 text-xs font-mono-f1 h-full overflow-y-auto">
-            <div className="flex justify-between items-center pb-2 border-b border-white/10">
-              <span className="text-[10px] text-white/40 uppercase">LIVE PIT PREDICTIONS</span>
-              <button
-                onClick={fetchStrategy}
-                className="text-[10px] text-f1-red hover:underline uppercase"
-              >
-                REFRESH LOGS
-              </button>
-            </div>
-
-            {stratLoading ? (
-              <div className="animate-pulse text-center py-8 text-white/40">
-                RUNNING DEGRADATION MODELS...
-              </div>
-            ) : strategyData ? (
-              <div className="space-y-4">
-                {/* Safety Car / Weather Alerts */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-white/5 p-2 rounded border border-white/5">
-                    <div className="text-[9px] text-white/40 uppercase">SAFETY CAR OPPS</div>
-                    <div className="font-bold mt-1 text-white/95">
-                      {strategyData.safety_car_opportunity.recommendation}
-                    </div>
-                  </div>
-                  <div className="bg-white/5 p-2 rounded border border-white/5">
-                    <div className="text-[9px] text-white/40 uppercase">RAIN DEVIATION RISK</div>
-                    <div className="font-bold mt-1 text-white/95">
-                      {strategyData.weather_warning.recommendation}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Undercut Warnings */}
-                {strategyData.undercut_threats.length > 0 && (
-                  <div className="bg-f1-red/10 border border-f1-red/35 rounded p-3 text-f1-red">
-                    <div className="flex items-center gap-2 mb-1.5 font-bold uppercase text-[10px]">
-                      <ShieldAlert className="h-4 w-4" />
-                      Undercut Threat Warnings
-                    </div>
-                    <ul className="space-y-1 text-[11px] list-disc list-inside">
-                      {strategyData.undercut_threats.map((threat, idx) => (
-                        <li key={idx}>{threat.reason}</li>
-                      ))}
-                    </ul>
-                  </div>
+      {activeTab === "engineer" ? (
+        <div {...tabPanelProps("engineer", "engineer")} className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+          <div role="log" aria-live="polite" aria-label="Conversation" className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+            {chatLog.map((chat, idx) => (
+              <div
+                key={idx}
+                className={cn(
+                  "max-w-[85%] rounded-panel px-3 py-2 text-sm leading-relaxed",
+                  chat.sender === "user" ? "ml-auto bg-raised text-chalk" : "mr-auto border border-gantry text-chalk",
                 )}
-
-                {/* Pit Window Table */}
-                <div>
-                  <div className="text-[9px] text-white/40 uppercase mb-2">TYRE LIFE ESTIMATES</div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[11px]">
-                      <thead>
-                        <tr className="text-white/30 border-b border-white/5">
-                          <th className="pb-1 font-normal">DRV</th>
-                          <th className="pb-1 font-normal">TYRE</th>
-                          <th className="pb-1 font-normal">AGE</th>
-                          <th className="pb-1 font-normal">DEG LOSS</th>
-                          <th className="pb-1 font-normal">STATUS</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {Object.values(strategyData.pit_windows).slice(0, 10).map((window) => (
-                          <tr key={window.driver_code} className="border-b border-white/5">
-                            <td className="py-1.5 font-bold text-white">{window.driver_code}</td>
-                            <td className="py-1.5"><CompoundBadge compound={window.compound} showLabel /></td>
-                            <td className="py-1.5">{window.tyre_age} laps</td>
-                            <td className="py-1.5 text-f1-yellow">+{window.estimated_deg_loss_seconds}s</td>
-                            <td className="py-1.5 font-bold">
-                              <span
-                                className={
-                                  window.status === "CRITICAL"
-                                    ? "text-f1-red"
-                                    : window.status === "OPEN"
-                                    ? "text-f1-yellow"
-                                    : "text-f1-green"
-                                }
-                              >
-                                {window.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+              >
+                <p className="mb-0.5 text-xs font-medium text-mute">{chat.sender === "user" ? "You" : "Race engineer"}</p>
+                <div className="whitespace-pre-wrap">{chat.text}</div>
               </div>
-            ) : (
-              <div className="text-center py-8 text-white/30">
-                NO STRATEGY DATA GENERATED. CONNECT CLIENT TO START DATA INGESTION.
-              </div>
+            ))}
+            {chatLoading && (
+              <p role="status" className="text-xs text-mute">Reading telemetry…</p>
             )}
           </div>
-        )}
-      </div>
+
+          <form onSubmit={handleSendChat} className="flex shrink-0 gap-2">
+            <input
+              type="text"
+              aria-label="Ask the race engineer"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="Ask the pit wall, e.g. Why is VER losing time?"
+              className="h-10 min-w-0 flex-1 rounded-control border border-edge bg-raised px-3 text-sm text-chalk placeholder:text-faint"
+            />
+            <Button type="submit" variant="primary" disabled={chatLoading || !activeSession}>
+              Send
+            </Button>
+          </form>
+          {!activeSession && <p className="shrink-0 text-xs text-faint">The race engineer needs a live session to answer.</p>}
+        </div>
+      ) : (
+        <div {...tabPanelProps("engineer", "strategist")} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-medium text-mute">Live pit predictions</h3>
+            <Button size="sm" variant="ghost" onClick={fetchStrategy} disabled={!activeSession}>
+              <RotateCw aria-hidden className="h-3.5 w-3.5" />
+              Refresh
+            </Button>
+          </div>
+
+          {stratLoading ? (
+            <p role="status" className="py-8 text-center text-sm text-mute">Running degradation models…</p>
+          ) : strategyData ? (
+            <div className="space-y-4">
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                <div className="rounded-panel border border-gantry p-3">
+                  <dt className="text-xs text-mute">Safety car opportunity</dt>
+                  <dd className="mt-1 font-semibold text-chalk">{strategyData.safety_car_opportunity.recommendation}</dd>
+                </div>
+                <div className="rounded-panel border border-gantry p-3">
+                  <dt className="text-xs text-mute">Rain risk</dt>
+                  <dd className="mt-1 font-semibold text-chalk">{strategyData.weather_warning.recommendation}</dd>
+                </div>
+              </dl>
+
+              {strategyData.undercut_threats.length > 0 && (
+                <div className="rounded-panel border border-live/40 p-3 text-live-text">
+                  <p className="mb-1.5 flex items-center gap-2 text-sm font-semibold">
+                    <ShieldAlert aria-hidden className="h-4 w-4" />
+                    Undercut threats
+                  </p>
+                  <ul className="list-inside list-disc space-y-1 text-sm">
+                    {strategyData.undercut_threats.map((threat, idx) => (
+                      <li key={idx}>{threat.reason}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div>
+                <h3 className="mb-1 text-xs font-medium text-mute">Tyre life estimates</h3>
+                <DataTable
+                  caption="Tyre life estimates"
+                  columns={WINDOW_COLUMNS}
+                  rows={Object.values(strategyData.pit_windows).slice(0, 10)}
+                  rowKey={(w) => w.driver_code}
+                  dense
+                />
+              </div>
+            </div>
+          ) : (
+            <EmptyState title="No strategy data yet" description="Predictions appear once a live session is connected." />
+          )}
+        </div>
+      )}
     </div>
   );
 }

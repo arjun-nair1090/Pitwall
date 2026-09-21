@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 import Workspace, { type WorkspacePanelDef } from "./Workspace";
 import type { Layouts } from "@/lib/layoutStore";
@@ -22,6 +22,24 @@ const defaults: Layouts = {
 beforeEach(() => window.localStorage.clear());
 
 describe("Workspace", () => {
+  it("does not wipe a saved layout on mount, even under React StrictMode's double effects", () => {
+    const saved = { v: 1, layouts: { lg: [{ i: "a", x: 6, y: 0, w: 6, h: 4 }, { i: "b", x: 0, y: 0, w: 6, h: 4 }], sm: defaults.sm } };
+    window.localStorage.setItem("pitwall.layout.v1.t", JSON.stringify(saved));
+    render(<StrictMode><Workspace name="t" panels={panels} defaults={defaults} /></StrictMode>);
+    expect(JSON.parse(window.localStorage.getItem("pitwall.layout.v1.t")!).layouts.lg[0].x).toBe(6);
+  });
+
+  it("resets to the defaults only when resetKey changes", () => {
+    const saved = { v: 1, layouts: { lg: [{ i: "a", x: 6, y: 0, w: 6, h: 4 }, { i: "b", x: 0, y: 0, w: 6, h: 4 }], sm: defaults.sm } };
+    window.localStorage.setItem("pitwall.layout.v1.t", JSON.stringify(saved));
+    const { rerender } = render(<StrictMode><Workspace name="t" panels={panels} defaults={defaults} resetKey={0} /></StrictMode>);
+    expect(window.localStorage.getItem("pitwall.layout.v1.t")).not.toBeNull();
+    rerender(<StrictMode><Workspace name="t" panels={panels} defaults={defaults} resetKey={1} /></StrictMode>);
+    const after = window.localStorage.getItem("pitwall.layout.v1.t");
+    // Reset clears the saved layout; RGL may then re-save the defaults it lays out.
+    expect(after === null || JSON.parse(after).layouts.lg[0].x === 0).toBe(true);
+  });
+
   it("renders every panel as a titled region", () => {
     render(<Workspace name="t" panels={panels} defaults={defaults} />);
     expect(screen.getByRole("region", { name: "Race tower" })).toBeInTheDocument();
