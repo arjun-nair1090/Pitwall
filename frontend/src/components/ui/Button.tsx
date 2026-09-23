@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "ghost";
 type Size = "md" | "sm";
 
 const BASE =
@@ -13,7 +13,6 @@ const VARIANT: Record<Variant, string> = {
   primary: "bg-live text-white hover:bg-live-deep",
   secondary: "border border-edge text-chalk hover:border-chalk hover:bg-raised",
   ghost: "text-mute hover:bg-raised hover:text-chalk",
-  danger: "border border-live text-live-text hover:bg-live hover:text-white",
 };
 // "sm" is compact only where a pointer is available; phones keep the 40px target.
 const SIZE: Record<Size, string> = {
