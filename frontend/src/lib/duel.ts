@@ -85,17 +85,20 @@ export function dominanceSegments(a: readonly TelemetryPoint[], b: readonly Tele
   if (!(longest > 0)) return [];
   const count = Math.max(Math.floor(longest / sectorMetres), 1);
   const width = longest / count;
-  const bucket = (distance: number) => Math.min(Math.floor(distance / width), count - 1);
+  // Clamped both ways: a sample just before the start line has a slightly negative distance.
+  const bucket = (distance: number) => Math.max(0, Math.min(Math.floor(distance / width), count - 1));
 
   const blank = () => Array.from({ length: count }, () => ({ speed: 0, x: 0, y: 0, n: 0, path: [] as { x: number; y: number }[] }));
   const sumsA = blank();
   const sumsB = blank();
   for (const p of a) {
+    if (!Number.isFinite(p.distance)) continue;
     const s = sumsA[bucket(p.distance)];
     s.speed += p.speed; s.x += p.x; s.y += p.y; s.n += 1;
     s.path.push({ x: p.x, y: p.y });
   }
   for (const p of b) {
+    if (!Number.isFinite(p.distance)) continue;
     const s = sumsB[bucket(p.distance)];
     s.speed += p.speed; s.n += 1;
   }
