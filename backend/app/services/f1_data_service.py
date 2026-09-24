@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from app.core.config import settings
 from app.services.redis_service import redis_service
 from app.core.database import SessionLocal
-from app.models.models import SessionModel, DriverModel, LapModel, TeamRadioModel
+from app.models.models import SessionModel, DriverModel
 
 # Enable FastF1 caching
 os.makedirs(settings.FASTF1_CACHE_DIR, exist_ok=True)
@@ -43,7 +43,6 @@ FALLBACK_2024_DRIVERS = [
 class F1DataService:
     def __init__(self):
         self.openf1_base_url = "https://api.openf1.org/v1"
-        self._circuit_coords = None
 
     def _fetch_openf1(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Any:
         """Fetch from OpenF1 API using requests, supporting Bearer API keys for live race sessions."""
@@ -367,28 +366,6 @@ class F1DataService:
             ]
         return []
 
-    def _get_fallback_coords(self) -> List[Any]:
-        """Load and cache the real coordinate list of Spa from FastF1."""
-        if self._circuit_coords is not None:
-            return self._circuit_coords
-        try:
-            session = fastf1.get_session(2024, "Belgium", "Race")
-            session.load(telemetry=True, laps=True, weather=False)
-            fastest_lap = session.laps.pick_fastest()
-            tel = fastest_lap.get_telemetry()
-            self._circuit_coords = list(zip(tel["X"].tolist(), tel["Y"].tolist()))
-            return self._circuit_coords
-        except Exception as e:
-            print(f"Error loading Spa coordinates: {e}")
-            # Circle shape fallback if FastF1 fails
-            import math
-            coords = []
-            for i in range(200):
-                angle = i * (2 * math.pi / 200)
-                coords.append((math.cos(angle) * 1200, math.sin(angle) * 800))
-            self._circuit_coords = coords
-            return coords
-
     def get_circuit_layout(self, year: int, gp: str, session_type: str) -> Dict[str, Any]:
         """Fetch 2D circuit layout coordinates using FastF1."""
         try:
@@ -405,100 +382,6 @@ class F1DataService:
         except Exception as e:
             print(f"Error loading circuit layout: {e}")
             return {"error": str(e)}
-
-    async def fetch_historical_comparison(self, year: int, gp: str, driver1: str, driver2: str) -> Dict[str, Any]:
-        return await asyncio.to_thread(self._fetch_historical_comparison_sync, year, gp, driver1, driver2)
-
-    def _fetch_historical_comparison_sync(self, year: int, gp: str, driver1: str, driver2: str) -> Dict[str, Any]:
-        try:
-            session = fastf1.get_session(year, gp, 'Race')
-            session.load(telemetry=True, laps=True, weather=False)
-            
-            laps1 = session.laps.pick_drivers(driver1)
-            laps2 = session.laps.pick_drivers(driver2)
-            
-            if laps1.empty:
-                return {"error": f"No lap data found for driver {driver1} in {year} {gp}"}
-            if laps2.empty:
-                return {"error": f"No lap data found for driver {driver2} in {year} {gp}"}
-
-            lap1 = laps1.pick_fastest()
-            lap2 = laps2.pick_fastest()
-            
-            tel1 = lap1.get_telemetry()
-            tel2 = lap2.get_telemetry()
-            
-            # FastF1 uses "LapTime" (Timedelta) — not lap.lap_time
-            lt1 = lap1["LapTime"]
-            lt2 = lap2["LapTime"]
-            
-            return {
-                "driver1": {
-                    "code": driver1,
-                    "lap_time": lt1.total_seconds() if pd.notna(lt1) else None,
-                    "distance": tel1["Distance"].tolist(),
-                    "speed": tel1["Speed"].tolist(),
-                    "throttle": tel1["Throttle"].tolist(),
-                    "brake": [int(b) for b in tel1["Brake"].tolist()],
-                    "gear": tel1["nGear"].tolist(),
-                    "rpm": tel1["RPM"].tolist(),
-                    "drs": tel1["DRS"].tolist()
-                },
-                "driver2": {
-                    "code": driver2,
-                    "lap_time": lt2.total_seconds() if pd.notna(lt2) else None,
-                    "distance": tel2["Distance"].tolist(),
-                    "speed": tel2["Speed"].tolist(),
-                    "throttle": tel2["Throttle"].tolist(),
-                    "brake": [int(b) for b in tel2["Brake"].tolist()],
-                    "gear": tel2["nGear"].tolist(),
-                    "rpm": tel2["RPM"].tolist(),
-                    "drs": tel2["DRS"].tolist()
-                }
-            }
-        except Exception as e:
-            print(f"Error in historical comparison: {e}")
-            return {"error": str(e)}
-
-    async def get_live_telemetry(self, driver_code: str) -> Dict[str, Any]:
-        """Fetch live telemetry for single driver (polls OpenF1; returns live_signal:False sentinel when no live data)."""
-        session_key = await self.get_latest_session_key()
-        
-        # Resolve driver_code to driver_number
-        drivers = await self.get_drivers(session_key)
-        driver_entry = next((d for d in drivers if d["code"] == driver_code), None)
-        
-        if not driver_entry:
-            raise ValueError(f"Driver code {driver_code} not found for the current session")
-            
-        driver_number = driver_entry["driver_number"]
-        
-        car_data = await self.fetch_openf1_async("car_data", {"session_key": session_key, "driver_number": driver_number})
-        if car_data and isinstance(car_data, list):
-            latest = car_data[-1]
-            telemetry_point = {
-                "driver": driver_code,
-                "timestamp": latest.get("date"),
-                "speed": latest.get("speed", 0.0),
-                "throttle": latest.get("throttle", 0.0),
-                "brake": latest.get("brake", 0.0),
-                "gear": latest.get("n_gear", 0),
-                "rpm": latest.get("rpm", 0),
-                "drs": latest.get("drs", 0) in [12, 14],
-                "live_signal": True
-            }
-            await redis_service.publish("telemetry:live", telemetry_point)
-            return telemetry_point
-        else:
-            # No live car data from OpenF1 — publish explicit sentinel, never fabricate values
-            sentinel = {
-                "driver": driver_code,
-                "live_signal": False,
-                "message": "No live telemetry available from OpenF1.",
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
-            await redis_service.publish("telemetry:live", sentinel)
-            return sentinel
 
     async def stream_live_telemetry(self, session_key: int):
         """Streams live positioning coordinates for the entire grid from OpenF1.
@@ -540,7 +423,6 @@ class F1DataService:
                     "z": loc.get("z", 0.0),
                     "live_signal": True
                 }
-                await redis_service.publish(f"telemetry:live:{num}", merged)
                 await redis_service.publish("telemetry:live", merged)
         else:
             # No live session data from OpenF1 — publish sentinel once, never fabricate telemetry

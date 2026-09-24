@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RAIL_INIT_SCRIPT, RAIL_KEY, isRailCollapsed, setRailCollapsed, subscribeRail } from "./railState";
+import { RAIL_INIT_SCRIPT, RAIL_KEY } from "./railScript";
+import { isRailCollapsed, setRailCollapsed, subscribeRail } from "./railState";
 
 beforeEach(() => {
   delete document.documentElement.dataset.rail;

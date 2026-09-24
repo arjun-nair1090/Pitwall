@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import Rail from "./Rail";
 import { MODULES } from "@/lib/modules";
-import { RAIL_KEY } from "@/lib/railState";
+import { RAIL_KEY } from "@/lib/railScript";
 import { usePaletteStore } from "@/store/usePaletteStore";
 import { useF1Store } from "@/store/useTelemetryStore";
 

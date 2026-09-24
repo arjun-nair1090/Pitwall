@@ -76,7 +76,6 @@ interface F1StoreState {
   // Whether the API itself answered. Distinct from isConnected (the live feed): between race weekends
   // the API is fine and there is simply no live session.
   apiStatus: "unknown" | "ok" | "unreachable";
-  liveSignal: boolean;
   selectedDriverNum: number | null;
   currentUser: CurrentUser | null;
 
@@ -91,7 +90,6 @@ interface F1StoreState {
   dismissAlert: (id: string) => void;
   setIsConnected: (status: boolean) => void;
   setApiStatus: (status: "unknown" | "ok" | "unreachable") => void;
-  setLiveSignal: (signal: boolean) => void;
   setSelectedDriverNum: (num: number | null) => void;
   setCurrentUser: (user: CurrentUser | null) => void;
 }
@@ -107,7 +105,6 @@ export const useF1Store = create<F1StoreState>((set) => ({
   alerts: [],
   isConnected: false,
   apiStatus: "unknown",
-  liveSignal: true,
   selectedDriverNum: null,
   currentUser: null,
   setActiveSession: (session) => set({ activeSession: session }),
@@ -144,7 +141,6 @@ export const useF1Store = create<F1StoreState>((set) => ({
   dismissAlert: (id) => set((state) => ({ alerts: state.alerts.filter((a) => a.id !== id) })),
   setIsConnected: (status) => set({ isConnected: status }),
   setApiStatus: (status) => set({ apiStatus: status }),
-  setLiveSignal: (signal) => set({ liveSignal: signal }),
   setSelectedDriverNum: (num) => set({ selectedDriverNum: num }),
   setCurrentUser: (user) => set({ currentUser: user }),
 }));

@@ -1,4 +1,4 @@
-import { formatGap } from "./timing";
+import { formatGap, formatRaceTime } from "./timing";
 
 // Shape of GET /api/v1/races/latest-result.
 export interface ClassificationRow {
@@ -26,16 +26,6 @@ export const finishOrder = (rows: readonly ClassificationRow[]): ClassificationR
   [...rows].sort((a, b) => a.position - b.position);
 
 export const positionsGained = (row: ClassificationRow): number => row.grid - row.position;
-
-const pad = (n: number, width: number) => String(n).padStart(width, "0");
-
-export function formatRaceTime(seconds: number): string {
-  const total = Math.round(seconds * 1000);
-  const hours = Math.floor(total / 3_600_000);
-  const minutes = Math.floor((total % 3_600_000) / 60_000);
-  const secs = Math.floor((total % 60_000) / 1000);
-  return `${hours}:${pad(minutes, 2)}:${pad(secs, 2)}.${pad(total % 1000, 3)}`;
-}
 
 export function resultLabel(row: ClassificationRow): string {
   if (row.position === 1 && row.race_time_seconds != null) return formatRaceTime(row.race_time_seconds);
