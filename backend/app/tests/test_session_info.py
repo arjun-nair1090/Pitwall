@@ -186,8 +186,8 @@ def test_pick_lap_rejects_a_driver_with_no_timed_laps():
 
 
 def test_driver_colour_uses_the_session_results():
-    assert si.driver_colour(FakeSession(), "NOR") == "#FF8000"
+    assert si.driver_profile(FakeSession(), "NOR")["color"] == "#FF8000"
 
 
 def test_driver_colour_falls_back_for_an_unknown_driver():
-    assert si.driver_colour(FakeSession(), "XXX") == si.FALLBACK_COLOR
+    assert si.driver_profile(FakeSession(), "XXX")["color"] == si.FALLBACK_COLOR

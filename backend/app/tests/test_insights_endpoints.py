@@ -4,7 +4,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import race_debrief
 from app.services.session_frames import LruCache, SessionFrames
 
 # Reuse the synthetic race builders from the unit tests (pytest puts this directory on sys.path).

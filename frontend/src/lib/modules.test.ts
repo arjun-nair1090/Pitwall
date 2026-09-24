@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findModuleForPath, GROUP_ORDER, MODULES, searchModules } from "./modules";
+import { findModuleForPath, GROUP_ORDER, MODULES } from "./modules";
+import { rankMatches } from "./search";
 
 describe("module registry", () => {
   it("has unique ids and unique absolute hrefs", () => {
@@ -30,11 +31,12 @@ describe("findModuleForPath", () => {
   });
 });
 
-describe("searchModules", () => {
-  it("finds by title", () => expect(searchModules("live")[0].id).toBe("live"));
+describe("searching modules", () => {
+  const search = (query: string) => rankMatches(query, MODULES);
+  it("finds by title", () => expect(search("live")[0].id).toBe("live"));
   it("finds by keyword", () => {
-    expect(searchModules("h2h")[0].id).toBe("compare");
-    expect(searchModules("tyre")[0].id).toBe("strategy");
+    expect(search("h2h")[0].id).toBe("compare");
+    expect(search("tyre")[0].id).toBe("strategy");
   });
-  it("returns nothing for gibberish", () => expect(searchModules("zzzz")).toEqual([]));
+  it("returns nothing for gibberish", () => expect(search("zzzz")).toEqual([]));
 });

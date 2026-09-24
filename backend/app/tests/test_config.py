@@ -1,6 +1,5 @@
 import importlib
 
-import pytest
 
 
 def _reload_settings():

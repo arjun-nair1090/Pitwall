@@ -28,7 +28,6 @@ class Settings(BaseModel):
             url = url.replace("redis:6379", "localhost:6379")
         return url
 
-    API_V1_STR_PREFIX: str = os.getenv("API_V1_STR_PREFIX", "/api/v1")
     CORS_ALLOWED_ORIGINS: list[str] = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
     SECRET_KEY: str = os.getenv("SECRET_KEY")
     if not SECRET_KEY:
@@ -55,8 +54,6 @@ class Settings(BaseModel):
     # which silently degrades every AI feature to its fallback.
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
-    FASTF1_SESSION_TYPE: str = os.getenv("FASTF1_SESSION_TYPE", "Race")
-    FASTF1_YEAR: int = int(os.getenv("FASTF1_YEAR", "2024"))
     FASTF1_CACHE_DIR: str = os.getenv("FASTF1_CACHE_DIR", "data/fastf1_cache")
 
 settings = Settings()

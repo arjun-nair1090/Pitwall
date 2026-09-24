@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { Trophy, Target, Lock, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { Trophy, Lock, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useF1Store } from "@/store/useTelemetryStore";
 import ErrorState from "@/components/ErrorState";
 import { getApiErrorMessage } from "@/lib/apiError";

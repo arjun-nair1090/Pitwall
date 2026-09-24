@@ -40,10 +40,9 @@ const config: Config = {
   },
   plugins: [
     // The sidebar's state is an attribute on <html> (see src/lib/railState.ts), so the stylesheet can
-    // size everything from it before any script runs: `rail-expanded:` / `rail-collapsed:` variants.
+    // size everything from it before any script runs: the `rail-expanded:` variant.
     plugin(({ addVariant }) => {
       addVariant("rail-expanded", "html:not([data-rail='collapsed']) &");
-      addVariant("rail-collapsed", "html[data-rail='collapsed'] &");
     }),
   ],
 };

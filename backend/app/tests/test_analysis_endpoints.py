@@ -1,5 +1,4 @@
 import fastf1
-import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -26,11 +25,9 @@ def _raise(message):
 
 # ---- errors are reported honestly ----
 
-@pytest.mark.parametrize("path", ["/api/v1/telemetry/compare", "/api/v1/telemetry/dominance"])
-def test_missing_driver_is_a_404_with_a_plain_message(monkeypatch, path):
+def test_missing_driver_is_a_404_with_a_plain_message(monkeypatch):
     monkeypatch.setattr(duel_telemetry, "head_to_head_payload", _raise("PIA has no laps in this session. Drivers with laps: NOR, VER."))
-    monkeypatch.setattr(duel_telemetry, "dominance_payload", _raise("PIA has no laps in this session. Drivers with laps: NOR, VER."))
-    response = client.post(path, json=COMPARE)
+    response = client.post("/api/v1/telemetry/compare", json=COMPARE)
     assert response.status_code == 404
     assert response.json()["detail"] == "PIA has no laps in this session. Drivers with laps: NOR, VER."  # no "400: " prefix
 
@@ -73,18 +70,6 @@ def test_driver_codes_are_normalised_and_the_round_and_laps_are_passed_through(m
     monkeypatch.setattr(duel_telemetry, "head_to_head_payload", fake)
     client.post("/api/v1/telemetry/compare", json={**COMPARE, "driver1": " ver ", "round": 14, "driver1_lap": 5})
     assert (seen["d1"], seen["d2"], seen["round_number"], seen["l1"], seen["l2"]) == ("VER", "NOR", 14, 5, None)
-
-
-def test_dominance_uses_the_same_laps_as_the_comparison(monkeypatch):
-    seen = {}
-
-    def fake(year, gp, session, d1, d2, l1, l2, round_number):
-        seen.update(l1=l1, l2=l2)
-        return {"driver1": {}, "driver2": {}, "dominance": []}
-
-    monkeypatch.setattr(duel_telemetry, "dominance_payload", fake)
-    client.post("/api/v1/telemetry/dominance", json={**COMPARE, "driver1_lap": 5, "driver2_lap": 7})
-    assert (seen["l1"], seen["l2"]) == (5, 7)
 
 
 # ---- session info ----

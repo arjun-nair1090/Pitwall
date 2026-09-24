@@ -3,7 +3,7 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Newspaper, Timer, Flag, AlertTriangle, Sparkles, TrendingUp, Loader2 } from "lucide-react";
+import { Timer, Flag, AlertTriangle, Sparkles, TrendingUp, Loader2 } from "lucide-react";
 import ErrorState from "@/components/ErrorState";
 import StintBar from "@/components/StintBar";
 import WhatIfPanel from "@/components/WhatIfPanel";

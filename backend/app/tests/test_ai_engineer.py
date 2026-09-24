@@ -156,7 +156,6 @@ async def test_generate_text_returns_none_when_no_provider_is_available():
 
 @pytest.mark.asyncio
 async def test_generate_text_never_blocks_the_event_loop():
-    import asyncio
     import threading
     seen = {}
 

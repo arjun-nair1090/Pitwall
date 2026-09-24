@@ -1,8 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { RAIL_KEY } from "./railScript";
 
-export { RAIL_INIT_SCRIPT, RAIL_KEY } from "./railScript";
-
 // Whether the sidebar is collapsed lives on <html data-rail="collapsed">, not in React state, so
 // the stylesheet can size everything from it. A tiny script in <head> (RAIL_INIT_SCRIPT) restores
 // the saved choice before the first paint, which is what stops the sidebar flashing open and
