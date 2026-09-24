@@ -78,6 +78,12 @@ describe("dominanceSegments", () => {
     expect(new Set(dominanceSegments(a, a, 200).map((s) => s.winner))).toEqual(new Set([1]));
   });
 
+  it("survives samples with a negative or missing distance", () => {
+    const bad = [point(-5), point(NaN), ...line(20, 100)];
+    expect(() => dominanceSegments(bad, bad, 200)).not.toThrow();
+    expect(dominanceSegments(bad, bad, 200).length).toBeGreaterThan(0);
+  });
+
   it("takes positions from the first driver's line", () => {
     const a = line(20, 100, () => ({ x: 5 }));
     const segments = dominanceSegments(a, line(20, 100, () => ({ x: 999 })), 200);
