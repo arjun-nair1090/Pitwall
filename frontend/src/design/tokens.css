@@ -1,0 +1,25 @@
+/* Timing Screen tokens. RGB triplets so Tailwind can apply alpha: rgb(var(--kerb) / 0.6).
+   Values are checked by tokens.test.ts (contrast) and mirrored in chartTheme.ts.
+
+   The palette is the official one: the near-black navy of a Formula 1 broadcast feed, F1 red for
+   the frame and the on-air state, and the three timing colours that mean the same thing here as
+   they do on a real timing screen — purple fastest overall, green a personal best, yellow slower. */
+:root {
+  --tarmac: 21 21 30;
+  --kerb: 30 30 42;
+  --raised: 40 40 54;
+  --gantry: 56 56 74;
+  --edge: 124 124 146;
+  --chalk: 240 240 245;
+  --mute: 172 172 190;
+  --faint: 146 146 166;
+  --timing-purple: 181 123 255;
+  --timing-green: 53 208 127;
+  --timing-yellow: 246 201 69;
+  --f1-red: 225 6 0;
+  --f1-red-deep: 176 5 0;
+  --f1-red-text: 255 107 96;
+  /* Broadcast graphics are cut square. Corners are a hairline, never a curve. */
+  --radius-panel: 2px;
+  --radius-control: 2px;
+}

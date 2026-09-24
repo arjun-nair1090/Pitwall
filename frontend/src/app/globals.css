@@ -3,34 +3,49 @@
 @tailwind utilities;
 
 @layer base {
+  html {
+    color-scheme: dark;
+    /* Sidebar width: an icon rail below 1024px, and at 1024px+ full width unless collapsed. */
+    --rail-w: 4rem;
+  }
+  @media (min-width: 1024px) {
+    html:not([data-rail="collapsed"]) {
+      --rail-w: 15rem;
+    }
+  }
   body {
     margin: 0;
     padding: 0;
-    background-color: #0b0c10;
-    color: #c5c6c7;
-    font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: rgb(var(--tarmac));
+    color: rgb(var(--chalk));
     overflow-x: hidden;
   }
-
-  /* Custom scrollbar for pro pit wall dashboard look */
+  :focus-visible {
+    outline: 2px solid rgb(var(--chalk));
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: rgb(var(--chalk));
+    color: rgb(var(--tarmac));
+  }
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 8px;
+    height: 8px;
   }
   ::-webkit-scrollbar-track {
-    background: #0f1115;
+    background: rgb(var(--tarmac));
   }
   ::-webkit-scrollbar-thumb {
-    background: #1f2833;
-    border-radius: 3px;
+    background: rgb(var(--gantry));
+    border-radius: 4px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #66fcf1;
+    background: rgb(var(--edge));
   }
 }
 
 @layer utilities {
-  /* Hide the scrollbar on horizontally-scrolling strips (e.g. the mobile nav) */
+  /* Hide the scrollbar on horizontally-scrolling strips */
   .scrollbar-none {
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -38,59 +53,23 @@
   .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
-  .neon-border-red {
-    box-shadow: 0 0 10px rgba(225, 6, 0, 0.2);
-    border: 1px solid rgba(225, 6, 0, 0.4);
-  }
-  .neon-border-cyan {
-    box-shadow: 0 0 10px rgba(102, 252, 241, 0.2);
-    border: 1px solid rgba(102, 252, 241, 0.4);
-  }
-  .neon-text-cyan {
-    color: #66fcf1;
-    text-shadow: 0 0 5px rgba(102, 252, 241, 0.6);
-  }
-  .neon-text-red {
-    color: #e10600;
-    text-shadow: 0 0 5px rgba(225, 6, 0, 0.6);
-  }
-  .neon-text-purple {
-    color: #b026ff;
-    text-shadow: 0 0 5px rgba(176, 38, 255, 0.6);
-  }
-  .neon-text-green {
-    color: #00ff66;
-    text-shadow: 0 0 5px rgba(0, 255, 102, 0.6);
-  }
-  .glass-panel {
-    background: rgba(15, 17, 21, 0.85);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-  }
 }
 
-/* Carbon fiber micro-pattern for premium aesthetics */
-.bg-carbon {
-  background-color: #0b0c10;
-  background-image: 
-    radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 0),
-    radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 0);
-  background-size: 8px 8px;
-  background-position: 0 0, 4px 4px;
+/* react-grid-layout: match the design tokens */
+.react-grid-item.react-grid-placeholder {
+  background: rgb(var(--edge));
+  opacity: 0.25;
+  border-radius: var(--radius-panel);
+}
+.react-grid-item > .react-resizable-handle::after {
+  border-color: rgb(var(--edge));
 }
 
-/* Timing Board Font classes */
-.font-mono-f1 {
-  font-family: 'SF Mono', 'Courier New', Courier, monospace;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-}
-
-/* Animations */
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-.animate-status-blink {
-  animation: blink 1.5s infinite;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

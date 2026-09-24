@@ -1,72 +1,55 @@
 import Link from "next/link";
-import {
-  Radio,
-  Map,
-  Activity,
-  FlaskConical,
-  Newspaper,
-  Target,
-  Trophy,
-  Archive,
-  ArrowRight,
-} from "lucide-react";
+import HeroTower from "@/components/landing/HeroTower";
+import { buttonClass } from "@/components/ui/Button";
+import { MODULES } from "@/lib/modules";
 
-const FEATURES = [
-  { href: "/live", title: "Live Timing", blurb: "Positions, gaps and tyre ages as they happen, with an AI race engineer on the radio.", icon: Radio },
-  { href: "/map", title: "Track Map", blurb: "Every car on the circuit in real time, or replay a full race lap by lap.", icon: Map },
-  { href: "/compare", title: "Head to Head", blurb: "Overlay two drivers' fastest laps and see exactly where the time was won.", icon: Activity },
-  { href: "/strategy", title: "Strategy Simulator", blurb: "Test a tyre strategy against a real session's own degradation data.", icon: FlaskConical },
-  { href: "/debrief", title: "Race Debrief", blurb: "Auto-written race summaries, plus what-if counterfactuals on real strategies.", icon: Newspaper },
-  { href: "/predictions", title: "Predictions", blurb: "Call the podium before lights-out and climb the season leaderboard.", icon: Target },
-  { href: "/stats", title: "Season Stats", blurb: "Championship standings for every driver and constructor since 2018.", icon: Trophy },
-  { href: "/archive", title: "Archives", blurb: "Browse past seasons, calendars and race results.", icon: Archive },
-];
+const INDEX = MODULES.filter((m) => m.group !== "More");
 
-// The one page where the animated 3D backdrop (BackgroundScene) is shown; every
-// data-dense page gets a flat background instead.
 export default function LandingPage() {
   return (
-    <div className="w-full max-w-6xl mx-auto py-8 md:py-16 space-y-12 md:space-y-16 animate-fade-in">
-      <section className="text-center space-y-6">
-        <p className="text-xs font-bold tracking-[0.3em] text-f1-red uppercase">Formula 1 telemetry &amp; strategy</p>
-        <h1 className="text-5xl md:text-7xl font-black italic tracking-tighter text-white uppercase">
-          <span className="text-f1-red">F1</span> Pit Wall
-        </h1>
-        <p className="max-w-2xl mx-auto text-base md:text-lg text-white/60 font-titillium leading-relaxed">
-          Live timing, lap-by-lap telemetry, tyre strategy and an AI race engineer that has read
-          every session since 2018 — all in one place.
-        </p>
-        <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-          <Link
-            href="/live"
-            className="inline-flex items-center gap-2 bg-f1-red hover:bg-red-700 text-white font-titillium font-bold py-3 px-8 rounded-md transition-colors"
-          >
-            Open live timing <ArrowRight className="w-4 h-4" />
-          </Link>
-          <Link
-            href="/debrief"
-            className="inline-flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/15 text-white font-titillium font-bold py-3 px-8 rounded-md transition-colors"
-          >
-            Read a race debrief
-          </Link>
+    <div className="mx-auto w-full max-w-7xl space-y-16 py-4 md:py-10">
+      <section className="grid items-center gap-10 lg:grid-cols-12">
+        <div className="lg:col-span-5">
+          {/* The headline is the page's one loud moment: heavy, upper case and set tight, under the
+              red bar that runs through the rest of the product. */}
+          <span aria-hidden className="block h-1.5 w-16 -skew-x-12 bg-live" />
+          <h1 className="mt-5 font-display text-[2.75rem] font-black uppercase leading-[0.88] tracking-[-0.02em] text-chalk md:text-7xl">
+            The pit wall, in your browser.
+          </h1>
+          <p className="mt-5 max-w-md text-base text-mute md:text-lg">
+            Live timing, telemetry and race analysis for every Grand Prix since 2018.
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <Link href="/live" className={buttonClass({ variant: "primary" })}>Open live timing</Link>
+            <Link href="/compare" className={buttonClass({ variant: "secondary" })}>Compare two drivers</Link>
+          </div>
+        </div>
+        <div className="lg:col-span-7">
+          <HeroTower />
         </div>
       </section>
 
-      <section aria-label="Features" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {FEATURES.map(({ href, title, blurb, icon: Icon }) => (
-          <Link
-            key={href}
-            href={href}
-            className="glass-panel group p-5 rounded-xl border border-white/5 hover:border-f1-red/50 transition-colors flex flex-col gap-3"
-          >
-            <Icon className="w-6 h-6 text-f1-red" />
-            <h2 className="text-white font-bold font-titillium uppercase tracking-wide">{title}</h2>
-            <p className="text-sm text-white/50 font-titillium leading-relaxed flex-1">{blurb}</p>
-            <span className="text-xs font-bold text-white/30 group-hover:text-f1-red transition-colors flex items-center gap-1 uppercase">
-              Open <ArrowRight className="w-3 h-3" />
-            </span>
-          </Link>
-        ))}
+      <section aria-labelledby="inside-heading">
+        <h2 id="inside-heading" className="flex items-stretch gap-3 font-display text-2xl font-black uppercase leading-none tracking-tight text-chalk md:text-3xl">
+          <span aria-hidden className="w-1.5 shrink-0 -skew-x-12 bg-live" />
+          What's inside
+        </h2>
+        <ul className="mt-6 grid gap-x-10 md:grid-cols-2">
+          {INDEX.map((m) => {
+            const Icon = m.icon;
+            return (
+              <li key={m.id} className="border-t border-gantry">
+                <Link href={m.href} className="flex items-start gap-4 py-5 transition-colors hover:bg-raised/50">
+                  <Icon aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-mute" />
+                  <span>
+                    <span className="block font-semibold text-chalk">{m.label}</span>
+                    <span className="mt-1 block text-sm text-mute">{m.description}</span>
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
       </section>
     </div>
   );

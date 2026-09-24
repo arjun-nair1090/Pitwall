@@ -1,18 +1,71 @@
+import asyncio
+
 from fastapi import APIRouter, HTTPException, Query, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 from typing import List, Dict, Any, Optional
 from app.services.f1_data_service import f1_service
+from app.services import duel_telemetry, latest_result, race_replay
+from app.services import session_info as session_info_service
+from app.services.race_debrief import NoResultsError
+from app.services.session_info import SessionDataError
 
 router = APIRouter()
 
+# FastF1's session identifiers, keyed by the names used in the event schedule.
+_SESSION_CODES = {
+    "Practice 1": "FP1", "Practice 2": "FP2", "Practice 3": "FP3",
+    "Qualifying": "Q", "Sprint Qualifying": "SQ", "Sprint Shootout": "SS",
+    "Sprint": "S", "Race": "R",
+}
+
+
+def _weekend_sessions(schedule_row) -> List[str]:
+    """The sessions this race weekend actually ran, in order (a sprint weekend has no FP2, say)."""
+    codes = []
+    for i in range(1, 6):
+        code = _SESSION_CODES.get(str(schedule_row.get(f"Session{i}")))
+        if code:
+            codes.append(code)
+    return codes
+
+
+def _analysis_error(error: Exception, what: str) -> HTTPException:
+    """Turn a failure while loading session data into the right HTTP error.
+
+    A session that has no data (or a driver who didn't run) is the caller's 404 with a message
+    written for the person using the app; anything else is logged and reported without leaking
+    internals."""
+    if isinstance(error, SessionDataError):
+        return HTTPException(status_code=404, detail=str(error))
+    print(f"Loading {what} failed: {error!r}")
+    return HTTPException(status_code=502, detail=f"Couldn't load {what} right now. Try again shortly.")
+
+
 class TelemetryCompareRequest(BaseModel):
     year: int
-    gp: str
+    gp: str = ""
+    round: Optional[int] = None  # exact race number in the season; preferred over gp when given
     session: Optional[str] = "Race"
     driver1: str
     driver2: str
     driver1_lap: Optional[int] = None
     driver2_lap: Optional[int] = None
+
+    @field_validator("driver1", "driver2")
+    @classmethod
+    def _normalise_code(cls, value: str) -> str:
+        code = value.strip().upper()
+        if not code:
+            raise ValueError("Choose a driver.")
+        return code
+
+    @model_validator(mode="after")
+    def _needs_a_race_and_two_different_laps(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        if self.driver1 == self.driver2 and self.driver1_lap == self.driver2_lap:
+            raise ValueError("Pick two different drivers, or two different laps of the same driver.")
+        return self
 
 @router.get("/sessions/active")
 async def get_active_session():
@@ -23,6 +76,8 @@ async def get_active_session():
         if not metadata:
             raise HTTPException(status_code=404, detail="Active session not found")
         return metadata
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -52,6 +107,8 @@ async def get_session_weather(session_key: int):
         if not weather:
             raise HTTPException(status_code=404, detail="Weather data not available")
         return weather
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -83,6 +140,8 @@ async def get_circuit_layout(session_key: int, year: int = 2024, gp: str = "Belg
         if "error" in layout:
             raise HTTPException(status_code=400, detail=layout["error"])
         return layout
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -90,46 +149,46 @@ async def get_circuit_layout(session_key: int, year: int = 2024, gp: str = "Belg
 async def compare_telemetry(req: TelemetryCompareRequest):
     """Compare two drivers' telemetry (synchronized by distance)."""
     try:
-        comparison = await f1_service.get_head_to_head_telemetry(
-            req.year, req.gp, req.session, req.driver1, req.driver2, req.driver1_lap, req.driver2_lap
+        return await asyncio.to_thread(
+            duel_telemetry.head_to_head_payload,
+            req.year, req.gp, req.session, req.driver1, req.driver2, req.driver1_lap, req.driver2_lap, req.round,
         )
-        if "error" in comparison:
-            raise HTTPException(status_code=400, detail=comparison["error"])
-        return comparison
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the telemetry comparison")
 
 @router.post("/telemetry/dominance")
 async def dominance_map(req: TelemetryCompareRequest):
-    """Generate a track dominance map comparing two drivers' mini-sectors."""
+    """Generate a track dominance map comparing two drivers' mini-sectors over the chosen laps."""
     try:
-        dominance = await f1_service.get_dominance_map(
-            req.year, req.gp, req.session, req.driver1, req.driver2
+        return await asyncio.to_thread(
+            duel_telemetry.dominance_payload,
+            req.year, req.gp, req.session, req.driver1, req.driver2, req.driver1_lap, req.driver2_lap, req.round,
         )
-        if "error" in dominance:
-            raise HTTPException(status_code=400, detail=dominance["error"])
-        return dominance
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the dominance map")
 
 
 class PedalBehaviorRequest(BaseModel):
     year: int
-    gp: str
+    gp: str = ""
+    round: Optional[int] = None
     session: Optional[str] = "Race"
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
 
 @router.post("/telemetry/pedal-behavior")
 async def pedal_behavior(req: PedalBehaviorRequest):
     """Analyze throttle and brake usage for the fastest lap of all drivers in the session."""
     try:
-        behavior = await f1_service.get_pedal_behavior(
-            req.year, req.gp, req.session
+        return await asyncio.to_thread(
+            duel_telemetry.pedal_behavior_payload, req.year, req.gp, req.session, req.round
         )
-        if "error" in behavior:
-            raise HTTPException(status_code=400, detail=behavior["error"])
-        return behavior
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the pedal analysis")
 
 
 @router.get("/stats/standings")
@@ -140,19 +199,26 @@ async def get_stats_standings(year: int = Query(...)):
         if "error" in standings:
             raise HTTPException(status_code=400, detail=standings["error"])
         return standings
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/telemetry/replay")
-async def get_telemetry_replay(year: int = Query(...), gp: str = Query(...), lap_number: Optional[int] = Query(None)):
-    """Fetch downsampled historical telemetry for full race replay."""
+async def get_telemetry_replay(
+    year: int = Query(...),
+    gp: str = Query(""),
+    round: Optional[int] = Query(None),
+    lap_number: int = Query(1),
+):
+    """One lap of a past race on the real session clock: every car's position and car data at
+    each moment of the leader's lap, so the gaps between cars are true."""
+    if not gp and not round:
+        raise HTTPException(status_code=422, detail="Give a race name or a round number.")
     try:
-        replay = await f1_service.get_historical_replay(year, gp, lap_number)
-        if "error" in replay:
-            raise HTTPException(status_code=400, detail=replay["error"])
-        return replay
+        return await asyncio.to_thread(race_replay.replay_payload, year, gp, "R", lap_number, round)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the replay")
 
 class AIChatRequest(BaseModel):
     session_key: int
@@ -198,6 +264,7 @@ async def get_historical_races(year: int):
     """Get all races for a given year using FastF1."""
     try:
         import fastf1
+        import pandas as pd
         schedule = fastf1.get_event_schedule(year)
         from app.services.predictions_service import race_start_utc
 
@@ -210,14 +277,54 @@ async def get_historical_races(year: int):
                 continue
             start = race_start_utc(row)
             races.append({
+                "round": int(row["RoundNumber"]) if "RoundNumber" in row and pd.notna(row["RoundNumber"]) else None,
                 "country": str(row["Country"]),
                 "location": str(row["Location"]),
                 "event_name": str(row["EventName"]),
+                "sessions": _weekend_sessions(row),
                 "race_start_utc": start.strftime("%Y-%m-%dT%H:%M:%SZ") if start is not None else None,
             })
         return races
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/races/session-info")
+async def get_session_info(
+    year: int = Query(...),
+    gp: Optional[str] = Query(None),
+    round: Optional[int] = Query(None),
+    session: str = Query("R"),
+):
+    """Who took part in a session, in which team colours, how many laps it ran, and each
+    driver's actual tyre stints. Lets the UI offer only drivers and laps that exist."""
+    if not gp and not round:
+        raise HTTPException(status_code=422, detail="Give a race name or a round number.")
+    try:
+        return await asyncio.to_thread(session_info_service.session_info, year, gp or "", session, round)
+    except Exception as e:
+        raise _analysis_error(e, "the session details")
+
+@router.get("/races/latest-result")
+async def get_latest_race_result():
+    """Final classification of the most recent completed race (results only)."""
+    try:
+        return await asyncio.to_thread(latest_result.latest_classification)
+    except NoResultsError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"latest-result failed: {e}")  # log the cause; the client only needs what to try next
+        raise HTTPException(status_code=502, detail="Couldn't load the latest race result. Try again shortly.")
+
+@router.get("/races/results")
+async def get_race_results(year: int = Query(...), round: int = Query(...)):
+    """Final classification of a past race: positions, grid, status, points and team colours."""
+    try:
+        return await asyncio.to_thread(latest_result.race_results, year, round)
+    except NoResultsError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        print(f"race results failed for {year} round {round}: {e}")  # log the cause; the client only needs what to try next
+        raise HTTPException(status_code=502, detail="Couldn't load this race's results. Try again shortly.")
 
 @router.get("/drivers/known-codes")
 async def get_known_driver_codes():
@@ -237,55 +344,57 @@ class StintPlan(BaseModel):
 
 class StrategySimulationRequest(BaseModel):
     year: int
-    gp: str
+    gp: str = ""
+    round: Optional[int] = None
     session: Optional[str] = "Race"
     stints: List[StintPlan]
     driver_code: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
 
 @router.post("/strategy/simulate")
 async def simulate_strategy(req: StrategySimulationRequest):
     """Predict a hypothetical tire strategy's race time using a degradation model
     fit to the real session's own lap data."""
+    from app.services import strategy_simulator
+    from app.services.session_info import load_session
+
+    def _run():
+        session = load_session(req.year, req.gp, req.session, req.round)
+        laps = session.laps
+        expected_total_laps = int(laps["LapNumber"].max())
+        stints = [s.model_dump() for s in req.stints]
+        validation_error = strategy_simulator.validate_stint_plan(stints, expected_total_laps)
+        if validation_error:
+            raise HTTPException(status_code=400, detail=validation_error)
+
+        compound_stats = strategy_simulator.compute_compound_stats(laps)
+        pit_loss = strategy_simulator.estimate_pit_loss_seconds(laps, compound_stats)
+        prediction = strategy_simulator.simulate_stint_plan(compound_stats, stints, pit_loss)
+        prediction["total_laps"] = expected_total_laps
+        prediction["pit_loss_seconds_used"] = pit_loss
+        prediction["compound_stats"] = compound_stats
+
+        if req.driver_code:
+            actual = strategy_simulator.get_actual_driver_total_seconds(
+                laps, req.driver_code.upper(), expected_laps=expected_total_laps
+            )
+            if actual is not None:
+                prediction["actual_driver_total_seconds"] = actual
+                prediction["delta_seconds"] = prediction["predicted_total_seconds"] - actual
+
+        return prediction
+
     try:
-        import asyncio
-        from app.services import strategy_simulator
-
-        def _run():
-            import fastf1
-            session = fastf1.get_session(req.year, req.gp, req.session)
-            session.load(laps=True, weather=False, telemetry=False)
-            laps = session.laps
-            if laps.empty:
-                return {"error": "No lap data available for this session."}
-
-            expected_total_laps = int(laps["LapNumber"].max())
-            stints = [s.model_dump() for s in req.stints]
-            validation_error = strategy_simulator.validate_stint_plan(stints, expected_total_laps)
-            if validation_error:
-                return {"error": validation_error}
-
-            compound_stats = strategy_simulator.compute_compound_stats(laps)
-            pit_loss = strategy_simulator.estimate_pit_loss_seconds(laps, compound_stats)
-            prediction = strategy_simulator.simulate_stint_plan(compound_stats, stints, pit_loss)
-            prediction["pit_loss_seconds_used"] = pit_loss
-            prediction["compound_stats"] = compound_stats
-
-            if req.driver_code:
-                actual = strategy_simulator.get_actual_driver_total_seconds(laps, req.driver_code.upper())
-                if actual is not None:
-                    prediction["actual_driver_total_seconds"] = actual
-                    prediction["delta_seconds"] = prediction["predicted_total_seconds"] - actual
-
-            return prediction
-
-        result = await asyncio.to_thread(_run)
-        if "error" in result:
-            raise HTTPException(status_code=400, detail=result["error"])
-        return result
+        return await asyncio.to_thread(_run)
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the strategy simulation")
 
 
 @router.get("/share/result-card")

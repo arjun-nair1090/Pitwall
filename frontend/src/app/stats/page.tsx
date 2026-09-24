@@ -3,10 +3,14 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { Trophy, Medal } from "lucide-react";
 import TableSkeleton from "@/components/TableSkeleton";
 import ErrorState from "@/components/ErrorState";
+import DataTable, { type Column } from "@/components/ui/DataTable";
+import PageHeader from "@/components/ui/PageHeader";
+import Panel from "@/components/ui/Panel";
+import Select from "@/components/ui/Select";
 import { getApiErrorMessage } from "@/lib/apiError";
+import { teamColor } from "@/lib/timing";
 
 interface DriverStanding {
   position: number;
@@ -30,6 +34,32 @@ interface StandingsResponse {
   driver_standings: DriverStanding[];
   constructor_standings: ConstructorStanding[];
 }
+
+// The driver's name links through to their season; everything else matches the archive's tables so
+// the two places you can read a championship read the same.
+const driverColumns = (year: number): Column<DriverStanding>[] => [
+  { key: "pos", header: "Pos", className: "w-12 text-mute", cell: (r) => r.position },
+  {
+    key: "driver",
+    header: "Driver",
+    cell: (r) => (
+      <Link href={`/drivers/${r.driver_code}?year=${year}`} className="flex flex-col hover:underline">
+        <span className="font-semibold">{r.driver_name}</span>
+        <span className="text-xs text-faint">{r.driver_code}</span>
+      </Link>
+    ),
+  },
+  { key: "team", header: "Team", className: "text-mute", cell: (r) => r.team_name },
+  { key: "wins", header: "Wins", align: "right", className: "text-mute", cell: (r) => r.wins },
+  { key: "points", header: "Points", align: "right", className: "font-semibold", cell: (r) => r.points },
+];
+
+const CONSTRUCTOR_COLUMNS: Column<ConstructorStanding>[] = [
+  { key: "pos", header: "Pos", className: "w-12 text-mute", cell: (r) => r.position },
+  { key: "team", header: "Team", className: "font-semibold", cell: (r) => r.team_name },
+  { key: "wins", header: "Wins", align: "right", className: "text-mute", cell: (r) => r.wins },
+  { key: "points", header: "Points", align: "right", className: "font-semibold", cell: (r) => r.points },
+];
 
 export default function StatsPage() {
   const currentYear = new Date().getFullYear();
@@ -56,31 +86,18 @@ export default function StatsPage() {
   };
 
   return (
-    <div className="w-full py-4 md:p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-6">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-black italic tracking-tighter text-white uppercase flex items-center gap-3">
-            <Trophy className="w-8 h-8 text-f1-red" />
-            Season Statistics
-          </h1>
-          <p className="text-white/50 text-sm font-titillium tracking-wide mt-1">
-            World Championship Standings
-          </p>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <label className="text-sm font-titillium font-bold text-white/60">SEASON</label>
-          <select aria-label="Season"
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value))}
-            className="bg-black/50 border border-white/10 text-white rounded-md px-4 py-2 font-titillium focus:outline-none focus:border-f1-red transition-colors"
-          >
+    <div className="w-full py-4 md:p-8 max-w-7xl mx-auto space-y-8">
+      <PageHeader
+        title="Season stats"
+        description="Drivers' and constructors' championship standings."
+        actions={
+          <Select label="Season" value={year} onChange={(e) => setYear(parseInt(e.target.value))} selectClassName="w-32 tabular-nums">
             {Array.from({ length: currentYear - 2018 + 1 }, (_, i) => currentYear - i).map((y) => (
               <option key={y} value={y}>{y}</option>
             ))}
-          </select>
-        </div>
-      </div>
+          </Select>
+        }
+      />
 
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -90,71 +107,25 @@ export default function StatsPage() {
       ) : error ? (
         <ErrorState title="Couldn't load standings" message={error} onRetry={fetchStandings} />
       ) : standings ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Driver Standings */}
-          <div className="glass-panel p-6 rounded-xl border border-white/5">
-            <h2 className="text-xl font-bold tracking-widest text-white uppercase mb-6 flex items-center gap-2">
-              <Medal className="w-5 h-5 text-f1-yellow" />
-              Drivers' Championship
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left font-titillium tabular-nums">
-                <thead>
-                  <tr className="text-white/40 border-b border-white/10 text-xs">
-                    <th className="pb-3 font-bold px-2">POS</th>
-                    <th className="pb-3 font-bold px-2">DRIVER</th>
-                    <th className="pb-3 font-bold px-2">TEAM</th>
-                    <th className="pb-3 font-bold px-2 text-right">PTS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {standings.driver_standings.map((driver) => (
-                    <tr key={driver.driver_code} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                      <td className="py-3 px-2 font-bold text-white/80">{driver.position}</td>
-                      <td className="py-3 px-2">
-                        <Link href={`/drivers/${driver.driver_code}?year=${year}`} className="flex flex-col hover:opacity-80 transition-opacity">
-                          <span className="font-bold text-white">{driver.driver_name}</span>
-                          <span className="text-xs text-white/40">{driver.driver_code}</span>
-                        </Link>
-                      </td>
-                      <td className="py-3 px-2 text-white/60 text-sm">{driver.team_name}</td>
-                      <td className="py-3 px-2 text-right font-black text-f1-red">{driver.points}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Constructor Standings */}
-          <div className="glass-panel p-6 rounded-xl border border-white/5 h-fit">
-            <h2 className="text-xl font-bold tracking-widest text-white uppercase mb-6 flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-f1-red" />
-              Constructors' Championship
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left font-titillium tabular-nums">
-                <thead>
-                  <tr className="text-white/40 border-b border-white/10 text-xs">
-                    <th className="pb-3 font-bold px-2">POS</th>
-                    <th className="pb-3 font-bold px-2">TEAM</th>
-                    <th className="pb-3 font-bold px-2 text-center">WINS</th>
-                    <th className="pb-3 font-bold px-2 text-right">PTS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {standings.constructor_standings.map((team) => (
-                    <tr key={team.team_name} className="border-b border-white/5 hover:bg-white/5 transition-colors">
-                      <td className="py-3 px-2 font-bold text-white/80">{team.position}</td>
-                      <td className="py-3 px-2 font-bold text-white">{team.team_name}</td>
-                      <td className="py-3 px-2 text-center text-white/60">{team.wins}</td>
-                      <td className="py-3 px-2 text-right font-black text-f1-red">{team.points}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+        <div className="grid items-start gap-4 lg:grid-cols-2">
+          <Panel title="Drivers' championship" meta={`${standings.driver_standings.length} drivers`}>
+            <DataTable
+              caption="Drivers' championship"
+              columns={driverColumns(year)}
+              rows={standings.driver_standings}
+              rowKey={(r) => `${r.position}-${r.driver_code}`}
+              accent={(r) => teamColor(r.team_name)}
+            />
+          </Panel>
+          <Panel title="Constructors' championship" meta={`${standings.constructor_standings.length} teams`}>
+            <DataTable
+              caption="Constructors' championship"
+              columns={CONSTRUCTOR_COLUMNS}
+              rows={standings.constructor_standings}
+              rowKey={(r) => `${r.position}-${r.team_name}`}
+              accent={(r) => teamColor(r.team_name)}
+            />
+          </Panel>
         </div>
       ) : null}
     </div>

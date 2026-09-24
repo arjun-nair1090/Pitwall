@@ -15,16 +15,6 @@ export interface DriverTelemetry {
   live_signal?: boolean;
 }
 
-export interface HistoricalRace {
-  year: number;
-  round: string;
-  raceName: string;
-  circuitName: string;
-  locality: string;
-  country: string;
-  date: string;
-}
-
 export interface TimingDriver {
   position?: number;
   lap_number?: number;
@@ -75,8 +65,6 @@ export interface CurrentUser {
 
 interface F1StoreState {
   activeSession: any | null;
-  historicalRace: HistoricalRace | null;
-  replaySession: { year: number, gp: string, lap?: number } | null;
   drivers: any[];
   leaderboard: Record<string, TimingDriver>;
   gapHistory: GapHistoryPoint[];
@@ -85,22 +73,14 @@ interface F1StoreState {
   raceControl: RaceControlMessage[];
   alerts: LiveAlert[];
   isConnected: boolean;
+  // Whether the API itself answered. Distinct from isConnected (the live feed): between race weekends
+  // the API is fine and there is simply no live session.
+  apiStatus: "unknown" | "ok" | "unreachable";
   liveSignal: boolean;
   selectedDriverNum: number | null;
   currentUser: CurrentUser | null;
 
-  replayPlayback: {
-    isPlaying: boolean;
-    speed: number;
-    frame: number;
-    maxFrame: number;
-    currentLap?: number;
-    totalLaps?: number;
-  };
-  setReplayPlayback: (playback: Partial<{ isPlaying: boolean; speed: number; frame: number; maxFrame: number; currentLap: number; totalLaps: number; }>) => void;
   setActiveSession: (session: any) => void;
-  setHistoricalRace: (race: HistoricalRace | null) => void;
-  setReplaySession: (replay: { year: number, gp: string, lap?: number } | null) => void;
   setDrivers: (drivers: any[]) => void;
   updateLeaderboard: (leaderboard: Record<string, TimingDriver>) => void;
   updateTelemetryPoint: (point: DriverTelemetry) => void;
@@ -110,6 +90,7 @@ interface F1StoreState {
   pushAlert: (alert: LiveAlert) => void;
   dismissAlert: (id: string) => void;
   setIsConnected: (status: boolean) => void;
+  setApiStatus: (status: "unknown" | "ok" | "unreachable") => void;
   setLiveSignal: (signal: boolean) => void;
   setSelectedDriverNum: (num: number | null) => void;
   setCurrentUser: (user: CurrentUser | null) => void;
@@ -117,8 +98,6 @@ interface F1StoreState {
 
 export const useF1Store = create<F1StoreState>((set) => ({
   activeSession: null,
-  historicalRace: null,
-  replaySession: null,
   drivers: [],
   leaderboard: {},
   gapHistory: [],
@@ -127,14 +106,11 @@ export const useF1Store = create<F1StoreState>((set) => ({
   raceControl: [],
   alerts: [],
   isConnected: false,
+  apiStatus: "unknown",
   liveSignal: true,
   selectedDriverNum: null,
   currentUser: null,
-  replayPlayback: { isPlaying: true, speed: 1, frame: 0, maxFrame: 0 },
-  setReplayPlayback: (playback) => set((state) => ({ replayPlayback: { ...state.replayPlayback, ...playback } })),
   setActiveSession: (session) => set({ activeSession: session }),
-  setHistoricalRace: (race) => set({ historicalRace: race }),
-  setReplaySession: (replay) => set({ replaySession: replay }),
   setDrivers: (drivers) => set({ drivers }),
   updateLeaderboard: (leaderboard) => set((state) => {
     // Sample gap history once per lap (not on every tick) so a race's worth of
@@ -159,9 +135,15 @@ export const useF1Store = create<F1StoreState>((set) => ({
     raceControl: [msg, ...state.raceControl].slice(0, 50)
   })),
   setRaceControlMessages: (msgs) => set({ raceControl: msgs }),
-  pushAlert: (alert) => set((state) => ({ alerts: [alert, ...state.alerts].slice(0, 8) })),
+  // An id identifies one event ("session-9999", "flag-<time>-<flag>"), so a repeat of a showing alert
+  // is ignored rather than stacked (React StrictMode runs the initial sync effect twice in dev).
+  pushAlert: (alert) =>
+    set((state) =>
+      state.alerts.some((a) => a.id === alert.id) ? state : { alerts: [alert, ...state.alerts].slice(0, 8) },
+    ),
   dismissAlert: (id) => set((state) => ({ alerts: state.alerts.filter((a) => a.id !== id) })),
   setIsConnected: (status) => set({ isConnected: status }),
+  setApiStatus: (status) => set({ apiStatus: status }),
   setLiveSignal: (signal) => set({ liveSignal: signal }),
   setSelectedDriverNum: (num) => set({ selectedDriverNum: num }),
   setCurrentUser: (user) => set({ currentUser: user }),

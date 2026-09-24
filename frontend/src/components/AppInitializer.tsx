@@ -35,6 +35,7 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     pushAlert,
     updateTelemetryPoint,
     setIsConnected,
+    setApiStatus,
     setCurrentUser,
   } = useF1Store();
 
@@ -86,8 +87,11 @@ export default function AppInitializer({ children }: { children: React.ReactNode
           setRaceControlMessages(resR.data);
         });
       })
+      .then(() => setApiStatus("ok"))
       .catch((err) => {
-        console.error("Initialization sync failed", err);
+        // A response (even 404 "no active session") means the API is up; no response means it is not.
+        setApiStatus(err?.response ? "ok" : "unreachable");
+        if (!err?.response) console.error("Initialization sync failed", err);
       });
 
     // A 401 here just means "not logged in" -- not an error to surface.

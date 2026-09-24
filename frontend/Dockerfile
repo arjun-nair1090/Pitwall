@@ -11,7 +11,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
-RUN npm run build
+RUN mkdir -p public && npm run build
 
 # Stage 3: Runner
 FROM node:20-alpine AS runner
