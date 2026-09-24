@@ -1,7 +1,7 @@
-"""Head-to-head, dominance and pedal-behaviour analysis over FastF1 lap telemetry.
+"""Head-to-head and pedal-behaviour analysis over FastF1 lap telemetry.
 
 The maths lives in small pure functions over telemetry frames so it can be tested without a
-network; the three ``*_payload`` orchestrators load a session, pick laps and call them.
+network; the ``*_payload`` orchestrators load a session, pick laps and call them.
 """
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -14,9 +14,6 @@ from app.services.session_info import (
     load_session,
     pick_lap,
 )
-
-DEFAULT_SECTOR_METRES = 50
-
 
 def acceleration(tel: pd.DataFrame) -> np.ndarray:
     """Longitudinal acceleration in m/s^2, from speed (km/h) against time."""
@@ -79,50 +76,6 @@ def pedal_shares(tel: pd.DataFrame) -> Optional[Dict[str, float]]:
     }
 
 
-def dominance_segments(
-    tel1: pd.DataFrame,
-    tel2: pd.DataFrame,
-    code1: str,
-    code2: str,
-    color1: str,
-    color2: str,
-    sector_m: int = DEFAULT_SECTOR_METRES,
-) -> List[Dict[str, Any]]:
-    """Split the lap into mini-sectors and say which driver carried more speed through each.
-    Ties go to the first driver. Positions come from the first driver's line."""
-    max_distance = float(max(tel1["Distance"].max(), tel2["Distance"].max()))
-    if not np.isfinite(max_distance) or max_distance <= 0:
-        return []
-    count = max(int(max_distance // sector_m), 1)
-    edges = np.linspace(0, max_distance, count + 1)
-
-    sector1 = pd.cut(tel1["Distance"], edges, labels=False, include_lowest=True)
-    sector2 = pd.cut(tel2["Distance"], edges, labels=False, include_lowest=True)
-    speed1 = tel1.groupby(sector1)["Speed"].mean()
-    speed2 = tel2.groupby(sector2)["Speed"].mean()
-    xs = tel1.groupby(sector1)["X"].mean()
-    ys = tel1.groupby(sector1)["Y"].mean()
-
-    segments = []
-    for i in range(count):
-        if i not in speed1.index or i not in speed2.index or i not in xs.index:
-            continue
-        s1, s2 = float(speed1[i]), float(speed2[i])
-        if np.isnan(s1) or np.isnan(s2) or np.isnan(xs[i]) or np.isnan(ys[i]):
-            continue
-        first = s1 >= s2
-        segments.append({
-            "minisector": i,
-            "x": float(xs[i]),
-            "y": float(ys[i]),
-            "dominant": 1 if first else 2,
-            "dominant_driver": code1 if first else code2,
-            "color": color1 if first else color2,
-            "speed_delta": abs(s1 - s2),
-        })
-    return segments
-
-
 def _lap_telemetry(lap: pd.Series, code: str) -> pd.DataFrame:
     number = int(lap["LapNumber"])
     try:
@@ -167,20 +120,6 @@ def head_to_head_payload(
     return {
         "driver1": _driver_payload(session, driver1, lap1, tel1),
         "driver2": _driver_payload(session, driver2, lap2, tel2),
-    }
-
-
-def dominance_payload(
-    year: int, gp: str, session_name: str, driver1: str, driver2: str,
-    driver1_lap: Optional[int] = None, driver2_lap: Optional[int] = None,
-    round_number: Optional[int] = None,
-) -> Dict[str, Any]:
-    session, _, tel1, _, tel2 = _duel(year, gp, session_name, driver1, driver2, driver1_lap, driver2_lap, round_number)
-    p1, p2 = driver_profile(session, driver1), driver_profile(session, driver2)
-    return {
-        "driver1": {"code": driver1, "color": p1["color"]},
-        "driver2": {"code": driver2, "color": p2["color"]},
-        "dominance": dominance_segments(tel1, tel2, driver1, driver2, p1["color"], p2["color"]),
     }
 
 

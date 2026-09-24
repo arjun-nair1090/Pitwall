@@ -1,6 +1,5 @@
 import asyncio
-import os
-from typing import TypedDict, Dict, Any, List, Optional
+from typing import TypedDict, Dict, Any, Optional
 from datetime import datetime
 from openai import OpenAI
 from anthropic import Anthropic

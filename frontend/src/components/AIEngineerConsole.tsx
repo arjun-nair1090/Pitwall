@@ -125,7 +125,7 @@ export default function AIEngineerConsole() {
       .then((res) => {
         setChatLog((prev) => [...prev, { sender: "ai", text: res.data.response }]);
       })
-      .catch((err) => {
+      .catch(() => {
         setChatLog((prev) => [
           ...prev,
           {

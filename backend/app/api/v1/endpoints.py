@@ -2,7 +2,7 @@ import asyncio
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, field_validator, model_validator
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from app.services.f1_data_service import f1_service
 from app.services import duel_telemetry, latest_result, race_replay
 from app.services import session_info as session_info_service
@@ -135,7 +135,6 @@ async def get_circuit_layout(session_key: int, year: int = 2024, gp: str = "Belg
     """Get circuit layout coordinates from FastF1."""
     try:
         # FastF1 is blocking, we run in thread pool
-        import asyncio
         layout = await asyncio.to_thread(f1_service.get_circuit_layout, year, gp, session_type)
         if "error" in layout:
             raise HTTPException(status_code=400, detail=layout["error"])
@@ -155,18 +154,6 @@ async def compare_telemetry(req: TelemetryCompareRequest):
         )
     except Exception as e:
         raise _analysis_error(e, "the telemetry comparison")
-
-@router.post("/telemetry/dominance")
-async def dominance_map(req: TelemetryCompareRequest):
-    """Generate a track dominance map comparing two drivers' mini-sectors over the chosen laps."""
-    try:
-        return await asyncio.to_thread(
-            duel_telemetry.dominance_payload,
-            req.year, req.gp, req.session, req.driver1, req.driver2, req.driver1_lap, req.driver2_lap, req.round,
-        )
-    except Exception as e:
-        raise _analysis_error(e, "the dominance map")
-
 
 class PedalBehaviorRequest(BaseModel):
     year: int
@@ -244,20 +231,6 @@ async def get_session_strategy(session_key: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-class CommentaryRequest(BaseModel):
-    event_description: str
-
-@router.post("/ai/commentary")
-async def ai_commentary(req: CommentaryRequest):
-    """Generate live F1 commentary for a given on-track event description."""
-    try:
-        import asyncio
-        from app.services.ai_commentator import ai_commentator
-        commentary = await asyncio.to_thread(ai_commentator.generate_commentary, req.event_description)
-        return {"commentary": commentary}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/races/historical")
 async def get_historical_races(year: int):
@@ -406,7 +379,6 @@ async def get_result_card(
 ):
     """Generate a shareable PNG result card for a driver's real session result."""
     try:
-        import asyncio
         from app.services.card_generator import render_result_card
         from app.services.history_summarizer import build_driver_session_summary
         from app.services.f1_data_service import FALLBACK_2024_DRIVERS

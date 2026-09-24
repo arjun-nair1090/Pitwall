@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
-import { LogIn, UserPlus } from "lucide-react";
 import { useF1Store } from "@/store/useTelemetryStore";
 import { getApiErrorMessage } from "@/lib/apiError";
 import PageHeader from "@/components/ui/PageHeader";

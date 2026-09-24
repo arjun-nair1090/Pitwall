@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import axios from "axios";
 import { useF1Store } from "@/store/useTelemetryStore";
 
@@ -47,8 +47,6 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     GREEN: "info",
     CHEQUERED: "info",
   };
-
-  const [ws, setWs] = useState<WebSocket | null>(null);
 
   // Initial Rest sync
   useEffect(() => {
@@ -153,8 +151,6 @@ export default function AppInitializer({ children }: { children: React.ReactNode
       console.log("WebSocket connection lost");
       setIsConnected(false);
     };
-
-    setWs(socket);
 
     return () => {
       socket.close();

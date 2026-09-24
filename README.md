@@ -141,7 +141,7 @@ flowchart LR
 | Layer | Stack |
 |---|---|
 | **Frontend** | Next.js 14, React 18, TypeScript, Tailwind CSS, Recharts, framer-motion, react-grid-layout, Zustand, Lucide |
-| **Backend** | Python 3.12, FastAPI, SQLAlchemy, FastF1, pandas / NumPy, scikit-learn, LangGraph |
+| **Backend** | Python 3.12, FastAPI, SQLAlchemy, FastF1, pandas / NumPy, LangGraph |
 | **Data** | PostgreSQL 16, Redis 7, ChromaDB |
 | **AI** | Anthropic (default `claude-opus-5`) with an OpenAI fallback. Override with `ANTHROPIC_MODEL` / `OPENAI_MODEL` |
 
@@ -153,10 +153,10 @@ flowchart LR
 | Area | Endpoints |
 |---|---|
 | **Races** | `GET /races/historical` · `GET /races/session-info` · `GET /races/results` · `GET /races/latest-result` |
-| **Telemetry** | `POST /telemetry/compare` · `POST /telemetry/dominance` · `POST /telemetry/pedal-behavior` · `GET /telemetry/replay` |
+| **Telemetry** | `POST /telemetry/compare` · `POST /telemetry/pedal-behavior` · `GET /telemetry/replay` |
 | **Strategy** | `POST /strategy/simulate` · `GET /sessions/{session_key}/strategy` |
 | **Live** | `GET /sessions/active` · `GET /sessions/{session_key}/drivers` · `.../timing` · `.../weather` · `.../race-control` · `.../radios` · `GET /circuits/{session_key}/layout` · WebSocket `/ws/{client_id}` |
-| **AI** | `GET /debrief` · `POST /whatif` · `POST /ai/chat` · `POST /ai/commentary` |
+| **AI** | `GET /debrief` · `POST /whatif` · `POST /ai/chat` |
 | **Stats** | `GET /stats/standings` · `GET /drivers/known-codes` · `GET /drivers/{driver_code}/season-insights` · `GET /share/result-card` |
 | **Accounts** | `POST /auth/signup` · `/auth/login` · `/auth/logout` · `GET /auth/me` |
 | **Predictions** | `POST /predictions` · `GET /predictions/me` · `GET /leaderboard` · `POST /predictions/score` |

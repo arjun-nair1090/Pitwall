@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -33,37 +33,6 @@ class DriverModel(Base):
     __table_args__ = (
         UniqueConstraint("session_key", "driver_number", name="uq_driver_session"),
     )
-
-class LapModel(Base):
-    __tablename__ = "laps"
-
-    id = Column(Integer, primary_key=True, index=True)
-    session_key = Column(Integer, ForeignKey("sessions.session_key", ondelete="CASCADE"), nullable=False)
-    driver_number = Column(Integer, nullable=False)
-    lap_number = Column(Integer, nullable=False)
-    lap_time = Column(Float, nullable=True)
-    sector1 = Column(Float, nullable=True)
-    sector2 = Column(Float, nullable=True)
-    sector3 = Column(Float, nullable=True)
-    compound = Column(String(20), nullable=True)
-    tyre_age = Column(Integer, nullable=True)
-    pit_out_time = Column(Float, nullable=True)
-    pit_in_time = Column(Float, nullable=True)
-    is_pit_stop = Column(Boolean, default=False)
-
-    __table_args__ = (
-        UniqueConstraint("session_key", "driver_number", "lap_number", name="uq_session_driver_lap"),
-    )
-
-class TeamRadioModel(Base):
-    __tablename__ = "team_radios"
-
-    id = Column(Integer, primary_key=True, index=True)
-    session_key = Column(Integer, ForeignKey("sessions.session_key", ondelete="CASCADE"), nullable=False)
-    driver_number = Column(Integer, nullable=False)
-    timestamp = Column(DateTime(timezone=True), nullable=False)
-    transcript = Column(String, nullable=False)
-    recording_url = Column(String(500), nullable=True)
 
 class UserModel(Base):
     __tablename__ = "users"

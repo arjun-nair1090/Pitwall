@@ -9,7 +9,6 @@ makes the delta far more trustworthy than the model's absolute race time.
 As with the debrief, the numbers come from deterministic code; an LLM is only
 asked to explain them, and its output is discarded unless it cites the real result."""
 import json
-import re
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 

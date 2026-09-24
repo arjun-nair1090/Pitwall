@@ -77,11 +77,6 @@ def driver_profile(session, code: str) -> Dict[str, str]:
     return profile
 
 
-def driver_colour(session, code: str) -> str:
-    """The driver's real team colour for this session, or a neutral grey if it isn't recorded."""
-    return driver_profile(session, code)["color"]
-
-
 def driver_laps(laps: pd.DataFrame, code: str) -> pd.DataFrame:
     """All of one driver's laps, or a message naming who *did* run if they took no part."""
     subset = laps[laps["Driver"] == code]

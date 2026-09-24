@@ -44,17 +44,6 @@
   }
 }
 
-@layer utilities {
-  /* Hide the scrollbar on horizontally-scrolling strips */
-  .scrollbar-none {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
-  }
-}
-
 /* react-grid-layout: match the design tokens */
 .react-grid-item.react-grid-placeholder {
   background: rgb(var(--edge));
