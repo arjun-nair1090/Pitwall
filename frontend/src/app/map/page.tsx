@@ -1,28 +1,56 @@
 "use client";
 
-import React from "react";
-import TrackMap from "@/components/TrackMap";
+import { Suspense, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import DriverLiveTelemetry from "@/components/DriverLiveTelemetry";
+import TrackMap from "@/components/TrackMap";
+import ReplayView from "@/components/map/ReplayView";
+import PageHeader from "@/components/ui/PageHeader";
+import Panel from "@/components/ui/Panel";
+import Tabs, { tabPanelProps } from "@/components/ui/Tabs";
+import { parseRaceParams } from "@/lib/compareParams";
+import { useF1Store } from "@/store/useTelemetryStore";
 
+const TABS = [
+  { id: "replay", label: "Replay a past race" },
+  { id: "live", label: "Live" },
+] as const;
+type View = (typeof TABS)[number]["id"];
 
-// Stacked on phones/tablets: the map gets a fixed, generous height and the
-// driver sidebar flows below it at its natural height. Only at xl do the two
-// share a viewport-locked row (dvh, since 100vh overshoots on mobile browsers).
-export default function MapPage() {
+function MapViews() {
+  const params = useSearchParams();
+  const initial = useMemo(() => parseRaceParams(new URLSearchParams(params.toString())), [params]);
+  const live = useF1Store((s) => s.isConnected);
+  // A link to a race opens the replay; otherwise open on whichever has something to show.
+  const [view, setView] = useState<View>(params.get("round") ? "replay" : live ? "live" : "replay");
+
   return (
     <>
-    <h1 className="sr-only">Track map</h1>
-    <div className="flex-1 grid grid-cols-12 gap-4 md:gap-6 xl:h-[calc(100dvh-140px)]">
-      {/* Track Map takes up 9 columns */}
-      <div className="col-span-12 xl:col-span-9 h-[60dvh] min-h-[340px] xl:h-full">
-        <TrackMap />
+      <PageHeader title="Track map" description="Watch a past race lap by lap with every car where it really was, or follow a live session as it runs." />
+      <Tabs idBase="map" label="Map views" className="mb-4" value={view} onChange={(id) => setView(id as View)} tabs={TABS} />
+      <div {...tabPanelProps("map", view)}>
+        {view === "replay" ? (
+          <ReplayView initial={initial} />
+        ) : (
+          // Stacked on phones and tablets; only at xl do the map and the driver panel share one viewport-high row.
+          <div className="grid grid-cols-12 gap-4 md:gap-6 xl:h-[calc(100dvh-16rem)]">
+            <Panel title="Live map" className="col-span-12 h-[60dvh] min-h-[340px] xl:col-span-9 xl:h-full" bodyClassName="relative">
+              <TrackMap />
+            </Panel>
+            <Panel title="Driver telemetry" className="col-span-12 min-h-[320px] xl:col-span-3 xl:h-full">
+              <DriverLiveTelemetry />
+            </Panel>
+          </div>
+        )}
       </div>
-
-      {/* Driver Telemetry Sidebar takes up 3 columns */}
-      <div className="col-span-12 xl:col-span-3 min-h-[320px] xl:h-full">
-        <DriverLiveTelemetry />
-      </div>
-    </div>
     </>
+  );
+}
+
+export default function MapPage() {
+  return (
+    <Suspense fallback={null}>
+      <MapViews />
+    </Suspense>
   );
 }

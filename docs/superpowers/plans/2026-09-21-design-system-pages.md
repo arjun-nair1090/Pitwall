@@ -16,12 +16,14 @@ Every task's requirements implicitly include this section. It repeats Plan 1's c
 
 - Palette tokens exactly: tarmac `#13161B`, kerb `#1B1F26`, raised `#232832`, gantry `#2A303A`, edge `#6C7789`, chalk `#E8EBEF`, mute `#A6AEBB`, faint `#8790A0`, timing purple `#B57BFF` / green `#35D07F` / yellow `#F6C945`, F1 red `#E10600` (non-text only), F1 red text `#FF6B60`.
 - Colour only carries meaning (timing semantics, live/danger, tyre compounds, team colours). No cyan, no brand accent, no all-caps labels, no monospace data labels. Sentence-case copy.
+- Numerals: `font-display` (Big Shoulders) has proportional digits (measured), so use it only for single values (headlines, one big number) or centred in a fixed-width cell (position numerals). Every aligned column of digits (times, gaps, points) uses the UI face with `tabular-nums`.
 - Shape: panels `rounded-panel` (6px), controls `rounded-control` (4px), pills full; hairline borders, no shadows for hierarchy.
 - Motion: only the start-lights intro, live-tower row reordering, and interaction feedback; honour `prefers-reduced-motion`.
 - Accessibility floor: `:focus-visible` ring on every control (never `outline-none` without a `focus-visible:` replacement), AA contrast, labelled controls, exactly one `h1` per page, 40px touch targets on mobile, no horizontal scroll at 390px.
 - Every data area renders one of four states: loading (`Loading` + `Skeleton`), empty (`EmptyState` with the next action), error (`ErrorState` with retry, message via `getApiErrorMessage(err, fallback)`), or data.
 - Copy: errors say what happened and what to do, never apologise; one name per action across a flow.
 - **Do not change data fetching, state, handlers or API contracts in any migrated page.** Presentation only.
+- In Git Bash on Windows, prefix any command that takes a `/route` argument (`ui-sweep.mjs --routes /stats`) with `MSYS_NO_PATHCONV=1`, or the shell rewrites it into a Windows path.
 - Frontend commands run from `C:\Users\arjun\f1-pitwall\frontend`. `next dev` is running on :3000; never run `next build` while it runs (Task 12 stops it first). `tsc`, `vitest` and the sweep are safe alongside it.
 - Never stage `frontend/tsconfig.tsbuildinfo` or `backend/app/services/f1_data_service.py`. Use explicit `git add` paths. Commit trailer: `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.
 
@@ -911,6 +913,8 @@ export default function Workspace({ name, panels, defaults, rowHeight = 56, rese
         isDraggable={desktop}
         isResizable={desktop}
         draggableHandle=".panel-drag-handle"
+        // Buttons in the title strip (Expand) must click, not start a drag.
+        draggableCancel="button, a, input, select, textarea"
         onBreakpointChange={(bp: string) => setBreakpoint(bp)}
         onLayoutChange={(_current: unknown, all: Layouts) => {
           setLayouts(all);

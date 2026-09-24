@@ -16,7 +16,7 @@ Every task's requirements implicitly include this section.
 
 - Palette, exact values: tarmac `#13161B`, kerb `#1B1F26`, raised `#232832`, gantry `#2A303A`, edge `#6C7789`, chalk `#E8EBEF`, mute `#A6AEBB`, faint `#8790A0`, timing purple `#B57BFF`, timing green `#35D07F`, timing yellow `#F6C945`, F1 red `#E10600` (non-text only), F1 red text `#FF6B60`.
 - Colour only carries meaning: chrome is greys and white; colour appears only as timing semantics, live/danger red, tyre compounds, team colours. No brand accent. No cyan, no all-caps labels, no monospace data labels. Labels are sentence case.
-- Type: Big Shoulders Display (headlines, position numerals), Barlow Semi Condensed (UI and data, tabular numerals). Self-hosted woff2 via `next/font/local` (NOT `next/font/google`: the project self-hosts because the Google fetch hard-fails builds on restricted networks).
+- Type: Big Shoulders Display (headlines, position numerals), Barlow Semi Condensed (UI and data, tabular numerals). Measured result: Barlow is tabular; Big Shoulders is NOT (its 1 is narrower than its 0), so display numerals are used only as single values or centred in fixed-width cells, and every aligned column of digits uses the UI face with `tabular-nums`. Self-hosted woff2 via `next/font/local` (NOT `next/font/google`: the project self-hosts because the Google fetch hard-fails builds on restricted networks).
 - Shape: panels 6px radius, controls 4px, pills full. Hairline borders carry structure; no shadows for hierarchy.
 - Motion: only the start-lights sequence, live-tower row reordering, and interaction feedback. `prefers-reduced-motion` respected.
 - Accessibility floor: `:focus-visible` ring on every control, WCAG AA contrast (4.5:1 text, 3:1 UI), labelled form controls, one `h1` per page, touch targets at least 40px on mobile, no horizontal page scroll at 390px.
@@ -25,6 +25,7 @@ Every task's requirements implicitly include this section.
 - Never stage `frontend/tsconfig.tsbuildinfo`. Always `git add` explicit paths, never `git add -A` or `git add .`.
 - Commit messages end with the trailer `Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>`.
 - `next.config.mjs` sets `ignoreBuildErrors`/`ignoreDuringBuilds`, so `next build` does not type-check. Always run `npx tsc --noEmit` explicitly.
+- In Git Bash on Windows, prefix any command that takes a `/route` argument (`ui-sweep.mjs --routes /stats`) with `MSYS_NO_PATHCONV=1`, or the shell rewrites it into a Windows path.
 - Never run `next build` while `next dev` is running (it corrupts `.next`). Vitest, tsc and pytest are safe alongside the dev server. Frontend commands run from `C:\Users\arjun\f1-pitwall\frontend`; backend from `...\backend` with `SECRET_KEY=test RUNNING_LOCALLY=true`.
 
 ## File Structure
@@ -68,9 +69,10 @@ backend/app/api/v1/endpoints.py (modified: one route)
 
 Run (from `frontend/`):
 ```bash
-npm install react-grid-layout@1.5.4
-npm install -D @types/react-grid-layout@^1.3.5 vitest jsdom @vitejs/plugin-react @testing-library/react @testing-library/jest-dom @testing-library/user-event
+npm install react-grid-layout@1.5.4 --save-exact
+npm install -D "@types/react-grid-layout@^1.3.5" "vitest@^3" "@vitejs/plugin-react@^4" "jsdom@^26" "@testing-library/react@^16" "@testing-library/dom@^10" "@testing-library/jest-dom@^6" "@testing-library/user-event@^14"
 ```
+(Executed note: vitest 5 was rejected by npm because it wants `@types/node` 22+ and the project pins 20 with CI on Node 20; vitest 3 / plugin-react 4 / jsdom 26 are the compatible line. `@testing-library/dom` is a required peer of Testing Library 16. `npm audit` reports a critical/high finding in `next` 14.2.35, which pre-dates this work.)
 Expected: installs without peer errors. If `react-grid-layout` fails to install, stop and record it: Plan 2 Task 3 uses its documented fallback.
 
 - [ ] **Step 3: Add config files**
@@ -167,6 +169,8 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test** `frontend/src/design/tokens.test.ts`
 ```ts
+// @vitest-environment node
+// Reads tokens.css with node:fs; jsdom's URL class is not accepted by fs.
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -383,7 +387,7 @@ Then (dev server on :3000 is running):
 ```bash
 node --input-type=module -e "import {launch} from './scripts/cdp.mjs'; const b=await launch(9672); await b.goto('http://localhost:3000/stats',2500); console.log(await b.eval('getComputedStyle(document.body).backgroundColor')); await b.close();"
 ```
-Expected: `rgb(19, 22, 27)`.
+Expected: `rgb(19, 22, 27)`. (At this point `layout.tsx` still has `bg-black` on `<body>`, which wins until Task 6, so the body reads `rgb(0, 0, 0)`; instead check `getComputedStyle(document.documentElement).getPropertyValue('--tarmac')` is `19 22 27` and that a probe element with `bg-kerb text-mute rounded-panel border-edge` resolves to `rgb(27, 31, 38)`, `rgb(166, 174, 187)`, `6px`, `rgb(108, 119, 137)`.)
 
 - [ ] **Step 9: Commit**
 ```bash
@@ -455,6 +459,7 @@ describe("formatGap", () => {
   it("prefixes a plus and shows three decimals", () => expect(formatGap(0.409)).toBe("+0.409"));
   it("switches to minutes at 60s", () => expect(formatGap(62.345)).toBe("+1:02.345"));
   it("keeps a zero gap", () => expect(formatGap(0)).toBe("+0.000"));
+  it("never shows a negative zero", () => expect(formatGap(-0.0004)).toBe("+0.000"));
   it("renders a dash when missing", () => expect(formatGap(null)).toBe("–"));
 });
 
@@ -549,8 +554,8 @@ export function formatSector(seconds: number | null | undefined): string {
 
 export function formatGap(seconds: number | null | undefined): string {
   if (typeof seconds !== "number" || !Number.isFinite(seconds)) return DASH;
-  const sign = seconds < 0 ? MINUS : "+";
-  return `${sign}${fromMillis(Math.round(Math.abs(seconds) * 1000))}`;
+  const total = Math.round(Math.abs(seconds) * 1000);
+  return `${seconds < 0 && total > 0 ? MINUS : "+"}${fromMillis(total)}`;
 }
 
 export function formatDelta(seconds: number | null | undefined): string {
@@ -1784,6 +1789,7 @@ Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing test** `chartTheme.test.ts` (guards drift between the hex values here and the CSS tokens)
 ```ts
+// @vitest-environment node
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CHART, seriesColor, seriesDash } from "./chartTheme";

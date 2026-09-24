@@ -1,4 +1,8 @@
 import type { Config } from "tailwindcss";
+import plugin from "tailwindcss/plugin";
+
+// rgb(var(--x) / <alpha-value>) keeps utilities like bg-kerb/60 working.
+const token = (name: string) => `rgb(var(--${name}) / <alpha-value>)`;
 
 const config: Config = {
   content: [
@@ -9,35 +13,38 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        titillium: ["var(--font-titillium)", "sans-serif"],
+        display: ["var(--font-display)", "Eurostile", "Tahoma", "sans-serif"],
+        sans: ["var(--font-ui)", "system-ui", "Segoe UI", "Roboto", "sans-serif"],
+      },
+      borderRadius: {
+        panel: "var(--radius-panel)",
+        control: "var(--radius-control)",
       },
       colors: {
-        background: "var(--background)",
-        foreground: "var(--foreground)",
-        f1: {
-          red: "#e10600",
-          yellow: "#ffd12b",
-          green: "#00b259",
-          blue: "#00a2ed",
-          // Secondary data accent (used as text-f1-cyan, bg-f1-cyan/10, ... across the
-          // dashboard). It was referenced 24 times but never defined, so those classes
-          // silently rendered nothing. Matches the cyan in globals.css.
-          cyan: "#66fcf1",
-          dark: "#15151e",
-          gray: "#38383f",
-          light: "#f3f3f3",
+        tarmac: token("tarmac"),
+        kerb: token("kerb"),
+        raised: token("raised"),
+        gantry: token("gantry"),
+        edge: token("edge"),
+        chalk: token("chalk"),
+        mute: token("mute"),
+        faint: token("faint"),
+        timing: {
+          purple: token("timing-purple"),
+          green: token("timing-green"),
+          yellow: token("timing-yellow"),
         },
-        // Real F1 tire-compound colors. Keep in sync with src/lib/compounds.ts.
-        compound: {
-          soft: "#e10600",
-          medium: "#ffd12b",
-          hard: "#f3f3f3",
-          inter: "#43b02a",
-          wet: "#0067ad",
-        },
+        live: { DEFAULT: token("f1-red"), deep: token("f1-red-deep"), text: token("f1-red-text") },
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // The sidebar's state is an attribute on <html> (see src/lib/railState.ts), so the stylesheet can
+    // size everything from it before any script runs: `rail-expanded:` / `rail-collapsed:` variants.
+    plugin(({ addVariant }) => {
+      addVariant("rail-expanded", "html:not([data-rail='collapsed']) &");
+      addVariant("rail-collapsed", "html[data-rail='collapsed'] &");
+    }),
+  ],
 };
 export default config;
