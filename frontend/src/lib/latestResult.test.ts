@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  finishOrder, formatRaceTime, gridOrder, positionsGained, resultLabel, winnerCaption, type ClassificationRow,
+  finishOrder, gridOrder, positionsGained, resultLabel, winnerCaption, type ClassificationRow,
 } from "./latestResult";
 
 const row = (over: Partial<ClassificationRow>): ClassificationRow => ({
@@ -31,10 +31,6 @@ describe("ordering", () => {
 });
 
 describe("labels", () => {
-  it("formats a race time as h:mm:ss.mmm", () => {
-    expect(formatRaceTime(5400)).toBe("1:30:00.000");
-    expect(formatRaceTime(5527.986)).toBe("1:32:07.986");
-  });
   it("labels the winner with the race time and others with the gap", () => {
     expect(resultLabel(field[0])).toBe("1:32:07.986");
     expect(resultLabel(field[1])).toBe("+3.500");

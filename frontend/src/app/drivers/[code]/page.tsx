@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { User, Trophy, FileText } from "lucide-react";
+import { Trophy, FileText } from "lucide-react";
 import TableSkeleton from "@/components/TableSkeleton";
 import ErrorState from "@/components/ErrorState";
 import { getApiErrorMessage } from "@/lib/apiError";

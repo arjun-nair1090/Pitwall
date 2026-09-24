@@ -1,6 +1,6 @@
 // Confirms both faces are really loaded (not a system fallback). The UI face must render
 // tabular figures ("1111" exactly as wide as "0000") because it carries every aligned column.
-// The display face (Big Shoulders) has proportional digits, so it is only ever used for single
+// The display face has proportional digits, so it is only ever used for single
 // values or centred in fixed-width cells, never for columns of numbers; that is reported, not failed.
 import { launch } from "./cdp.mjs";
 

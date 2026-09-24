@@ -2,7 +2,7 @@ import {
   Activity, Archive, FlaskConical, GitCommit, Map as MapIcon, Newspaper, Radio, Target, Trophy, Zap,
   type LucideIcon,
 } from "lucide-react";
-import { rankMatches, type Searchable } from "./search";
+import type { Searchable } from "./search";
 
 export type ModuleGroup = "Live" | "Analysis" | "Race" | "Play" | "More";
 
@@ -56,8 +56,4 @@ export const MODULES: AppModule[] = [
 
 export function findModuleForPath(pathname: string): AppModule | undefined {
   return MODULES.find((m) => pathname === m.href || pathname.startsWith(`${m.href}/`));
-}
-
-export function searchModules(query: string): AppModule[] {
-  return rankMatches(query, MODULES);
 }

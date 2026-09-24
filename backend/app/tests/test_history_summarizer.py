@@ -1,5 +1,4 @@
 import pandas as pd
-import pytest
 
 from app.services.history_summarizer import (
     build_driver_session_summary,

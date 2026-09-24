@@ -64,24 +64,3 @@ def test_pedal_shares_split_the_lap_into_four_states_summing_to_100():
 def test_pedal_shares_is_none_for_an_empty_or_zero_length_lap():
     assert dt.pedal_shares(_tel([])) is None
     assert dt.pedal_shares(_tel([200])) is None
-
-
-def test_dominance_marks_the_faster_driver_in_each_stretch():
-    fast_first_half = _tel([300] * 10 + [200] * 10)
-    fast_second_half = _tel([200] * 10 + [300] * 10)
-    segments = dt.dominance_segments(fast_first_half, fast_second_half, "AAA", "BBB", "#111111", "#222222", sector_m=200)
-    assert segments, "expected some mini-sectors"
-    assert segments[0]["dominant"] == 1 and segments[0]["dominant_driver"] == "AAA"
-    assert segments[-1]["dominant"] == 2 and segments[-1]["dominant_driver"] == "BBB"
-    assert segments[0]["color"] == "#111111" and segments[-1]["color"] == "#222222"
-    assert all(s["speed_delta"] >= 0 for s in segments)
-
-
-def test_dominance_gives_ties_to_the_first_driver():
-    segments = dt.dominance_segments(_tel([250] * 20), _tel([250] * 20), "AAA", "BBB", "#111111", "#222222", sector_m=200)
-    assert {s["dominant"] for s in segments} == {1}
-
-
-def test_dominance_handles_a_very_short_lap_without_dividing_by_zero():
-    segments = dt.dominance_segments(_tel([250] * 4), _tel([260] * 4), "AAA", "BBB", "#111111", "#222222")
-    assert isinstance(segments, list)

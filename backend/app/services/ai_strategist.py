@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any
 from app.services.f1_data_service import f1_service
 
 class AIStrategist:
@@ -29,8 +29,6 @@ class AIStrategist:
         
         drivers_map = {d["driver_number"]: d for d in drivers}
         
-        # Analyze tyre wear and degradation for each driver
-        tyre_status = {}
         undercut_threats = []
         pit_windows = {}
         
@@ -46,8 +44,8 @@ class AIStrategist:
         
         # Check consecutive pairs for undercut threats
         for i in range(len(pos_drivers) - 1):
-            leader_pos, leader_num, leader_t = pos_drivers[i]
-            chaser_pos, chaser_num, chaser_t = pos_drivers[i+1]
+            _, leader_num, _ = pos_drivers[i]
+            _, chaser_num, chaser_t = pos_drivers[i+1]
             
             gap = chaser_t.get("gap_to_next") or chaser_t.get("gap_to_leader", 99.0)
             # If gap is under 1.5 seconds and they are in the pit window
@@ -80,7 +78,6 @@ class AIStrategist:
             
             # Pit window estimate
             limits = self.optimal_lifespans[compound]
-            current_lap = t.get("lap_number") or 1
             
             window_start = max(1, limits[0] - age)
             window_end = max(1, limits[1] - age)

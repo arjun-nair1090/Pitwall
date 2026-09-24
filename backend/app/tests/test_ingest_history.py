@@ -1,5 +1,4 @@
 import chromadb
-import pytest
 from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 
 from app.scripts.ingest_history import parse_years_arg, session_already_ingested

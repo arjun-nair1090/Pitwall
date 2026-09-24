@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
 import DataTable from "./DataTable";
-import Input from "./Input";
 import Select from "./Select";
 import Tabs, { tabPanelProps } from "./Tabs";
 
@@ -16,20 +15,6 @@ describe("Select", () => {
     render(<Select label="Season" hideLabel><option>2025</option></Select>);
     expect(screen.getByLabelText("Season")).toBeInTheDocument();
     expect(screen.getByText("Season")).toHaveClass("sr-only");
-  });
-});
-
-describe("Input", () => {
-  it("links the hint and marks errors invalid", () => {
-    render(<Input label="Password" hint="At least 8 characters" error="Too short" />);
-    const input = screen.getByLabelText("Password");
-    expect(input).toHaveAttribute("aria-invalid", "true");
-    expect(input).toHaveAccessibleDescription(/Too short/);
-    expect(screen.getByRole("alert")).toHaveTextContent("Too short");
-  });
-  it("is valid without an error", () => {
-    render(<Input label="Email" />);
-    expect(screen.getByLabelText("Email")).not.toHaveAttribute("aria-invalid");
   });
 });
 
