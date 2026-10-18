@@ -310,6 +310,20 @@ def test_classified_position_reads_as_a_finish_or_a_note(classified, expected):
     assert race_battles._classified(classified) == expected
 
 
+@pytest.mark.parametrize("status", ["Disqualified", "disqualified", "Excluded"])
+def test_a_disqualification_has_no_finish_even_when_fastf1_ranks_him(monkeypatch, status):
+    # Spa 2024: RUS has ClassifiedPosition "20" but Status "Disqualified".
+    session = fake_session()
+    session.results["ClassifiedPosition"] = ["1", "2", "R", "3"]
+    session.results["Status"] = ["Finished", "Finished", "Retired", status]
+    monkeypatch.setattr(race_battles, "load_session", lambda *a, **k: session)
+    drivers = race_battles.race_battles_payload(2024, "Test", "R")["drivers"]
+    by_code = {d["code"]: d for d in drivers}
+    assert (by_code["DDD"]["finish"], by_code["DDD"]["finish_note"]) == (None, "DSQ")
+    assert (by_code["AAA"]["finish"], by_code["AAA"]["finish_note"]) == (1, None)
+    assert [d["code"] for d in drivers] == ["AAA", "BBB", "DDD", "CCC"]
+
+
 def test_a_dnf_with_no_position_and_no_classification_sorts_last(monkeypatch):
     session = fake_session()
     session.results = session.results.drop(columns="ClassifiedPosition")

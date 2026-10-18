@@ -186,6 +186,8 @@ def _whole(value: Any) -> Optional[int]:
 # ClassifiedPosition letters: disqualified or excluded, and retired, not classified, withdrawn or
 # failed to qualify.
 _FINISH_NOTES = {"D": "DSQ", "E": "DSQ", "R": "DNF", "N": "DNF", "W": "DNF", "F": "DNF"}
+# Statuses that rule out a finishing place whatever ClassifiedPosition says.
+_DSQ_STATUSES = ("disqualified", "excluded")
 
 
 def _classified(value: Any) -> Tuple[Optional[int], Optional[str]]:
@@ -216,6 +218,10 @@ def _results_by_code(session: Any) -> Dict[str, _Result]:
         grid = _whole(row["GridPosition"]) if "GridPosition" in row.index else None
         order = _whole(row["Position"]) if "Position" in row.index else None
         finish, note = _classified(row["ClassifiedPosition"] if "ClassifiedPosition" in row.index else None)
+        # FastF1 sometimes ranks a disqualified car (Spa 2024: RUS is "20"); the Status still says so.
+        status = row["Status"] if "Status" in row.index else None
+        if isinstance(status, str) and status.strip().lower() in _DSQ_STATUSES:
+            finish, note = None, "DSQ"
         out[str(row["Abbreviation"])] = _Result(grid or None, finish, note, order)
     return out
 
