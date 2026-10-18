@@ -120,29 +120,31 @@ def _compound_rank(compound: str) -> Tuple[int, str]:
 
 
 def compound_degradation(stints_by_compound: Dict[str, List[pd.DataFrame]]) -> List[Dict[str, Any]]:
-    """Per compound across the field: the within-stint slope, so a quicker driver or a heavier car
-    doesn't tilt it, and the median time lost against each stint's own fresh-tyre intercept."""
+    """Per compound across the field: the typical stint's wear, the median of the stints' own slopes,
+    and the median time lost at each tyre life against each stint's own fresh-tyre intercept, so a
+    quicker driver or a heavier car doesn't tilt either."""
     out: List[Dict[str, Any]] = []
     for compound in sorted(stints_by_compound, key=_compound_rank):
-        stints = [s for s in stints_by_compound[compound] if len(s)]
-        if not stints:
-            continue
-        parts = [(s["TyreLife"].to_numpy(dtype=float), s["Corrected"].to_numpy(dtype=float)) for s in stints]
-        centred_xy = sum(float(np.sum((x - x.mean()) * (y - y.mean()))) for x, y in parts)
-        centred_xx = sum(float(np.sum((x - x.mean()) ** 2)) for x, _ in parts)
-        if centred_xx <= 0:
-            continue
-        slope = centred_xy / centred_xx
+        slopes: List[float] = []
+        laps = 0
         losses: Dict[int, List[float]] = {}
-        for x, y in parts:
-            intercept = y.mean() - slope * x.mean()
+        for stint in stints_by_compound[compound]:
+            x, y = stint["TyreLife"].to_numpy(dtype=float), stint["Corrected"].to_numpy(dtype=float)
+            line = _slope(x, y)
+            if line is None:
+                continue
+            slope, intercept = line
+            slopes.append(slope)
+            laps += len(x)
             for life, seconds in zip(x, y):
                 losses.setdefault(int(life), []).append(float(seconds - intercept))
+        if not slopes:
+            continue
         out.append({
             "compound": compound,
-            "deg_per_lap": float(slope),
-            "stints": len(stints),
-            "laps": int(sum(len(x) for x, _ in parts)),
+            "deg_per_lap": float(np.median(slopes)),
+            "stints": len(slopes),
+            "laps": int(laps),
             "curve": [
                 {"tyre_life": life, "loss": float(np.median(values)), "laps": len(values)}
                 for life, values in sorted(losses.items())

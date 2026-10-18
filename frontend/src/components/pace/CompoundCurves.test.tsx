@@ -22,7 +22,11 @@ describe("CompoundCurves", () => {
 
   it("explains how the points are measured", () => {
     render(<CompoundCurves compounds={PACE.compounds} />);
-    expect(screen.getByText(/Points can sit below zero when drivers push on new tyres/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Each point is the median, at that tyre age, of every stint of at least 5 clean laps, measured against that stint's own fresh-tyre pace, so a quicker driver doesn't skew the curve. Points can sit below zero when drivers push on new tyres. The wear rate is the median of the stints' own rates.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/time lost/i)).not.toBeInTheDocument();
   });
 

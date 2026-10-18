@@ -101,19 +101,34 @@ def test_stints_are_sorted_and_python_typed():
     assert type(first["lap"]) is int and type(first["tyre_life"]) is int and type(first["time"]) is float
 
 
-def test_pooled_compound_slope_ignores_driver_pace_offsets():
-    young = pd.DataFrame({"TyreLife": np.arange(2, 9.0)})
-    young["Corrected"] = 100.0 + 0.1 * young["TyreLife"]
-    old = pd.DataFrame({"TyreLife": np.arange(10, 17.0)})
-    old["Corrected"] = 101.0 + 0.1 * old["TyreLife"]
-    out = race_pace.compound_degradation({"MEDIUM": [young, old]})
+def line_stint(slope, offset, lives=range(1, 8)):
+    frame = pd.DataFrame({"TyreLife": np.array(list(lives), dtype=float)})
+    frame["Corrected"] = 100.0 + offset + slope * frame["TyreLife"]
+    return frame
+
+
+def test_compound_wear_is_the_median_of_the_stints_own_slopes():
+    out = race_pace.compound_degradation({"MEDIUM": [line_stint(0.02, 0.0), line_stint(0.10, 1.0), line_stint(0.09, 2.0)]})
     assert len(out) == 1
-    assert out[0]["deg_per_lap"] == pytest.approx(0.1)
-    assert out[0]["stints"] == 2 and out[0]["laps"] == 14
-    both = pd.concat([young, old])
-    naive = np.polyfit(both["TyreLife"], both["Corrected"], 1)[0]
-    assert abs(naive - 0.1) > 0.05
-    assert out[0]["curve"] == []  # no tyre life has three laps
+    assert out[0]["deg_per_lap"] == pytest.approx(0.09)
+    assert out[0]["stints"] == 3 and out[0]["laps"] == 21
+
+
+def test_a_stint_too_short_for_a_slope_does_not_count_towards_the_compound():
+    out = race_pace.compound_degradation({"MEDIUM": [line_stint(0.05, 0.0), line_stint(0.5, 0.0, range(1, 4))]})
+    assert out[0]["deg_per_lap"] == pytest.approx(0.05)
+    assert out[0]["stints"] == 1 and out[0]["laps"] == 7
+
+
+def test_curve_points_are_measured_against_each_stints_own_intercept():
+    # Each stint's loss at tyre life n is its own slope times n, whatever its offset; the median of
+    # 0.02n, 0.09n and 0.10n is 0.09n. One slope shared by every stint would put lap 1 near 0.02.
+    out = race_pace.compound_degradation({"MEDIUM": [line_stint(0.02, 0.0), line_stint(0.10, 1.0), line_stint(0.09, 2.0)]})
+    curve = {point["tyre_life"]: point for point in out[0]["curve"]}
+    assert sorted(curve) == list(range(1, 8))
+    for life, point in curve.items():
+        assert point["loss"] == pytest.approx(0.09 * life)
+        assert point["laps"] == 3
 
 
 def test_curve_is_the_median_loss_per_tyre_life():
