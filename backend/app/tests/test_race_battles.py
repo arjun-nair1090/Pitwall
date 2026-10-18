@@ -92,6 +92,22 @@ def test_a_pass_needs_the_passer_within_two_and_a_half_seconds():
     assert race_battles.find_overtakes(duel([2, 2, 1], [2.6, 2.6, -3.0])) == []
 
 
+def test_driving_past_a_car_in_trouble_is_not_an_overtake():
+    # Close at the start of the lap, but the passed car loses six seconds in it: it slowed, it wasn't passed.
+    assert race_battles.find_overtakes(duel([2, 2, 1], [1.0, 1.0, -6.0])) == []
+
+
+def test_a_pass_needs_the_passed_car_within_four_seconds_at_the_end_of_the_lap():
+    assert len(race_battles.find_overtakes(duel([2, 2, 1], [1.0, 1.0, -3.9]))) == 1
+    assert race_battles.find_overtakes(duel([2, 2, 1], [1.0, 1.0, -4.1])) == []
+
+
+def test_a_pass_with_no_lap_end_time_for_the_passed_car_is_not_an_overtake():
+    laps = duel([2, 2, 1], [1.0, 1.0, -3.0])
+    laps.loc[(laps["Driver"] == "BBB") & (laps["LapNumber"] == 3.0), "Time"] = pd.NaT
+    assert race_battles.find_overtakes(laps) == []
+
+
 def test_a_pass_with_no_gap_is_not_an_overtake():
     laps = duel([2, 2, 1], [1.0, 1.0, -3.0])
     laps.loc[(laps["Driver"] == "BBB") & (laps["LapNumber"] == 2.0), "Time"] = pd.NaT
@@ -132,6 +148,11 @@ def test_a_battle_that_ends_in_a_pass():
     assert (battles[0]["start_lap"], battles[0]["end_lap"]) == (2, 4)
     assert (battles[0]["outcome"], battles[0]["outcome_lap"]) == ("passed", 5)
     assert battles[0]["min_gap"] == pytest.approx(0.4)
+
+
+def test_a_battle_that_ends_with_the_leader_in_trouble_is_not_a_pass():
+    battle = race_battles.find_battles(duel([2, 2, 2, 2, 1], [9.0, 0.8, 0.5, 0.4, -6.0]))[0]
+    assert (battle["end_lap"], battle["outcome"], battle["outcome_lap"]) == (4, "dropped", None)
 
 
 def test_a_battle_that_ends_in_the_pits():
