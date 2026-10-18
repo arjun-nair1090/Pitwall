@@ -11,6 +11,7 @@ import { useAsync } from "@/hooks/useAsync";
 import type { RaceParams } from "@/lib/compareParams";
 import type { PedalRow } from "@/lib/pedals";
 import { SESSION_LABELS } from "@/lib/season";
+import CornerConsistency from "./CornerConsistency";
 import PedalChart from "./PedalChart";
 
 // How every driver used the throttle and brake over their fastest lap in any session since 2018.
@@ -59,6 +60,10 @@ export default function PedalAnalysis({ initial }: { initial: RaceParams }) {
           <Skeleton className="h-96" />
         </Loading>
       )}
+
+      <div className="mt-4">
+        <CornerConsistency sel={sel} />
+      </div>
     </>
   );
 }
