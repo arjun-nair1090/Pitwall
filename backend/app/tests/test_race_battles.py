@@ -178,11 +178,18 @@ def test_a_car_coming_between_is_dropped():
 
 
 def test_the_flag_outranks_the_pits():
+    # The chaser's data ends on lap 4 while the leader pits in on lap 5 and runs on to lap 6: the battle ran to
+    # the chaser's last lap, so it is a flag, not a pit stop.
+    laps = make_laps({
+        "AAA": [(i, 2, 90 * i + 0.5) for i in range(1, 5)],
+        "BBB": [(i, 1, 90 * i) for i in range(1, 5)] + [(5, 1, 450, True)] + [(6, 1, 540)],
+    })
+    battle = race_battles.find_battles(laps)[0]
+    assert (battle["end_lap"], battle["outcome"], battle["outcome_lap"]) == (4, "flag", 4)
+    # With the chaser still running, the same pit-in is what ended it.
     laps = duel([2] * 5, [9.0, 0.8, 0.5, 0.4, 0.3], flags={("BBB", 5): ("in",)})
     battle = race_battles.find_battles(laps)[0]
     assert (battle["end_lap"], battle["outcome"]) == (4, "pits")
-    laps = duel([2] * 5, [9.0, 0.8, 0.5, 0.4, 0.3], flags={("BBB", 6): ("in",)})
-    assert race_battles.find_battles(laps)[0]["outcome"] == "flag"
 
 
 def test_a_battle_to_the_flag():
