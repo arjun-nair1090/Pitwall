@@ -112,3 +112,25 @@ def corner_metrics(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[Dic
             "brake_before_m": brake_before,
         })
     return rows
+
+
+def corner_duel(corners: List[Dict[str, Any]], tel1: pd.DataFrame, tel2: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Both drivers' corner metrics side by side. A positive time_delta means driver 1 gained there."""
+    metrics1 = corner_metrics(tel1, corners)
+    metrics2 = corner_metrics(tel2, corners)
+    if not metrics1 or not metrics2:
+        return []
+    return [
+        {
+            "label": corner["label"],
+            "number": corner["number"],
+            "letter": corner["letter"],
+            "x": corner["x"],
+            "y": corner["y"],
+            "angle": corner["angle"],
+            "driver1": one,
+            "driver2": two,
+            "time_delta": two["zone_time"] - one["zone_time"],
+        }
+        for corner, one, two in zip(corners, metrics1, metrics2)
+    ]

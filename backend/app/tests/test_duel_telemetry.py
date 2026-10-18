@@ -64,3 +64,21 @@ def test_pedal_shares_split_the_lap_into_four_states_summing_to_100():
 def test_pedal_shares_is_none_for_an_empty_or_zero_length_lap():
     assert dt.pedal_shares(_tel([])) is None
     assert dt.pedal_shares(_tel([200])) is None
+
+
+def test_head_to_head_includes_corners_and_survives_missing_circuit_info(monkeypatch):
+    from app.services import corner_analysis
+
+    def lap(number):
+        return pd.Series({"LapNumber": number, "LapTime": pd.Timedelta(seconds=90), "Compound": "SOFT"})
+
+    tel = _tel([200, 210, 220])
+    monkeypatch.setattr(dt, "_duel", lambda *args: (object(), lap(3), tel, lap(4), tel))
+    monkeypatch.setattr(dt, "driver_profile", lambda session, code: {"name": code, "team": "T", "color": "#fff"})
+    monkeypatch.setattr(corner_analysis, "circuit_corners", lambda session: [])
+
+    payload = dt.head_to_head_payload(2024, "Monza", "R", "VER", "NOR")
+
+    assert set(payload) == {"driver1", "driver2", "corners"}
+    assert payload["driver1"]["code"] == "VER" and payload["driver2"]["code"] == "NOR"
+    assert payload["corners"] == []
