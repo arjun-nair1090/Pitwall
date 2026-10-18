@@ -30,6 +30,9 @@ MIN_PACE_LAPS = 5
 # A driver is ranked only with at least this share of the field's typical clean-lap count: someone
 # who retired early ran light on fresh tyres and would otherwise look quickest.
 MIN_PACE_SHARE = 0.5
+# ...and only with 90% of the leader's laps run, the share F1 classifies a finisher on. In a wet race
+# the whole field runs few clean laps, so a retirement can clear the clean-lap bar on the dry part alone.
+MIN_DISTANCE_SHARE = 0.9
 # Fewest laps at one tyre life before the compound curve plots it.
 MIN_CURVE_LAPS = 3
 
@@ -63,7 +66,8 @@ def fuel_distance(session: Any, laps_run: int) -> int:
         scheduled = getattr(session, "total_laps", None)
     except Exception:  # FastF1 raises DataNotLoadedError, not AttributeError, before a load
         scheduled = None
-    if isinstance(scheduled, numbers.Integral) and not isinstance(scheduled, bool) and scheduled >= max(laps_run, 1):
+    usable = isinstance(scheduled, numbers.Integral) and not isinstance(scheduled, bool)
+    if usable and scheduled >= max(laps_run, 1):
         return int(scheduled)
     return laps_run
 
@@ -190,9 +194,10 @@ def race_pace_payload(year: int, gp: str, session_name: str, round_number: Optio
         stints = stint_summary(mine, clean, per_lap, total_laps)
         corrected = corrected_times(clean, per_lap, total_laps)
         clean = clean.assign(Corrected=corrected.to_numpy())  # positional, so a repeated index can't misalign it
+        finished = int(mine["LapNumber"].max()) >= MIN_DISTANCE_SHARE * total_laps
         drivers.append({
             "code": code, **driver_profile(session, code),
-            "pace": float(corrected.median()) if len(clean) else None,
+            "pace": float(corrected.median()) if len(clean) and finished else None,
             "gap": None, "clean_laps": int(len(clean)), "stints": stints,
         })
         for stint in stints:
