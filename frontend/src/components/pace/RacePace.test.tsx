@@ -17,7 +17,7 @@ vi.mock("@/hooks/useRaceData", () => ({ useSeasonRaces: () => ({ status: "ready"
 const initial = { year: 2024, round: 14, session: "R" as const, d1: null, d2: null };
 
 beforeEach(() => {
-  post.mockReset().mockResolvedValue({ data: { data: PACE } });
+  post.mockReset().mockResolvedValue({ data: PACE });
 });
 
 describe("RacePace", () => {

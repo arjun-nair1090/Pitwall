@@ -31,8 +31,8 @@ export default function RacePace({ initial }: { initial: RaceParams }) {
       ? null
       : () =>
           axios
-            .post<{ data: RacePaceResult }>("/api/v1/telemetry/race-pace", { year: sel.year, round: sel.round, session: sel.session })
-            .then((res) => res.data.data),
+            .post<RacePaceResult>("/api/v1/telemetry/race-pace", { year: sel.year, round: sel.round, session: sel.session })
+            .then((res) => res.data),
     `pace-${sel.year}-${sel.round}-${sel.session}`,
   );
 
