@@ -15,6 +15,7 @@ const CHANGELOG: ChangelogEntry[] = [
       "Head to head: a Corner by corner table shows, for every turn, who gained and by how much, plus minimum speed, the braking verdict and exit speed, with turn numbers on the dominance map. The per-corner gains add up to the lap-time gap.",
       "Advanced analytics: Corner consistency shows each clean lap against the driver's best at every corner, the ideal lap you would get from those best corners, and a table ranking corners by how much the driver varies from lap to lap.",
       "Race pace: a new page ranks every driver by fuel-corrected race pace over their clean laps, charts each stint lap by lap with how fast the tyres wore, and shows a degradation curve for each compound measured across the whole field.",
+      "Overtakes and battles: a lap chart of every race and sprint since 2018, every on-track pass (not the places that change hands in the pits or behind a safety car), places gained at the start, and every fight that stayed within a second for three laps or more.",
     ],
   },
   {
