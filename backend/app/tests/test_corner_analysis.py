@@ -55,10 +55,22 @@ def test_circuit_corners_is_empty_when_fastf1_cannot_build_it():
     assert ca.circuit_corners(_session(error=RuntimeError("no circuit info"))) == []
 
 
-def test_markers_snap_to_the_nearest_point_within_the_window():
+def test_markers_sit_at_the_nearest_point_within_the_window():
     tel = _tel(np.arange(0, 1001, 10))
     corner = {**_corner(500), "x": 521.0}
-    assert ca.corner_markers(tel, [corner]) == [520.0]
+    assert ca.corner_markers(tel, [corner]) == [pytest.approx(521.0)]
+
+
+def test_markers_fall_between_samples():
+    tel = _tel(np.arange(0, 1001, 10))
+    assert ca.corner_markers(tel, [_corner(503)]) == [pytest.approx(503.0)]
+
+
+def test_markers_do_not_project_towards_a_sample_without_a_position():
+    distance = np.arange(0, 1001, 10)
+    x = distance.astype(float)
+    x[distance == 510] = np.nan
+    assert ca.corner_markers(_tel(distance, x=x), [_corner(503)]) == [500.0]
 
 
 def test_markers_ignore_a_closer_point_outside_the_window():
@@ -68,7 +80,7 @@ def test_markers_ignore_a_closer_point_outside_the_window():
     x[distance == 900] = 502.0
     tel = _tel(distance, x=x)
     corner = {**_corner(500), "x": 502.0}
-    assert ca.corner_markers(tel, [corner]) == [500.0]
+    assert ca.corner_markers(tel, [corner]) == [pytest.approx(502.0)]
 
 
 def test_markers_never_go_backwards():

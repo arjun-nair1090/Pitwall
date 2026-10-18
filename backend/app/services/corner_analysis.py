@@ -64,6 +64,24 @@ def _usable(tel: pd.DataFrame) -> pd.DataFrame:
     return tel.dropna(subset=["Distance", "Time", "Speed"])
 
 
+def _between_samples(distance: np.ndarray, x: np.ndarray, y: np.ndarray, k: int, corner: Dict[str, Any]) -> float:
+    """The distance of the point nearest the corner on the track either side of sample k. Samples
+    are several metres apart, so snapping to one would put two drivers' zones in different places."""
+    marker, nearest = float(distance[k]), np.inf
+    for a, b in ((k - 1, k), (k, k + 1)):
+        if a < 0 or b >= len(distance):
+            continue
+        dx, dy = x[b] - x[a], y[b] - y[a]
+        length = dx * dx + dy * dy
+        if not length > 0:  # a repeated or missing position gives no direction to project onto
+            continue
+        t = min(max(((corner["x"] - x[a]) * dx + (corner["y"] - y[a]) * dy) / length, 0.0), 1.0)
+        gap = np.hypot(x[a] + t * dx - corner["x"], y[a] + t * dy - corner["y"])
+        if gap < nearest:
+            marker, nearest = float(distance[a] + t * (distance[b] - distance[a])), gap
+    return marker
+
+
 def corner_markers(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[float]:
     """Where each corner sits on this lap, as a distance in metres, never going backwards."""
     tel = _usable(tel)
@@ -79,7 +97,7 @@ def corner_markers(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[flo
         if len(candidates):
             gap = np.hypot(x[candidates] - corner["x"], y[candidates] - corner["y"])
             gap[np.isnan(gap)] = np.inf  # samples without a position can't be nearest
-            marker = float(distance[candidates[int(np.argmin(gap))]])
+            marker = _between_samples(distance, x, y, int(candidates[int(np.argmin(gap))]), corner)
         else:
             marker = float(min(max(ref, distance[0]), distance[-1]))
         if markers:
