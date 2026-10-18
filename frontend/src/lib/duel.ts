@@ -1,4 +1,5 @@
 import { colorDistance, lighten } from "@/lib/color";
+import type { CornerDuelRow } from "@/lib/corners";
 
 // One telemetry sample of a lap, as returned by POST /api/v1/telemetry/compare.
 export interface TelemetryPoint {
@@ -211,4 +212,6 @@ export interface DuelDriver {
 export interface DuelResult {
   driver1: DuelDriver;
   driver2: DuelDriver;
+  // Empty when the circuit's corners couldn't be worked out for this session
+  corners: CornerDuelRow[];
 }

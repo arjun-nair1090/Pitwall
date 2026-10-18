@@ -11,6 +11,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { useSessionInfo } from "@/hooks/useRaceData";
 import { buildDuelRows, duelStyle, type DuelResult } from "@/lib/duel";
 import type { RaceParams } from "@/lib/compareParams";
+import CornerTable from "./CornerTable";
 import DominanceMap from "./DominanceMap";
 import DuelCharts from "./DuelCharts";
 import DuelHeader from "./DuelHeader";
@@ -143,6 +144,9 @@ export default function CompareTool({ initial }: { initial: RaceParams }) {
               </div>
             </Panel>
           </div>
+          <Panel title="Corner by corner" meta="Each turn runs halfway to the next">
+            <CornerTable rows={result.corners ?? []} code1={result.driver1.code} code2={result.driver2.code} style={style} />
+          </Panel>
         </div>
       ) : null}
     </>
