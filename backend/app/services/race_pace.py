@@ -1,10 +1,11 @@
 """Fuel-corrected race pace and tyre degradation from a race or sprint's lap times.
 
 A car gets quicker as it burns fuel, which hides tyre wear. The correction is a stated model, not
-a fit: 0.03 s per kg, 110 kg at the start (105 kg before 2019), burned evenly over the distance.
-Every lap is restated as if run on the last lap's fuel load. Pace is the median corrected time
+a fit: 0.03 s per kg, 110 kg at the start (105 kg before 2019), burned evenly over the scheduled
+distance. Every lap is restated as if run on the last lap's fuel load. Pace is the median corrected time
 over a driver's clean laps; degradation is the slope of corrected time against tyre life.
 """
+import numbers
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -53,6 +54,18 @@ def fuel_model(year: int, session_name: str, total_laps: int) -> Dict[str, float
         "seconds_per_lap": float(SECONDS_PER_KG * kg_per_lap),
         "total_laps": int(total_laps),
     }
+
+
+def fuel_distance(session: Any, laps_run: int) -> int:
+    """Laps the start fuel is spread over: the scheduled distance, so a race stopped early isn't
+    corrected as if the cars had fuelled for the laps they got through, or else the laps run."""
+    try:
+        scheduled = getattr(session, "total_laps", None)
+    except Exception:  # FastF1 raises DataNotLoadedError, not AttributeError, before a load
+        scheduled = None
+    if isinstance(scheduled, numbers.Integral) and not isinstance(scheduled, bool) and scheduled >= max(laps_run, 1):
+        return int(scheduled)
+    return laps_run
 
 
 def corrected_times(laps: pd.DataFrame, seconds_per_lap: float, total_laps: int) -> pd.Series:
@@ -166,7 +179,7 @@ def race_pace_payload(year: int, gp: str, session_name: str, round_number: Optio
     session = load_session(year, gp, session_name, round_number)
     laps = session.laps
     total_laps = int(laps["LapNumber"].max())
-    fuel = fuel_model(year, session_name, total_laps)
+    fuel = fuel_model(year, session_name, fuel_distance(session, total_laps))
     per_lap = fuel["seconds_per_lap"]
 
     drivers: List[Dict[str, Any]] = []

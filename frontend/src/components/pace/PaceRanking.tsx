@@ -9,7 +9,7 @@ function StintBadge({ stint }: { stint: PaceStint }) {
   return (
     <span
       role="img"
-      aria-label={`Stint ${stint.stint}, ${style.label}, ${deg}`}
+      aria-label={`Stint ${stint.stint}, ${style.label}, ${stint.deg_per_lap === null ? "no slope" : deg}`}
       title={`Stint ${stint.stint}: ${style.label}, laps ${stint.start_lap} to ${stint.end_lap}, ${deg}`}
       className="inline-flex h-5 w-5 items-center justify-center rounded-full border-2 text-[10px] font-black leading-none text-chalk"
       style={{ borderColor: style.color }}

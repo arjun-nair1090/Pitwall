@@ -160,11 +160,13 @@ def test_compounds_come_in_tyre_order():
     assert [c["compound"] for c in out] == ["SOFT", "HARD", "INTERMEDIATE", "WET", "ZZZ"]
 
 
-def patch_session(monkeypatch, laps, counter=None):
+def patch_session(monkeypatch, laps, counter=None, **attrs):
     class FakeSession:
         pass
     session = FakeSession()
     session.laps = laps
+    for name, value in attrs.items():
+        setattr(session, name, value)
 
     def load(*args, **kwargs):
         if counter is not None:
@@ -255,6 +257,39 @@ def test_a_sprint_payload_uses_the_sprint_rate(monkeypatch):
     patch_session(monkeypatch, field())
     payload = race_pace.race_pace_payload(2024, "Spa", "S", 13)
     assert payload["fuel"]["seconds_per_lap"] == pytest.approx(0.03 * 110 / (44 * 3.05))
+
+
+def test_a_race_stopped_early_spreads_the_fuel_over_the_scheduled_distance(monkeypatch):
+    # Scheduled for 50 laps, red-flagged after 30: the cars carried fuel for 50.
+    laps = pd.concat([
+        make_laps("AAA", 2, 30, base=101.0, spl=0.066, total=30),
+        make_laps("BBB", 2, 30, base=100.0, spl=0.066, total=30),
+    ], ignore_index=True)
+    patch_session(monkeypatch, laps, total_laps=50)
+    payload = race_pace.race_pace_payload(2024, "Spa", "R", 13)
+    assert payload["fuel"]["total_laps"] == 50
+    assert payload["fuel"]["seconds_per_lap"] == pytest.approx(0.03 * 110 / 50)
+    # the last lap run keeps its own time
+    last = payload["drivers"][0]["stints"][0]["laps"][-1]
+    assert last["lap"] == 30
+    assert last["corrected"] == pytest.approx(last["time"])
+    assert payload["compounds"][0]["deg_per_lap"] == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize("scheduled", [None, 0, 20, float("nan"), "50"])
+def test_the_laps_run_divide_the_fuel_when_the_schedule_is_unusable(monkeypatch, scheduled):
+    patch_session(monkeypatch, field(), total_laps=scheduled)
+    payload = race_pace.race_pace_payload(2024, "Spa", "R", 13)
+    assert payload["fuel"]["total_laps"] == 44
+
+
+def test_a_schedule_that_was_never_loaded_falls_back_to_the_laps_run():
+    class Unloaded:
+        @property
+        def total_laps(self):
+            raise RuntimeError("not loaded")  # FastF1's DataNotLoadedError isn't an AttributeError
+    assert race_pace.fuel_distance(Unloaded(), 44) == 44
+    assert race_pace.fuel_distance(object(), 44) == 44
 
 
 def test_a_repeated_index_does_not_misalign_the_laps(monkeypatch):

@@ -37,7 +37,7 @@ describe("PaceRanking", () => {
 
   it("draws an unknown compound as a question mark", () => {
     render(<PaceRanking drivers={PACE.drivers} />);
-    expect(screen.getByLabelText("Stint 2, Unknown, —")).toHaveTextContent("?");
+    expect(screen.getByLabelText("Stint 2, Unknown, no slope")).toHaveTextContent("?");
   });
 
   it("says how many drivers could not be ranked", () => {
