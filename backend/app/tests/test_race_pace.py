@@ -183,6 +183,38 @@ def test_drivers_are_ranked_by_median_corrected_pace(monkeypatch):
     assert payload["compounds"][0]["compound"] == "MEDIUM"
 
 
+def test_a_driver_who_ran_half_the_race_or_less_is_not_ranked(monkeypatch):
+    # Silverstone 2024: a retirement with 22 clean laps, all quick and early, against a typical 45
+    # came out first on pace.
+    laps = pd.concat([
+        make_laps("AAA", 2, 46, base=100.0, total=46),
+        make_laps("BBB", 2, 46, base=100.2, total=46),
+        make_laps("CCC", 2, 46, base=100.4, total=46),
+        make_laps("RET", 2, 23, base=99.0, total=46),
+    ], ignore_index=True)
+    patch_session(monkeypatch, laps)
+    payload = race_pace.race_pace_payload(2024, "Silverstone", "R", 12)
+    drivers = {d["code"]: d for d in payload["drivers"]}
+    assert drivers["RET"]["clean_laps"] == 22
+    assert drivers["RET"]["pace"] is None and drivers["RET"]["gap"] is None
+    assert [d["code"] for d in payload["drivers"]] == ["AAA", "BBB", "CCC", "RET"]
+    assert drivers["AAA"]["gap"] == 0.0
+    # their laps still count towards the compound's wear
+    assert payload["compounds"][0]["stints"] == 4
+
+
+def test_a_driver_just_past_half_the_typical_distance_is_ranked(monkeypatch):
+    laps = pd.concat([
+        make_laps("AAA", 2, 46, base=100.0, total=46),
+        make_laps("BBB", 2, 46, base=100.2, total=46),
+        make_laps("RET", 2, 24, base=99.0, total=46),
+    ], ignore_index=True)
+    patch_session(monkeypatch, laps)
+    payload = race_pace.race_pace_payload(2024, "Silverstone", "R", 12)
+    # 23 clean laps against a typical 45: 23 >= 22.5
+    assert payload["drivers"][0]["code"] == "RET"
+
+
 def test_no_driver_with_enough_laps_is_a_session_data_error(monkeypatch):
     patch_session(monkeypatch, make_laps("AAA", 2, 4))
     with pytest.raises(SessionDataError):

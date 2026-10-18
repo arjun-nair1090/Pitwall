@@ -26,6 +26,9 @@ DISTANCE_FACTOR = {"R": 1.0, "S": 3.05}
 # Fewest clean laps for a slope or a pace to mean anything.
 MIN_STINT_LAPS = 5
 MIN_PACE_LAPS = 5
+# A driver is ranked only with at least this share of the field's typical clean-lap count: someone
+# who retired early ran light on fresh tyres and would otherwise look quickest.
+MIN_PACE_SHARE = 0.5
 # Fewest laps at one tyre life before the compound curve plots it.
 MIN_CURVE_LAPS = 3
 
@@ -172,10 +175,10 @@ def race_pace_payload(year: int, gp: str, session_name: str, round_number: Optio
         stints = stint_summary(mine, clean, per_lap, total_laps)
         corrected = corrected_times(clean, per_lap, total_laps)
         clean = clean.assign(Corrected=corrected.to_numpy())  # positional, so a repeated index can't misalign it
-        pace = float(corrected.median()) if len(clean) >= MIN_PACE_LAPS else None
         drivers.append({
             "code": code, **driver_profile(session, code),
-            "pace": pace, "gap": None, "clean_laps": int(len(clean)), "stints": stints,
+            "pace": float(corrected.median()) if len(clean) else None,
+            "gap": None, "clean_laps": int(len(clean)), "stints": stints,
         })
         for stint in stints:
             if stint["deg_per_lap"] is None:
@@ -184,6 +187,11 @@ def race_pace_payload(year: int, gp: str, session_name: str, round_number: Optio
             frame = rows[["TyreLife", "Corrected"]].dropna()
             by_compound.setdefault(stint["compound"], []).append(frame)
 
+    counts = [d["clean_laps"] for d in drivers if d["clean_laps"] >= MIN_PACE_LAPS]
+    needed = max(MIN_PACE_LAPS, MIN_PACE_SHARE * float(np.median(counts))) if counts else MIN_PACE_LAPS
+    for d in drivers:
+        if d["clean_laps"] < needed:
+            d["pace"] = None
     ranked = [d["pace"] for d in drivers if d["pace"] is not None]
     if not ranked:
         raise SessionDataError("No driver has enough clean laps in this session to measure race pace.")
