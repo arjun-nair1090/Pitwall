@@ -47,3 +47,38 @@ export function biggestGains(rows: readonly CornerDuelRow[]): { first: CornerDue
   }
   return { first, second };
 }
+
+export interface MeanSd {
+  mean: number;
+  sd: number;
+}
+
+// One clean lap through one corner. `delta_to_best` is this lap's zone time minus the corner's best.
+export interface CornerLap {
+  lap: number;
+  zone_time: number;
+  delta_to_best: number;
+  apex_speed: number;
+  brake_before_m: number | null;
+}
+
+// One corner across a driver's clean laps. `brake_before_m` is null when no lap braked there.
+export interface CornerConsistencyRow {
+  label: string;
+  number: number;
+  letter: string;
+  apex_speed: MeanSd;
+  brake_before_m: MeanSd | null;
+  zone_time: MeanSd & { best: number };
+  per_lap: CornerLap[];
+}
+
+// POST /api/v1/telemetry/corner-consistency. `ideal_lap` adds up each corner's best zone time;
+// both laps are telemetry durations, so they compare like with like.
+export interface CornerConsistencyResult {
+  driver: { code: string; name: string; team: string; color: string };
+  laps: number[];
+  corners: CornerConsistencyRow[];
+  best_lap: number;
+  ideal_lap: number;
+}
