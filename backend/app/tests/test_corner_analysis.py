@@ -197,6 +197,28 @@ def test_apex_is_never_above_entry_or_exit_when_a_zone_ends_mid_deceleration():
         assert row["apex_speed"] <= row["exit_speed"]
 
 
+def test_a_flat_kink_after_a_hairpin_reports_the_speed_at_its_marker():
+    distance = np.arange(0, 1001, 10)
+    # a hairpin at 100 m, then the car accelerates without a break through a kink at 700 m
+    speed = np.interp(distance, [0, 100, 700, 1000], [300, 90, 280, 320])
+    metrics = ca.corner_metrics(_tel(distance, speed=speed), [_corner(100), _corner(700, number=2)])
+    hairpin, kink = metrics
+    assert hairpin["apex_speed"] == pytest.approx(90.0)
+    assert kink["apex_speed"] == pytest.approx(280.0, abs=1.0)
+    assert kink["entry_speed"] >= kink["apex_speed"]
+    assert kink["apex_speed"] != pytest.approx(hairpin["exit_speed"], abs=1.0)
+
+
+def test_the_apex_is_the_minimum_near_the_marker_not_at_the_zone_start():
+    distance = np.arange(0, 1001, 10)
+    # out of a 60 km/h hairpin the car is still slow at the zone start (400 m, 150 km/h), then
+    # lifts for the second corner and bottoms out at 200 km/h just after its marker
+    speed = np.interp(distance, [0, 100, 400, 650, 720, 1000], [250, 60, 150, 250, 200, 300])
+    second = ca.corner_metrics(_tel(distance, speed=speed), [_corner(100), _corner(700, number=2)])[1]
+    assert second["apex_speed"] == pytest.approx(200.0)
+    assert second["entry_speed"] == pytest.approx(250.0)
+
+
 def test_zone_without_samples_still_gets_finite_metrics():
     distance = np.concatenate([np.arange(0, 151, 10), np.arange(850, 1001, 10)])
     tel = _tel(distance)
