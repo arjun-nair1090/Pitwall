@@ -60,12 +60,20 @@ def test_markers_snap_to_the_nearest_point_within_the_window():
 
 
 def test_markers_ignore_a_closer_point_outside_the_window():
-    # the car crosses its own line at 900 m: that sample is nearer in X/Y than anything near 500 m
+    # the car crosses its own line at 900 m: that sample is strictly nearer in X/Y than anything near 500 m
     distance = np.arange(0, 1001, 10)
     x = distance.astype(float)
-    x[distance == 900] = 500.0
+    x[distance == 900] = 502.0
     tel = _tel(distance, x=x)
-    assert ca.corner_markers(tel, [_corner(500)]) == [500.0]
+    corner = {**_corner(500), "x": 502.0}
+    assert ca.corner_markers(tel, [corner]) == [500.0]
+
+
+def test_markers_never_go_backwards():
+    # the second corner's nearest point (300 m) lies before the first corner's marker (500 m)
+    tel = _tel(np.arange(0, 1001, 10))
+    corners = [_corner(500), {**_corner(600, number=2), "x": 300.0}]
+    assert ca.corner_markers(tel, corners) == [500.0, 500.0]
 
 
 def test_markers_fall_back_to_the_clamped_reference_distance_and_never_go_backwards():
@@ -123,3 +131,52 @@ def test_corners_closer_than_the_sample_spacing_still_get_metrics():
 
 def test_no_corners_gives_no_metrics():
     assert ca.corner_metrics(_tel(np.arange(0, 1001, 100)), []) == []
+
+
+def test_braking_run_that_starts_in_the_previous_zone_is_measured_in_full():
+    distance = np.arange(0, 1001, 10)
+    speed = np.full(len(distance), 250.0)
+    speed[distance == 500] = 80.0
+    brake = (distance >= 380) & (distance <= 490)  # zone boundary between the corners is 450 m
+    tel = _tel(distance, speed=speed, brake=brake)
+    metrics = ca.corner_metrics(tel, [_corner(400), _corner(500, number=2)])
+    assert metrics[1]["brake_before_m"] == 120
+
+
+def test_apex_is_never_above_entry_or_exit_when_a_zone_ends_mid_deceleration():
+    distance = np.arange(0, 1001, 100)
+    speed = [250, 250, 250, 200, 150, 50, 60, 120, 200, 250, 250]
+    tel = _tel(distance, speed=speed)
+    metrics = ca.corner_metrics(tel, [_corner(300), _corner(600, number=2)])
+    first = metrics[0]  # zone ends at 450 m, between the 150 and 50 km/h samples
+    assert first["exit_speed"] == pytest.approx(100.0)
+    assert first["apex_speed"] == pytest.approx(100.0)
+    for row in metrics:
+        assert row["apex_speed"] <= row["entry_speed"]
+        assert row["apex_speed"] <= row["exit_speed"]
+
+
+def test_zone_without_samples_still_gets_finite_metrics():
+    distance = np.concatenate([np.arange(0, 151, 10), np.arange(850, 1001, 10)])
+    tel = _tel(distance)
+    corners = [_corner(100), _corner(500, number=2), _corner(950, number=3)]
+    assert ca.corner_markers(tel, corners)[1] == 500.0  # fallback: no sample within the window
+    middle = ca.corner_metrics(tel, corners)[1]  # zone 300-725 m falls inside the data gap
+    assert all(math.isfinite(v) for k, v in middle.items() if k != "brake_before_m")
+    assert middle["brake_before_m"] is None
+
+
+def test_nan_samples_do_not_leak_into_the_metrics():
+    distance = np.arange(0, 1001, 10)
+    speed = np.full(len(distance), 250.0)
+    speed[distance == 500] = 80.0
+    speed[distance == 480] = np.nan
+    brake = np.zeros(len(distance), dtype=object)
+    brake[:] = False
+    brake[distance == 490] = np.nan  # a missing flag is not braking
+    tel = _tel(distance, speed=speed, brake=np.zeros(len(distance)))
+    tel["Brake"] = brake
+    metrics = ca.corner_metrics(tel, [_corner(500)])[0]
+    assert all(v is None or math.isfinite(v) for v in metrics.values())
+    assert metrics["apex_speed"] == 80
+    assert metrics["brake_before_m"] is None
