@@ -3,9 +3,9 @@
 FastF1 gives every driver's race position and session time at the end of each lap, and nothing
 finer. An overtake is a pair of cars that swap order between two lap ends, so a pass and a re-pass
 inside one lap is invisible, and so is the place on track where a pass happened. Passes made through
-the pit lane or under a safety car are not counted, nor are cars that drove past one which had slowed
-by more than 2.5 s in the lap. A battle is a run of laps spent within the DRS
-window of the same car ahead.
+the pit lane or under a safety car are not counted. Nor is driving past a car in trouble: the passer
+must start the lap within 2.5 s of the car it passes, and that car must end the lap within 4 s of the
+passer. A battle is a run of laps spent within the DRS window of the same car ahead.
 """
 import time
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
@@ -20,6 +20,10 @@ BATTLE_GAP_S = 1.0
 # A passer starts the lap at most this far behind the car it passes. A car that crashed or stopped
 # loses many seconds in a lap and everyone who drives by would otherwise be credited with a pass.
 MAX_PASS_GAP_S = 2.5
+# The passed car ends the lap at most this far behind the passer. A car that slowed sharply within the
+# lap (a collision, a puncture) is left many seconds back by everyone who drives by. 2.5 s here would
+# drop real passes where the passer pulls away at once.
+MAX_PASSED_GAP_S = 4.0
 # Fewest consecutive laps in the window before it is called a battle.
 MIN_BATTLE_LAPS = 3
 # Track status digits for a safety car, red flag, VSC and VSC ending (as in corner_analysis.clean_laps).
@@ -89,8 +93,8 @@ class _Grid:
 
     def _passes(self, drivers: int) -> np.ndarray:
         """passes[i, a, b]: a was behind b at the end of row i-1 and is ahead at the end of row i, and
-        neither car pitted or ran under a neutralisation on row i, and a started the lap within
-        MAX_PASS_GAP_S of b."""
+        neither car pitted or ran under a neutralisation on row i, a started the lap within
+        MAX_PASS_GAP_S of b, and b ended it within MAX_PASSED_GAP_S of a."""
         out = np.zeros((self.total, drivers, drivers), dtype=bool)
         quiet = ~(self.pit | self.neutral)
         for i in range(1, self.total):
@@ -99,7 +103,8 @@ class _Grid:
                 behind = before[:, None] > before[None, :]
                 ahead = now[:, None] < now[None, :]
                 close = (self.time[i - 1][:, None] - self.time[i - 1][None, :]) <= MAX_PASS_GAP_S
-            out[i] = behind & ahead & close & quiet[i][:, None] & quiet[i][None, :]
+                kept_up = (self.time[i][None, :] - self.time[i][:, None]) <= MAX_PASSED_GAP_S
+            out[i] = behind & ahead & close & kept_up & quiet[i][:, None] & quiet[i][None, :]
         return out
 
     def car_ahead(self) -> np.ndarray:
