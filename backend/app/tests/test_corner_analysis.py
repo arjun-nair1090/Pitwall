@@ -309,7 +309,6 @@ def _laps_frame(rows):
 
 def test_clean_laps_drop_pit_deleted_and_slow_laps():
     laps = _laps_frame([
-        (1, 100.0, True, False, False),   # in-lap
         (2, 100.0, False, True, False),   # out-lap
         (3, 100.0, False, False, True),   # deleted
         (4, 110.0, False, False, False),  # 110% of the best
@@ -317,6 +316,7 @@ def test_clean_laps_drop_pit_deleted_and_slow_laps():
         (6, 101.0, False, False, False),
         (7, 102.0, False, False, False),
         (8, None, False, False, False),   # untimed
+        (9, 100.0, True, False, False),   # in-lap
     ])
     assert list(ca.clean_laps(laps)["LapNumber"]) == [5, 6, 7]
 
@@ -441,7 +441,7 @@ def test_payload_summarises_clean_laps_with_driver_details(monkeypatch):
 
 
 def test_payload_refuses_too_few_clean_laps(monkeypatch):
-    _patch_session(monkeypatch, [1, 2])
+    _patch_session(monkeypatch, [2, 3])
     with pytest.raises(ca.SessionDataError, match="at least 3"):
         ca.corner_consistency_payload(2024, "Belgium", "Q", "VER")
 
@@ -450,6 +450,12 @@ def test_payload_rechecks_the_minimum_after_skipping_laps_without_telemetry(monk
     _patch_session(monkeypatch, [2, 3, 4], no_telemetry=[3])
     with pytest.raises(ca.SessionDataError, match="only 2 clean laps"):
         ca.corner_consistency_payload(2024, "Belgium", "R", "VER")
+
+
+def test_payload_says_lap_not_laps_when_only_one_is_clean(monkeypatch):
+    _patch_session(monkeypatch, [2])
+    with pytest.raises(ca.SessionDataError, match="VER has only 1 clean lap in this session; at least 3"):
+        ca.corner_consistency_payload(2024, "Belgium", "Q", "VER")
 
 
 def test_payload_skips_a_lap_without_telemetry(monkeypatch):

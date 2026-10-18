@@ -217,7 +217,9 @@ def corner_duel(corners: List[Dict[str, Any]], tel1: pd.DataFrame, tel2: pd.Data
 
 def clean_laps(laps: pd.DataFrame) -> pd.DataFrame:
     """One driver's representative laps: timed, not a pit lap, not deleted, not the standing-start
-    lap, not run under a Safety Car, red flag or VSC, and within 7% of their best."""
+    lap, not run under a Safety Car, red flag or VSC, and within 7% of their best. FastF1 only fills
+    in Deleted when race-control messages are loaded, which load_session doesn't do, so in practice
+    that rule never removes a lap."""
     timed = laps[laps["LapTime"].notna() & laps["PitInTime"].isna() & laps["PitOutTime"].isna()]
     timed = timed[timed["LapNumber"] != 1]
     if "TrackStatus" in timed.columns:
@@ -274,8 +276,9 @@ def summarise_consistency(corners: List[Dict[str, Any]], per_lap: Dict[int, List
 
 
 def _too_few(code: str, count: int) -> SessionDataError:
+    laps = "lap" if count == 1 else "laps"
     return SessionDataError(
-        f"{code} has only {count} clean laps in this session; at least {MIN_CLEAN_LAPS} are needed to judge consistency."
+        f"{code} has only {count} clean {laps} in this session; at least {MIN_CLEAN_LAPS} are needed to judge consistency."
     )
 
 

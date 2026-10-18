@@ -199,6 +199,7 @@ class CornerConsistencyRequest(BaseModel):
             raise ValueError("Give a race name or a round number.")
         return self
 
+
 @router.post("/telemetry/corner-consistency")
 async def corner_consistency(req: CornerConsistencyRequest):
     """How repeatable a driver is through each corner, over their clean laps."""
