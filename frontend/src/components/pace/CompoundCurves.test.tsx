@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { cloneElement, type ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 import CompoundCurves from "./CompoundCurves";
@@ -24,6 +24,29 @@ describe("CompoundCurves", () => {
     render(<CompoundCurves compounds={PACE.compounds} />);
     expect(screen.getByText(/Points can sit below zero when drivers push on new tyres/)).toBeInTheDocument();
     expect(screen.queryByText(/time lost/i)).not.toBeInTheDocument();
+  });
+
+  it("names the compound of the hovered point in the tooltip", () => {
+    const { container } = render(<CompoundCurves compounds={PACE.compounds} />);
+    const symbols = container.querySelectorAll(".recharts-scatter-symbol");
+    expect(symbols).toHaveLength(4);
+    fireEvent.mouseEnter(symbols[2]);
+    const tooltip = container.querySelector(".recharts-tooltip-wrapper") as HTMLElement;
+    expect(tooltip).toHaveTextContent("Hard · tyre life 2 · −0.53 s · 9 laps");
+  });
+
+  it("draws each compound's wear rate as a dashed line through the origin", () => {
+    const { container } = render(<CompoundCurves compounds={PACE.compounds} />);
+    // the zero line, then one per compound
+    const lines = container.querySelectorAll(".recharts-reference-line line");
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toHaveAttribute("stroke", "#ffd12b");
+    expect(lines[1]).toHaveAttribute("stroke-dasharray", "6 4");
+  });
+
+  it("describes the chart for screen readers", () => {
+    render(<CompoundCurves compounds={PACE.compounds} />);
+    expect(screen.getByRole("img", { name: "Lap time against fresh-tyre pace by tyre age, for each compound" })).toBeInTheDocument();
   });
 
   it("says so when there are no long runs", () => {
