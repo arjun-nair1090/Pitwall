@@ -1,3 +1,4 @@
+import json
 import math
 from types import SimpleNamespace
 
@@ -6,6 +7,7 @@ import pandas as pd
 import pytest
 
 from app.services import corner_analysis as ca
+from app.services import duel_telemetry as dt
 
 
 def _tel(distance, speed=None, brake=None, seconds=None, x=None):
@@ -211,3 +213,167 @@ def test_corner_duel_deltas_sum_to_the_lap_time_difference():
 def test_corner_duel_is_empty_without_corners():
     fast, slow, _ = _duel_laps()
     assert ca.corner_duel([], fast, slow) == []
+
+
+# ---- consistency over a driver's clean laps ----
+
+@pytest.fixture(autouse=True)
+def _clear_consistency_memo():
+    ca.clear_cache()
+
+
+def _laps_frame(rows):
+    """rows: (lap number, seconds, in-lap, out-lap, deleted)."""
+    return pd.DataFrame({
+        "Driver": "VER",
+        "LapNumber": [r[0] for r in rows],
+        "LapTime": [pd.Timedelta(seconds=r[1]) if r[1] is not None else pd.NaT for r in rows],
+        "PitInTime": [pd.Timedelta(seconds=1) if r[2] else pd.NaT for r in rows],
+        "PitOutTime": [pd.Timedelta(seconds=1) if r[3] else pd.NaT for r in rows],
+        "Deleted": [r[4] for r in rows],
+    })
+
+
+def test_clean_laps_drop_pit_deleted_and_slow_laps():
+    laps = _laps_frame([
+        (1, 100.0, True, False, False),   # in-lap
+        (2, 100.0, False, True, False),   # out-lap
+        (3, 100.0, False, False, True),   # deleted
+        (4, 110.0, False, False, False),  # 110% of the best
+        (5, 100.0, False, False, False),
+        (6, 101.0, False, False, False),
+        (7, 102.0, False, False, False),
+        (8, None, False, False, False),   # untimed
+    ])
+    assert list(ca.clean_laps(laps)["LapNumber"]) == [5, 6, 7]
+
+
+def test_clean_laps_treat_a_missing_or_blank_deleted_flag_as_not_deleted():
+    rows = [(1, 100.0, False, False, False), (2, 101.0, False, False, False)]
+    assert list(ca.clean_laps(_laps_frame(rows).drop(columns="Deleted"))["LapNumber"]) == [1, 2]
+    laps = _laps_frame(rows)
+    laps["Deleted"] = [np.nan, False]
+    assert list(ca.clean_laps(laps)["LapNumber"]) == [1, 2]
+
+
+def _metrics(zone_time, apex=100.0, brake=50.0):
+    return {"zone_time": zone_time, "apex_speed": apex, "entry_speed": 200.0, "exit_speed": 150.0, "brake_before_m": brake}
+
+
+CORNERS = [_corner(100, 1), _corner(300, 2)]
+
+
+def test_summary_finds_best_mean_spread_and_ideal_lap():
+    per_lap = {
+        7: [_metrics(10.0, apex=100.0), _metrics(20.0, apex=80.0)],
+        5: [_metrics(11.0, apex=110.0), _metrics(19.0, apex=90.0)],
+        6: [_metrics(12.0, apex=120.0), _metrics(21.0, apex=70.0)],
+    }
+    summary = ca.summarise_consistency(CORNERS, per_lap)
+    assert summary["laps"] == [5, 6, 7]
+    t1, t2 = summary["corners"]
+    assert t1["label"] == "T1" and t1["number"] == 1 and t1["letter"] == ""
+    assert t1["zone_time"] == {"best": 10.0, "mean": 11.0, "sd": pytest.approx(1.0)}
+    assert t1["apex_speed"] == {"mean": pytest.approx(110.0), "sd": pytest.approx(10.0)}
+    assert t2["zone_time"]["best"] == 19.0
+    assert t2["zone_time"]["sd"] == pytest.approx(float(np.std([20.0, 19.0, 21.0], ddof=1)))
+    assert [row["lap"] for row in t1["per_lap"]] == [5, 6, 7]
+    assert [row["delta_to_best"] for row in t1["per_lap"]] == [pytest.approx(1.0), pytest.approx(2.0), 0.0]
+    assert t1["per_lap"][0]["apex_speed"] == 110.0
+    assert summary["ideal_lap"] == pytest.approx(29.0)   # 10 + 19
+    assert summary["best_lap"] == pytest.approx(30.0)    # lap 5: 11 + 19, lap 7: 10 + 20
+
+
+def test_summary_leaves_brake_point_out_for_a_corner_never_braked_for():
+    per_lap = {lap: [_metrics(10.0 + lap, brake=None), _metrics(20.0, brake=40.0 + lap)] for lap in (1, 2, 3)}
+    flat, braked = ca.summarise_consistency(CORNERS, per_lap)["corners"]
+    assert flat["brake_before_m"] is None
+    assert all(row["brake_before_m"] is None for row in flat["per_lap"])
+    assert braked["brake_before_m"]["mean"] == pytest.approx(42.0)
+
+
+def test_summary_uses_only_the_laps_that_braked():
+    per_lap = {
+        1: [_metrics(10.0, brake=60.0), _metrics(20.0)],
+        2: [_metrics(10.0, brake=None), _metrics(20.0)],
+        3: [_metrics(10.0, brake=80.0), _metrics(20.0)],
+    }
+    first = ca.summarise_consistency(CORNERS, per_lap)["corners"][0]
+    assert first["brake_before_m"]["mean"] == pytest.approx(70.0)
+    assert first["brake_before_m"]["sd"] == pytest.approx(float(np.std([60.0, 80.0], ddof=1)))
+    assert first["per_lap"][1]["brake_before_m"] is None
+
+
+CORNER_FRAME = pd.DataFrame({
+    "X": [100.0, 300.0], "Y": [0.0, 0.0], "Number": [1, 2], "Letter": ["", ""],
+    "Angle": [0.0, 0.0], "Distance": [100.0, 300.0],
+})
+
+
+class _Laps(pd.DataFrame):
+    """A laps frame whose rows can be walked with iterlaps, as FastF1's can."""
+    @property
+    def _constructor(self):
+        return _Laps
+
+    def iterlaps(self):
+        return self.iterrows()
+
+
+def _patch_session(monkeypatch, lap_numbers, corners_frame=CORNER_FRAME, no_telemetry=()):
+    frame = _laps_frame([(n, 100.0 + n, False, False, False) for n in lap_numbers])
+    session = SimpleNamespace(
+        laps=_Laps(frame),
+        get_circuit_info=lambda: SimpleNamespace(corners=corners_frame),
+        results=pd.DataFrame({"Abbreviation": ["VER"], "FullName": ["Max Verstappen"],
+                              "TeamName": ["Red Bull"], "TeamColor": ["3671C6"]}),
+    )
+
+    def lap_telemetry(lap, code):
+        number = int(lap["LapNumber"])
+        if number in no_telemetry:
+            raise ca.SessionDataError(f"No telemetry was recorded for {code}'s lap {number}.")
+        distance = np.arange(0.0, 501.0, 10.0)
+        return _tel(distance, seconds=distance / (30.0 + number))
+
+    monkeypatch.setattr(dt, "_lap_telemetry", lap_telemetry)
+    monkeypatch.setattr(ca, "load_session", lambda *a, **k: session)
+
+
+def test_payload_summarises_clean_laps_with_driver_details(monkeypatch):
+    _patch_session(monkeypatch, [1, 2, 3, 4])
+    payload = ca.corner_consistency_payload(2024, "Belgium", "R", "VER")
+    assert payload["driver"] == {"code": "VER", "name": "Max Verstappen", "team": "Red Bull", "color": "#3671C6"}
+    assert payload["laps"] == [1, 2, 3, 4]
+    assert [c["label"] for c in payload["corners"]] == ["T1", "T2"]
+    json.dumps(payload, allow_nan=False)
+
+
+def test_payload_refuses_too_few_clean_laps(monkeypatch):
+    _patch_session(monkeypatch, [1, 2])
+    with pytest.raises(ca.SessionDataError, match="at least 3"):
+        ca.corner_consistency_payload(2024, "Belgium", "Q", "VER")
+
+
+def test_payload_rechecks_the_minimum_after_skipping_laps_without_telemetry(monkeypatch):
+    _patch_session(monkeypatch, [1, 2, 3], no_telemetry=[2])
+    with pytest.raises(ca.SessionDataError, match="only 2 clean laps"):
+        ca.corner_consistency_payload(2024, "Belgium", "R", "VER")
+
+
+def test_payload_skips_a_lap_without_telemetry(monkeypatch):
+    _patch_session(monkeypatch, [1, 2, 3, 4], no_telemetry=[2])
+    assert ca.corner_consistency_payload(2024, "Belgium", "R", "VER")["laps"] == [1, 3, 4]
+
+
+def test_payload_refuses_when_corner_data_is_missing(monkeypatch):
+    _patch_session(monkeypatch, [1, 2, 3, 4], corners_frame=None)
+    with pytest.raises(ca.SessionDataError, match="Corner data isn't available for this session."):
+        ca.corner_consistency_payload(2024, "Belgium", "R", "VER")
+
+
+def test_payload_is_memoised(monkeypatch):
+    _patch_session(monkeypatch, [1, 2, 3, 4])
+    first = ca.corner_consistency_payload(2024, "Belgium", "R", "VER")
+    monkeypatch.setattr(ca, "load_session", lambda *a, **k: pytest.fail("should be served from the memo"))
+    assert ca.corner_consistency_payload(2024, "Belgium", "R", "VER") is first
