@@ -112,6 +112,15 @@ def _driver_payload(session, code: str, lap: pd.Series, tel: pd.DataFrame) -> Di
     }
 
 
+def _corners(session, tel1: pd.DataFrame, tel2: pd.DataFrame) -> List[Dict[str, Any]]:
+    """The corner comparison, or nothing when it can't be built: the lap comparison stands without it."""
+    try:
+        return corner_analysis.corner_duel(corner_analysis.circuit_corners(session), tel1, tel2)
+    except Exception as error:
+        print(f"Building the corner comparison failed: {error!r}")
+        return []
+
+
 def head_to_head_payload(
     year: int, gp: str, session_name: str, driver1: str, driver2: str,
     driver1_lap: Optional[int] = None, driver2_lap: Optional[int] = None,
@@ -121,7 +130,7 @@ def head_to_head_payload(
     return {
         "driver1": _driver_payload(session, driver1, lap1, tel1),
         "driver2": _driver_payload(session, driver2, lap2, tel2),
-        "corners": corner_analysis.corner_duel(corner_analysis.circuit_corners(session), tel1, tel2),
+        "corners": _corners(session, tel1, tel2),
     }
 
 
