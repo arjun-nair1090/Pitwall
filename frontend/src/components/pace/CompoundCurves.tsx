@@ -9,7 +9,7 @@ import { getCompoundStyle } from "@/lib/compounds";
 import { formatDeg, type CompoundDegradation, type CurvePoint } from "@/lib/pace";
 
 const NOTE =
-  "Each point is the median, at that tyre age, of every stint of at least 5 clean laps, measured against that stint's own fresh-tyre pace, so a quicker driver doesn't skew the curve. Points can sit below zero when drivers push on new tyres. The wear rate is pooled within stints, so long stints count most.";
+  "Each point is the median, at that tyre age, of every stint of at least 5 clean laps, measured against that stint's own fresh-tyre pace, so a quicker driver doesn't skew the curve. Points can sit below zero when drivers push on new tyres. The wear rate is the median of the stints' own rates.";
 
 type CompoundPoint = CurvePoint & { compound: string };
 
@@ -27,8 +27,8 @@ function CurveTooltip({ active, payload }: { active?: boolean; payload?: { paylo
   );
 }
 
-// How each compound wore across the whole field: the measured median at each tyre age, the pooled
-// wear rate drawn through the origin, and the figures in a table underneath.
+// How each compound wore across the whole field: the measured median at each tyre age, the typical
+// stint's wear rate drawn through the origin, and the figures in a table underneath.
 export default function CompoundCurves({ compounds }: { compounds: readonly CompoundDegradation[] }) {
   if (compounds.length === 0) {
     return <EmptyState title="Not enough long runs" description="No compound has a stint of at least 5 clean laps to measure wear from." />;
