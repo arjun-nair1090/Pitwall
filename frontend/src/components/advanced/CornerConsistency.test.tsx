@@ -49,7 +49,8 @@ const sel = { year: 2024, round: 14, session: "R" as const };
 
 beforeEach(() => {
   post.mockReset().mockResolvedValue({ data: RESULT });
-  sessionInfo.mockReset().mockReturnValue(ready(info));
+  // The info describes whichever session was asked for, as the real endpoint's does
+  sessionInfo.mockReset().mockImplementation((year: number, round: number, session: string) => ready({ ...info, year, round, session }));
 });
 
 describe("CornerConsistency", () => {
@@ -77,6 +78,13 @@ describe("CornerConsistency", () => {
     expect(container.querySelectorAll("[data-cell]")).toHaveLength(LAPS.length * RESULT.corners.length);
     expect(screen.getByRole("heading", { name: "Corner consistency" })).toBeInTheDocument();
     expect(screen.getByText("Max Verstappen, 3 clean laps")).toBeInTheDocument();
+  });
+
+  it("says so when the best lap was already the best through every corner", async () => {
+    post.mockResolvedValue({ data: { ...RESULT, best_lap: 104.9122, ideal_lap: 104.912 } });
+    render(<CornerConsistency sel={sel} />);
+    expect(await screen.findByText("Ideal lap from best corners: 1:44.912, the same as the best lap")).toBeInTheDocument();
+    expect(screen.queryByText(/0\.000 s quicker/)).not.toBeInTheDocument();
   });
 
   it("calls the ideal lap a ceiling in a race or sprint, where fuel and tyres change", async () => {
@@ -119,6 +127,24 @@ describe("CornerConsistency", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Analysing every clean lap. The first time a race is opened this can take up to a minute.",
     );
+  });
+
+  it("asks once for the new session, never for the old session's driver", async () => {
+    // Like useAsync, the session info answers with the previous session for one render after it changes
+    const qualifying = { ...info, session: "Q", drivers: [drv("NOR", "Lando Norris", 1), drv("VER", "Max Verstappen", 2)] };
+    let stale = true;
+    sessionInfo.mockImplementation((_year: number, _round: number, session: string) => {
+      if (session !== "Q") return ready(info);
+      if (stale) { stale = false; return ready(info); }
+      return ready(qualifying);
+    });
+    const { rerender } = render(<CornerConsistency sel={sel} />);
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(1));
+    rerender(<CornerConsistency sel={{ ...sel, session: "Q" }} />);
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+    await new Promise((r) => setTimeout(r, 50));
+    const forQualifying = post.mock.calls.filter((c) => (c[1] as { session: string }).session === "Q");
+    expect(forQualifying.map((c) => c[1])).toEqual([{ year: 2024, round: 14, session: "Q", driver: "NOR" }]);
   });
 
   it("shows the server's message when there aren't enough clean laps, without a retry", async () => {

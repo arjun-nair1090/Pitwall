@@ -11,7 +11,7 @@ import Select from "@/components/ui/Select";
 import Skeleton, { Loading } from "@/components/ui/Skeleton";
 import { useAsync } from "@/hooks/useAsync";
 import { useSessionInfo } from "@/hooks/useRaceData";
-import type { CornerConsistencyResult, CornerConsistencyRow } from "@/lib/corners";
+import { isLevel, type CornerConsistencyResult, type CornerConsistencyRow } from "@/lib/corners";
 import { formatLapTime } from "@/lib/timing";
 import CornerHeatmap from "./CornerHeatmap";
 
@@ -37,7 +37,10 @@ const columns: Column<CornerConsistencyRow>[] = [
 // have done by stringing their best corners together.
 export default function CornerConsistency({ sel }: { sel: RaceSelection }) {
   const info = useSessionInfo(sel.year, sel.round, sel.session);
-  const drivers = info.status === "ready" ? info.data.drivers : [];
+  // For one render after the session changes the info still describes the previous one; asking for
+  // its driver then would start a second, wasted analysis.
+  const current = info.status === "ready" && info.data.year === sel.year && info.data.round === sel.round && info.data.session === sel.session;
+  const drivers = current ? info.data.drivers : [];
   const [picked, setPicked] = useState<string | null>(null);
   // Keep the chosen driver across sessions they took part in, otherwise start from the first
   const driver = drivers.some((d) => d.code === picked) ? picked : drivers[0]?.code ?? null;
@@ -78,7 +81,11 @@ export default function CornerConsistency({ sel }: { sel: RaceSelection }) {
         ) : result ? (
           <>
             <p className="text-sm text-chalk">
-              {`Ideal lap from best corners: ${formatLapTime(result.ideal_lap)}, ${(result.best_lap - result.ideal_lap).toFixed(3)} s quicker than the best lap`}
+              {`Ideal lap from best corners: ${formatLapTime(result.ideal_lap)}, ${
+                isLevel(result.best_lap - result.ideal_lap)
+                  ? "the same as the best lap"
+                  : `${(result.best_lap - result.ideal_lap).toFixed(3)} s quicker than the best lap`
+              }`}
             </p>
             {RACE_SESSIONS.has(sel.session) && (
               <p className="mt-1 text-xs text-faint">Fuel, tyres and traffic change through a race, so this is a ceiling rather than a target.</p>
