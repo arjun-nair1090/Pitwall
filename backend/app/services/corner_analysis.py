@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from app.services.session_info import SessionDataError, driver_laps, driver_profile, load_session
+from app.services.session_info import SessionDataError, driver_laps, driver_profile, load_session, neutralised_laps
 
 # How far along the lap, either side of a corner's reference distance, a sample may sit and
 # still be matched to that corner. Keeps a corner from snapping onto a track crossing.
@@ -223,8 +223,7 @@ def clean_laps(laps: pd.DataFrame) -> pd.DataFrame:
     timed = laps[laps["LapTime"].notna() & laps["PitInTime"].isna() & laps["PitOutTime"].isna()]
     timed = timed[timed["LapNumber"] != 1]
     if "TrackStatus" in timed.columns:
-        neutralised = timed["TrackStatus"].map(lambda status: pd.notna(status) and any(c in str(status) for c in "4567"))
-        timed = timed[~neutralised]
+        timed = timed[~neutralised_laps(timed["TrackStatus"])]
     if "Deleted" in timed.columns:
         deleted = timed["Deleted"].map(lambda flag: bool(flag) if pd.notna(flag) else False)
         timed = timed[~deleted]

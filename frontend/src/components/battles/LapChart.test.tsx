@@ -29,7 +29,7 @@ describe("LapChart", () => {
   it("summarises the highlighted driver", async () => {
     renderChart();
     await userEvent.selectOptions(screen.getByLabelText("Highlight"), "NOR");
-    expect(screen.getByTestId("lap-chart-summary")).toHaveTextContent("NOR: started 3rd, finished 1st, 1 pass made, 0 lost");
+    expect(screen.getByTestId("lap-chart-summary")).toHaveTextContent("NOR: started 3rd, finished 1st, 2 passes made, 1 lost");
   });
 
   it("says a pit-lane start and a non-finisher plainly", async () => {
@@ -45,17 +45,29 @@ describe("LapChart", () => {
     const marked = [nor, { ...ver, finish: null, finish_note: "DSQ" as const }, pia, { ...ham, finish_note: null }];
     render(<LapChart drivers={marked} overtakes={overtakes} totalLaps={total_laps} />);
     await userEvent.selectOptions(screen.getByLabelText("Highlight"), "VER");
-    expect(screen.getByTestId("lap-chart-summary")).toHaveTextContent("VER: started 1st, was disqualified, 0 passes made, 1 lost");
+    expect(screen.getByTestId("lap-chart-summary")).toHaveTextContent("VER: started 1st, was disqualified, 1 pass made, 2 lost");
     await userEvent.selectOptions(screen.getByLabelText("Highlight"), "HAM");
     expect(screen.getByTestId("lap-chart-summary")).toHaveTextContent("HAM: started 4th, did not finish, 0 passes made, 1 lost");
   });
 
-  it("lists every driver in finishing order with a team-coloured swatch", () => {
-    renderChart();
+  it("lists every driver in the order given, with a team-coloured swatch", () => {
+    // Neither finishing, alphabetical nor reversed order: the legend must keep the payload's order as is.
+    const [nor, ver, pia, ham] = drivers;
+    render(<LapChart drivers={[ver, ham, nor, pia]} overtakes={overtakes} totalLaps={total_laps} />);
     const items = legend();
-    expect(items.map((li) => li.textContent)).toEqual(["NOR", "VER", "PIA", "HAM"]);
-    expect(swatch(items[0]).style.backgroundColor).toBe("rgb(255, 128, 0)");
-    expect(swatch(items[1]).style.backgroundColor).toBe("rgb(54, 113, 198)");
+    expect(items.map((li) => li.textContent)).toEqual(["VER", "HAM", "NOR", "PIA"]);
+    expect(swatch(items[0]).style.backgroundColor).toBe("rgb(54, 113, 198)");
+    expect(swatch(items[2]).style.backgroundColor).toBe("rgb(255, 128, 0)");
+  });
+
+  it("leaves a driver with no laps off the chart and out of the y range", () => {
+    const rus = { ...drivers[3], code: "RUS", name: "George Russell", positions: [null, null, null, null] };
+    const { container } = render(<LapChart drivers={[...drivers, rus]} overtakes={overtakes} totalLaps={total_laps} />);
+    expect(legend().map((li) => li.textContent)).toEqual(["NOR", "VER", "PIA", "HAM"]);
+    expect(within(screen.getByLabelText("Highlight")).queryByRole("option", { name: "George Russell (RUS)" })).toBeNull();
+    expect(container.querySelectorAll("path.recharts-line-curve")).toHaveLength(4);
+    const ticks = Array.from(container.querySelectorAll(".recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value")).map((t) => t.textContent);
+    expect(ticks).toEqual(["1", "2", "3", "4"]);
   });
 
   it("dashes the second driver of a team", () => {
@@ -93,7 +105,8 @@ describe("LapChart", () => {
     fireEvent.mouseMove(surface, { clientX: 50 + (734 * 2) / 3, clientY: 100 });
     const tooltip = container.querySelector(".recharts-tooltip-wrapper") as HTMLElement;
     expect(await within(tooltip).findByText("Lap 3")).toBeInTheDocument();
-    expect(within(tooltip).getAllByRole("listitem")[0]).toHaveTextContent("1NOR");
+    // VER leads lap 3 only; NOR leads laps 2 and 4, so a neighbouring lap would name NOR.
+    expect(within(tooltip).getAllByRole("listitem")[0]).toHaveTextContent("1VER");
   });
 });
 

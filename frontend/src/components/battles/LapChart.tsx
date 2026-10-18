@@ -70,8 +70,9 @@ export function LapTooltipContent({
 // Every driver's race position, lap by lap. Picking a driver thickens their line, fades the rest
 // and ringed-marks the laps where they made a pass. The marks are the highlighted line's own dots,
 // not a Scatter: in a line chart the axis tooltip matches a scatter by index and names the wrong point.
+// A driver out before completing a lap has nothing to draw, so they're left off the chart entirely.
 export default function LapChart({
-  drivers,
+  drivers: allDrivers,
   overtakes,
   totalLaps,
 }: {
@@ -80,6 +81,7 @@ export default function LapChart({
   totalLaps: number;
 }) {
   const [highlight, setHighlight] = useState("");
+  const drivers = allDrivers.filter((d) => d.positions.some((p) => p !== null));
   const styled = styleDrivers(drivers);
   const chosen = drivers.find((d) => d.code === highlight);
   const passLaps = new Set(overtakes.filter((o) => o.driver === highlight).map((o) => o.lap));

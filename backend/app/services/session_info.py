@@ -77,6 +77,17 @@ def driver_profile(session, code: str) -> Dict[str, str]:
     return profile
 
 
+# Track status digits for a Safety Car, red flag, VSC and VSC ending.
+NEUTRALISED_DIGITS = "4567"
+
+
+def neutralised_laps(track_status: pd.Series) -> pd.Series:
+    """True for each lap whose TrackStatus shows any part of it run under a Safety Car, red flag or VSC."""
+    return track_status.map(
+        lambda status: pd.notna(status) and any(c in str(status) for c in NEUTRALISED_DIGITS)
+    ).astype(bool)
+
+
 def driver_laps(laps: pd.DataFrame, code: str) -> pd.DataFrame:
     """All of one driver's laps, or a message naming who *did* run if they took no part."""
     subset = laps[laps["Driver"] == code]
