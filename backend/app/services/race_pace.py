@@ -92,7 +92,7 @@ def stint_summary(
         line = _slope(aged["life"].to_numpy(dtype=float), aged["y"].to_numpy(dtype=float))
         if line is not None:
             deg, intercept = line
-            first, last = aged.loc[aged["lap"].idxmin()], aged.loc[aged["lap"].idxmax()]
+            first, last = aged.iloc[int(aged["lap"].to_numpy().argmin())], aged.iloc[int(aged["lap"].to_numpy().argmax())]
             fit = {
                 "from": {"lap": int(first["lap"]), "time": float(intercept + deg * first["life"])},
                 "to": {"lap": int(last["lap"]), "time": float(intercept + deg * last["life"])},
@@ -171,6 +171,7 @@ def race_pace_payload(year: int, gp: str, session_name: str, round_number: Optio
         clean = clean_laps(mine)
         stints = stint_summary(mine, clean, per_lap, total_laps)
         corrected = corrected_times(clean, per_lap, total_laps)
+        clean = clean.assign(Corrected=corrected.to_numpy())  # positional, so a repeated index can't misalign it
         pace = float(corrected.median()) if len(clean) >= MIN_PACE_LAPS else None
         drivers.append({
             "code": code, **driver_profile(session, code),
@@ -180,7 +181,7 @@ def race_pace_payload(year: int, gp: str, session_name: str, round_number: Optio
             if stint["deg_per_lap"] is None:
                 continue
             rows = clean[clean["Stint"] == stint["stint"]]
-            frame = pd.DataFrame({"TyreLife": rows["TyreLife"], "Corrected": corrected.loc[rows.index]}).dropna()
+            frame = rows[["TyreLife", "Corrected"]].dropna()
             by_compound.setdefault(stint["compound"], []).append(frame)
 
     ranked = [d["pace"] for d in drivers if d["pace"] is not None]
