@@ -82,3 +82,51 @@ def test_head_to_head_includes_corners_and_survives_missing_circuit_info(monkeyp
     assert set(payload) == {"driver1", "driver2", "corners"}
     assert payload["driver1"]["code"] == "VER" and payload["driver2"]["code"] == "NOR"
     assert payload["corners"] == []
+
+
+def _stub_duel(monkeypatch, tel1, tel2):
+    def lap(number):
+        return pd.Series({"LapNumber": number, "LapTime": pd.Timedelta(seconds=90), "Compound": "SOFT"})
+
+    monkeypatch.setattr(dt, "_duel", lambda *args: (object(), lap(3), tel1, lap(4), tel2))
+    monkeypatch.setattr(dt, "driver_profile", lambda session, code: {"name": code, "team": "T", "color": "#fff"})
+
+
+def test_head_to_head_corners_keep_each_drivers_own_lap(monkeypatch):
+    from app.services import corner_analysis
+
+    fast = _tel([200] * 21, step_m=100.0, step_s=1.0)
+    slow = _tel([200] * 21, step_m=100.0, step_s=1.1)
+    corners = [
+        {"number": n, "letter": "", "label": f"T{n}", "x": d / 10 * 10.0, "y": d / 10 * 5.0,
+         "angle": 0.0, "distance": float(d)}
+        for n, d in ((1, 500), (2, 1000), (3, 1500))
+    ]
+    _stub_duel(monkeypatch, fast, slow)
+    monkeypatch.setattr(corner_analysis, "circuit_corners", lambda session: corners)
+
+    payload = dt.head_to_head_payload(2024, "Monza", "R", "VER", "NOR")
+
+    assert len(payload["corners"]) == 3
+    for row in payload["corners"]:
+        assert row["time_delta"] > 0
+        assert row["driver2"]["zone_time"] > row["driver1"]["zone_time"]
+
+
+def test_head_to_head_survives_a_corner_analysis_failure(monkeypatch, capsys):
+    from app.services import corner_analysis
+
+    tel = _tel([200, 210, 220])
+    _stub_duel(monkeypatch, tel, tel)
+    monkeypatch.setattr(corner_analysis, "circuit_corners", lambda session: [{"label": "T1"}])
+
+    def boom(*args):
+        raise ValueError("bad corner data")
+
+    monkeypatch.setattr(corner_analysis, "corner_duel", boom)
+
+    payload = dt.head_to_head_payload(2024, "Monza", "R", "VER", "NOR")
+
+    assert payload["driver1"]["code"] == "VER" and payload["driver2"]["code"] == "NOR"
+    assert payload["corners"] == []
+    assert "bad corner data" in capsys.readouterr().out
