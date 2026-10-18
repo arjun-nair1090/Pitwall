@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDuelRows, dominanceSegments, duelStyle, lapDuration, positionAtTime, type TelemetryPoint } from "./duel";
+import { buildDuelRows, dominanceSegments, duelStyle, gapAtTime, lapDuration, positionAtTime, type TelemetryPoint } from "./duel";
 
 const point = (distance: number, over: Partial<TelemetryPoint> = {}): TelemetryPoint => ({
   distance, speed: 100, throttle: 100, brake: 0, gear: 5, rpm: 10000, drs: 0, time: distance / 50, x: distance, y: 0, acceleration: 0, ...over,
@@ -145,6 +145,49 @@ describe("positionAtTime", () => {
     const dense = Array.from({ length: 101 }, (_, i) => point(i * 10, { time: i / 10, x: i * 10 }));
     expect(positionAtTime(sparse, 5)?.x).toBeCloseTo(500);
     expect(positionAtTime(dense, 5)?.x).toBeCloseTo(500);
+  });
+});
+
+describe("gapAtTime", () => {
+  // A covers 10 m a second and B 8 m a second, over a 1000 m lap.
+  const steady = (metresPerSecond: number, end = 1000) =>
+    Array.from({ length: end / 10 + 1 }, (_, i) => point(i * 10, { time: (i * 10) / metresPerSecond }));
+  const quick = steady(10);
+  const slow = steady(8);
+
+  it("is level before either car has moved", () => {
+    expect(gapAtTime(quick, slow, 0)).toBe(0);
+  });
+
+  it("measures where the trailing car is, against when the leader passed there", () => {
+    // 10 s in, B is at 80 m; A passed 80 m at 8 s, so B is 2 s behind
+    expect(gapAtTime(quick, slow, 10)).toBeCloseTo(2);
+  });
+
+  it("goes negative when the second car is ahead", () => {
+    expect(gapAtTime(slow, quick, 10)).toBeCloseTo(-2);
+  });
+
+  it("keeps counting while the quicker car waits at the line", () => {
+    // A finished at 100 s; at 110 s B is at 880 m, which A passed at 88 s
+    expect(gapAtTime(quick, slow, 110)).toBeCloseTo(22);
+  });
+
+  it("ends on the difference in lap time, even when the laps measure slightly different lengths", () => {
+    const short = steady(8, 990);
+    expect(gapAtTime(quick, short, 200)).toBeCloseTo(lapDuration(short) - lapDuration(quick));
+  });
+
+  it("runs smoothly into the line when the laps measure different lengths, with no jump at the end", () => {
+    // B's lap measures 990 m and ends at 123.75 s. Just before that it is 99.96% round, which A
+    // reached at 99.96 s: compared by share of the lap, not by metre, the gap lands on 23.75 s.
+    const short = steady(8, 990);
+    expect(gapAtTime(quick, short, 123.7)).toBeCloseTo(23.74, 2);
+  });
+
+  it("has no gap when either lap is empty", () => {
+    expect(gapAtTime([], slow, 5)).toBeNull();
+    expect(gapAtTime(quick, [], 5)).toBeNull();
   });
 });
 

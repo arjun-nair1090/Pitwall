@@ -8,6 +8,13 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-18",
+    title: "Deeper analysis",
+    items: [
+      "Head to head: while the ghost cars play, a live readout says who is ahead and by how much. It is measured where the trailing car is, against when the leader passed that point, and it lands exactly on the gap at the flag.",
+    ],
+  },
+  {
     date: "2026-09-21",
     title: "The official look",
     items: [

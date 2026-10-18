@@ -142,11 +142,11 @@ export const lapDuration = (points: readonly TelemetryPoint[]): number => (point
 
 // Where the car was `seconds` into its lap. Before the lap it sits on the start, after it on the
 // line, so a faster car waits at the finish while the slower one completes its lap.
-export function positionAtTime(points: readonly TelemetryPoint[], seconds: number): { x: number; y: number } | null {
-  if (points.length === 0) return null;
+function sampleAtTime(points: readonly TelemetryPoint[], seconds: number): { x: number; y: number; distance: number } {
   const last = points.length - 1;
-  if (seconds <= points[0].time) return { x: points[0].x, y: points[0].y };
-  if (seconds >= points[last].time) return { x: points[last].x, y: points[last].y };
+  const pick = (p: TelemetryPoint) => ({ x: p.x, y: p.y, distance: p.distance });
+  if (seconds <= points[0].time) return pick(points[0]);
+  if (seconds >= points[last].time) return pick(points[last]);
   let lo = 0;
   let hi = last;
   while (hi - lo > 1) {
@@ -158,7 +158,42 @@ export function positionAtTime(points: readonly TelemetryPoint[], seconds: numbe
   const to = points[hi];
   const span = to.time - from.time;
   const t = span > 0 ? (seconds - from.time) / span : 0;
-  return { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+  return {
+    x: from.x + (to.x - from.x) * t,
+    y: from.y + (to.y - from.y) * t,
+    distance: from.distance + (to.distance - from.distance) * t,
+  };
+}
+
+export function positionAtTime(points: readonly TelemetryPoint[], seconds: number): { x: number; y: number } | null {
+  if (points.length === 0) return null;
+  const { x, y } = sampleAtTime(points, seconds);
+  return { x, y };
+}
+
+// How far round its lap a car is, from 0 at its first sample to 1 at its last.
+function lapShare(points: readonly TelemetryPoint[], distance: number): number {
+  const start = points[0].distance;
+  const length = points[points.length - 1].distance - start;
+  return length > 0 ? (distance - start) / length : 1;
+}
+
+// When the car was `share` of the way round its lap.
+function timeAtShare(points: readonly TelemetryPoint[], share: number): number {
+  const start = points[0].distance;
+  const length = points[points.length - 1].distance - start;
+  return valueAt(points, start + share * length, "time", false);
+}
+
+// How far B was behind A `seconds` into the replay, in seconds (negative when B was ahead). It is
+// taken where the trailing car is now, against when the leader passed that same point, so it only
+// uses ground both cars have covered. Points are matched by share of the lap rather than by metre:
+// two laps' telemetry rarely measures the same length, and by metre the gap would stall short of
+// the line and then jump. Once both have finished it is the difference in lap time.
+export function gapAtTime(a: readonly TelemetryPoint[], b: readonly TelemetryPoint[], seconds: number): number | null {
+  if (a.length === 0 || b.length === 0) return null;
+  const share = Math.min(lapShare(a, sampleAtTime(a, seconds).distance), lapShare(b, sampleAtTime(b, seconds).distance));
+  return timeAtShare(b, share) - timeAtShare(a, share);
 }
 
 // One side of POST /api/v1/telemetry/compare.

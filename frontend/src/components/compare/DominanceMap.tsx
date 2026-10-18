@@ -5,7 +5,7 @@ import { Download, FastForward, Pause, Play } from "lucide-react";
 import Button from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import { readableTextColor } from "@/lib/color";
-import { dominanceSegments, lapDuration, positionAtTime, type DuelStyle, type TelemetryPoint } from "@/lib/duel";
+import { dominanceSegments, gapAtTime, lapDuration, positionAtTime, type DuelStyle, type TelemetryPoint } from "@/lib/duel";
 import { exportSvgAsPng } from "@/lib/exportSvg";
 import { makeProjector } from "@/lib/trackProjection";
 import { formatDelta } from "@/lib/timing";
@@ -70,6 +70,8 @@ export default function DominanceMap({ lap1, lap2, code1, code2, style }: Domina
   const secondShare = 100 - firstShare;
   const carA = positionAtTime(lap1, seconds);
   const carB = positionAtTime(lap2, seconds);
+  const gap = gapAtTime(lap1, lap2, seconds) ?? 0;
+  const level = Math.round(Math.abs(gap) * 1000) === 0;
   const toPath = (points: readonly { x: number; y: number }[]) =>
     points.map((p) => { const q = project(p); return `${q.x.toFixed(1)},${q.y.toFixed(1)}`; }).join(" ");
 
@@ -128,6 +130,15 @@ export default function DominanceMap({ lap1, lap2, code1, code2, style }: Domina
           {code2} faster through {secondShare}% of the lap
         </li>
       </ul>
+
+      <p data-testid="live-gap" aria-live="off" className="flex items-center justify-center gap-2 text-sm tabular-nums text-chalk">
+        {level ? "Level" : (
+          <>
+            <span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: gap > 0 ? style.color1 : style.color2 }} />
+            {gap > 0 ? code1 : code2} ahead by {Math.abs(gap).toFixed(3)} s
+          </>
+        )}
+      </p>
 
       <div className="flex flex-wrap items-center gap-3">
         <Button
