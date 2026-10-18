@@ -42,12 +42,12 @@ describe("PaceRanking", () => {
 
   it("says how many drivers could not be ranked", () => {
     render(<PaceRanking drivers={PACE.drivers} />);
-    expect(screen.getByText("2 drivers ran too few clean laps to compare with the field.")).toBeInTheDocument();
+    expect(screen.getByText("2 drivers ran too little of the race to compare with the field.")).toBeInTheDocument();
   });
 
   it("uses the singular for one driver, and says nothing for none", () => {
     const { rerender } = render(<PaceRanking drivers={PACE.drivers.slice(0, 3)} />);
-    expect(screen.getByText("1 driver ran too few clean laps to compare with the field.")).toBeInTheDocument();
+    expect(screen.getByText("1 driver ran too little of the race to compare with the field.")).toBeInTheDocument();
     rerender(<PaceRanking drivers={PACE.drivers.slice(0, 2)} />);
     expect(screen.queryByText(/too few clean laps/)).not.toBeInTheDocument();
   });
