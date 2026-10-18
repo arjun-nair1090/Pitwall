@@ -10,21 +10,30 @@ import Skeleton, { Loading } from "@/components/ui/Skeleton";
 import { useAsync } from "@/hooks/useAsync";
 import type { RaceParams } from "@/lib/compareParams";
 import type { FuelModel, RacePaceResult } from "@/lib/pace";
-import { SESSION_LABELS } from "@/lib/season";
+import { SESSION_LABELS, type SessionCode } from "@/lib/season";
 import CompoundCurves from "./CompoundCurves";
 import PaceRanking from "./PaceRanking";
 import StintChart from "./StintChart";
 
 const SESSIONS = ["R", "S"] as const;
 
-function fuelNote(fuel: FuelModel): string {
-  return `Fuel-corrected at ${fuel.seconds_per_lap.toFixed(3)} s a lap (${fuel.kg_per_lap.toFixed(2)} kg a lap at ${fuel.seconds_per_kg} s per kg): every lap is shown as if run on the final lap's fuel.`;
+// The correction is a stated model, so the note says what it assumes. A sprint burns at the race's
+// rate, so its fuel is stated over the race laps it would cover, which keeps the arithmetic true.
+function fuelNote(fuel: FuelModel, session: SessionCode): string {
+  const kg = Math.round(fuel.start_kg);
+  if (session === "S") {
+    return `Fuel-corrected assuming a sprint burns at a race's rate, ${kg} kg over ${Math.round(fuel.start_kg / fuel.kg_per_lap)} laps at ${fuel.seconds_per_kg} s per kg: ${fuel.seconds_per_lap.toFixed(3)} s a lap. Every lap is shown as if run on the final lap's fuel.`;
+  }
+  return `Fuel-corrected assuming ${kg} kg at the start burned evenly over ${fuel.total_laps} laps at ${fuel.seconds_per_kg} s per kg: ${fuel.seconds_per_lap.toFixed(3)} s a lap. Every lap is shown as if run on the final lap's fuel.`;
 }
 
 // Who was quickest over a race or sprint once fuel burn is taken out, and how each tyre wore. The
 // analysis runs as soon as a session is chosen; the picker only offers races and sprints.
 export default function RacePace({ initial }: { initial: RaceParams }) {
-  const [sel, setSel] = useState<RaceSelection>({ year: initial.year, round: initial.round, session: initial.session });
+  // A link from another page may name qualifying or practice; analyse the race instead of asking
+  // the server for a session it refuses.
+  const session = initial.session === "S" ? "S" : "R";
+  const [sel, setSel] = useState<RaceSelection>({ year: initial.year, round: initial.round, session });
 
   const analysis = useAsync<RacePaceResult>(
     sel.round === null
@@ -55,7 +64,7 @@ export default function RacePace({ initial }: { initial: RaceParams }) {
           <Panel title="Race pace" meta={`${sel.year}, round ${sel.round}, ${SESSION_LABELS[sel.session]}`}>
             <div className="p-4">
               <PaceRanking drivers={analysis.data.drivers} />
-              <p className="mt-3 text-xs text-faint">{fuelNote(analysis.data.fuel)}</p>
+              <p className="mt-3 text-xs text-faint">{fuelNote(analysis.data.fuel, sel.session)}</p>
             </div>
           </Panel>
           <Panel title="Stints">

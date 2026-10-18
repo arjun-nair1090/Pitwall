@@ -24,7 +24,7 @@ describe("CompoundCurves", () => {
     render(<CompoundCurves compounds={PACE.compounds} />);
     expect(
       screen.getByText(
-        "Each point is the median, at that tyre age, of every stint of at least 5 clean laps, measured against that stint's own fresh-tyre pace, so a quicker driver doesn't skew the curve. Points can sit below zero when drivers push on new tyres. The wear rate is the median of the stints' own rates.",
+        "Each point is the median, at that tyre age, of every stint of at least 5 clean laps, measured against that stint's own fresh-tyre pace, so a quicker driver doesn't skew the curve. Points can sit below zero when drivers push on new tyres. The wear rate is the median of the stints' own rates. Colours match the table. In a mixed-weather race, intermediate and wet laps rarely count as clean, and a change in conditions shows up as wear.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/time lost/i)).not.toBeInTheDocument();
