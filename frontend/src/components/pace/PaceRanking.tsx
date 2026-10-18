@@ -65,7 +65,7 @@ export default function PaceRanking({ drivers }: { drivers: PaceDriver[] }) {
       />
       {unranked > 0 ? (
         <p className="mt-3 text-xs text-faint">
-          {`${unranked} ${unranked === 1 ? "driver" : "drivers"} ran too few clean laps to compare with the field.`}
+          {`${unranked} ${unranked === 1 ? "driver" : "drivers"} ran too little of the race to compare with the field.`}
         </p>
       ) : null}
     </>
