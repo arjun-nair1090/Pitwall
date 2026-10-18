@@ -6,7 +6,9 @@ export interface BattleDriver {
   team: string;
   color: string;
   grid: number | null;
+  // The classified place; null for a retirement or a disqualification, which finish_note names.
   finish: number | null;
+  finish_note: "DNF" | "DSQ" | null;
   start_gain: number | null;
   made: number;
   lost: number;

@@ -8,7 +8,7 @@ by more than 2.5 s in the lap. A battle is a run of laps spent within the DRS
 window of the same car ahead.
 """
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -182,16 +182,40 @@ def _whole(value: Any) -> Optional[int]:
     return int(value) if pd.notna(value) else None
 
 
-def _results_by_code(session: Any) -> Dict[str, Tuple[Optional[int], Optional[int]]]:
-    """(grid, finish) per driver code. A missing or zero grid slot (a pit-lane start) is None."""
+# ClassifiedPosition letters: disqualified or excluded, and retired, not classified, withdrawn or
+# failed to qualify.
+_FINISH_NOTES = {"D": "DSQ", "E": "DSQ", "R": "DNF", "N": "DNF", "W": "DNF", "F": "DNF"}
+
+
+def _classified(value: Any) -> Tuple[Optional[int], Optional[str]]:
+    """(finish, note) from a ClassifiedPosition. FastF1 numbers every car in Position, retirements
+    and disqualifications included, so only a classified place counts as a finish."""
+    text = str(value).strip() if value is not None and pd.notna(value) else ""
+    if text.isdigit():
+        return int(text), None
+    return None, _FINISH_NOTES.get(text)
+
+
+class _Result(NamedTuple):
+    """One driver's grid slot, classified finish, DNF/DSQ note and numeric Position."""
+    grid: Optional[int] = None
+    finish: Optional[int] = None
+    note: Optional[str] = None
+    order: Optional[int] = None
+
+
+def _results_by_code(session: Any) -> Dict[str, _Result]:
+    """Each driver's result. A missing or zero grid slot (a pit-lane start) is None, and `order` is
+    the numeric Position the drivers are sorted by."""
     results = getattr(session, "results", None)
     if results is None or results.empty or "Abbreviation" not in results.columns:
         return {}
-    out: Dict[str, Tuple[Optional[int], Optional[int]]] = {}
+    out: Dict[str, _Result] = {}
     for _, row in results.iterrows():
         grid = _whole(row["GridPosition"]) if "GridPosition" in row.index else None
-        finish = _whole(row["Position"]) if "Position" in row.index else None
-        out[str(row["Abbreviation"])] = (grid or None, finish)
+        order = _whole(row["Position"]) if "Position" in row.index else None
+        finish, note = _classified(row["ClassifiedPosition"] if "ClassifiedPosition" in row.index else None)
+        out[str(row["Abbreviation"])] = _Result(grid or None, finish, note, order)
     return out
 
 
@@ -216,17 +240,20 @@ def race_battles_payload(year: int, gp: str, session_name: str, round_number: Op
 
     results = _results_by_code(session)
     drivers: List[Dict[str, Any]] = []
+    order: Dict[str, Optional[int]] = {}
     for d, code in enumerate(grid.codes):
-        start, finish = results.get(code, (None, None))
+        result = results.get(code, _Result())
+        start = result.grid
         lap_one = grid.pos[0, d]
+        order[code] = result.order
         drivers.append({
             "code": code, **driver_profile(session, code),
-            "grid": start, "finish": finish,
+            "grid": start, "finish": result.finish, "finish_note": result.note,
             "start_gain": start - int(lap_one) if start is not None and not np.isnan(lap_one) else None,
             "made": made.get(code, 0), "lost": lost.get(code, 0),
             "positions": [None if np.isnan(p) else int(p) for p in grid.pos[:, d]],
         })
-    drivers.sort(key=lambda r: (r["finish"] is None, r["finish"] if r["finish"] is not None else 0, r["code"]))
+    drivers.sort(key=lambda r: (order[r["code"]] is None, order[r["code"]] or 0, r["code"]))
 
     payload = {
         "total_laps": int(laps["LapNumber"].max()),
