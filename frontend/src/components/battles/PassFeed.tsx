@@ -22,13 +22,17 @@ export default function PassFeed({ overtakes, drivers }: { overtakes: Overtake[]
         <option value="">All drivers</option>
         {drivers.map((d) => <option key={d.code} value={d.code}>{`${d.name} (${d.code})`}</option>)}
       </Select>
-      <ul className="max-h-96 divide-y divide-gantry overflow-y-auto text-sm tabular-nums">
-        {shown.map((o, i) => (
-          <li key={`${o.lap}-${o.driver}-${o.passed}-${i}`} className="py-1.5">
-            {`Lap ${o.lap} · ${o.driver} passed ${o.passed} for P${o.position}`}
-          </li>
-        ))}
-      </ul>
+      {shown.length === 0 ? (
+        <p className="text-sm text-mute">{`No on-track passes involve ${code}.`}</p>
+      ) : (
+        <ul className="max-h-96 divide-y divide-gantry overflow-y-auto text-sm tabular-nums">
+          {shown.map((o, i) => (
+            <li key={`${o.lap}-${o.driver}-${o.passed}-${i}`} className="py-1.5">
+              {`Lap ${o.lap} · ${o.driver} passed ${o.passed} for P${o.position}`}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
