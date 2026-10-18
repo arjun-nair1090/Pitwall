@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import DominanceMap from "./DominanceMap";
@@ -63,6 +63,20 @@ describe("DominanceMap", () => {
     expect(screen.getByRole("button", { name: /pause/i })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /pause/i }));
     expect(screen.getByRole("button", { name: /play both laps/i })).toBeInTheDocument();
+  });
+
+  it("shows the live gap between the cars as the replay moves", () => {
+    render(<DominanceMap lap1={fastFirstHalf} lap2={fastSecondHalf} code1="VER" code2="NOR" style={duelStyle("#3671C6", "#FF8000")} />);
+    expect(screen.getByTestId("live-gap")).toHaveTextContent("Level");
+    // 50 s in, NOR is at ~454.5 m, which VER passed at ~45.45 s
+    fireEvent.change(screen.getByRole("slider", { name: /lap position/i }), { target: { value: "50" } });
+    expect(screen.getByTestId("live-gap")).toHaveTextContent("VER ahead by 4.545 s");
+  });
+
+  it("names the second driver when they are ahead", () => {
+    render(<DominanceMap lap1={fastSecondHalf} lap2={fastFirstHalf} code1="NOR" code2="VER" style={duelStyle("#FF8000", "#3671C6")} />);
+    fireEvent.change(screen.getByRole("slider", { name: /lap position/i }), { target: { value: "50" } });
+    expect(screen.getByTestId("live-gap")).toHaveTextContent("VER ahead by 4.545 s");
   });
 
   it("says so when there is no track data", () => {
