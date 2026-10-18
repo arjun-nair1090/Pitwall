@@ -113,7 +113,7 @@ def test_pooled_compound_slope_ignores_driver_pace_offsets():
     both = pd.concat([young, old])
     naive = np.polyfit(both["TyreLife"], both["Corrected"], 1)[0]
     assert abs(naive - 0.1) > 0.05
-    assert all(point["laps"] >= 3 for point in out[0]["curve"])
+    assert out[0]["curve"] == []  # no tyre life has three laps
 
 
 def test_curve_is_the_median_loss_per_tyre_life():
@@ -129,6 +129,8 @@ def test_curve_is_the_median_loss_per_tyre_life():
     assert sorted(curve) == [1, 2, 3, 4, 5, 6]
     assert all(point["laps"] == 3 for point in curve.values())
     assert curve[1]["loss"] < curve[6]["loss"]
+    # a mean would put the bad lap about 1.7 s above its neighbours
+    assert abs(curve[3]["loss"] - (curve[2]["loss"] + curve[4]["loss"]) / 2) < 0.3
     assert [p["tyre_life"] for p in out[0]["curve"]] == sorted(curve)
 
 
@@ -165,6 +167,7 @@ def field():
         make_laps("BBB", 2, 20, base=100.0),
         make_laps("CCC", 2, 4, base=90.0),
         make_laps("AAA", 44, 44, stint=2, base=101.0, first_life=1),
+        make_laps("BBB", 44, 44, stint=2, base=100.0, first_life=1),
     ], ignore_index=True)
 
 
@@ -174,7 +177,7 @@ def test_drivers_are_ranked_by_median_corrected_pace(monkeypatch):
     codes = [d["code"] for d in payload["drivers"]]
     assert codes == ["BBB", "AAA", "CCC"]
     assert payload["drivers"][0]["gap"] == 0.0
-    assert payload["drivers"][1]["gap"] == pytest.approx(1.0, abs=0.2)
+    assert payload["drivers"][1]["gap"] == pytest.approx(1.0)
     assert payload["drivers"][2]["pace"] is None and payload["drivers"][2]["gap"] is None
     assert payload["fuel"]["total_laps"] == 44
     assert payload["compounds"][0]["compound"] == "MEDIUM"
@@ -199,3 +202,18 @@ def test_the_payload_is_memoised(monkeypatch):
     second = race_pace.race_pace_payload(2024, "Spa", "R", 13)
     assert first is second
     assert len(calls) == 1
+
+
+def test_a_sprint_payload_uses_the_sprint_rate(monkeypatch):
+    patch_session(monkeypatch, field())
+    payload = race_pace.race_pace_payload(2024, "Spa", "S", 13)
+    assert payload["fuel"]["seconds_per_lap"] == pytest.approx(0.03 * 110 / (44 * 3.05))
+
+
+def test_a_repeated_index_does_not_misalign_the_laps(monkeypatch):
+    laps = pd.concat([make_laps("AAA", 2, 20, base=101.0, total=20, spl=0.165), make_laps("BBB", 2, 20, base=100.0, total=20, spl=0.165)])
+    assert laps.index.is_unique is False
+    patch_session(monkeypatch, laps)
+    payload = race_pace.race_pace_payload(2024, "Spa", "R", 13)
+    assert payload["compounds"][0]["stints"] == 2
+    assert payload["compounds"][0]["deg_per_lap"] == pytest.approx(0.1)
