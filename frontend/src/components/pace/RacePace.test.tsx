@@ -66,6 +66,12 @@ describe("RacePace", () => {
     expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
   });
 
+  it("adds the stint and tyre degradation panels under the ranking", async () => {
+    render(<RacePace initial={initial} />);
+    expect(await screen.findByRole("heading", { name: "Stints", level: 2 })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Tyre degradation", level: 2 })).toBeInTheDocument();
+  });
+
   it("says the first load can be slow", async () => {
     post.mockReturnValue(new Promise(() => {}));
     render(<RacePace initial={initial} />);

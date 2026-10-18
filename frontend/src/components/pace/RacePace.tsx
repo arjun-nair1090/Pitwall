@@ -11,7 +11,9 @@ import { useAsync } from "@/hooks/useAsync";
 import type { RaceParams } from "@/lib/compareParams";
 import type { FuelModel, RacePaceResult } from "@/lib/pace";
 import { SESSION_LABELS } from "@/lib/season";
+import CompoundCurves from "./CompoundCurves";
 import PaceRanking from "./PaceRanking";
+import StintChart from "./StintChart";
 
 const SESSIONS = ["R", "S"] as const;
 
@@ -49,12 +51,24 @@ export default function RacePace({ initial }: { initial: RaceParams }) {
       {analysis.status === "error" ? (
         <ErrorState title="Couldn't run the analysis" message={analysis.message} onRetry={analysis.notFound ? undefined : analysis.retry} />
       ) : analysis.status === "ready" ? (
-        <Panel title="Race pace" meta={`${sel.year}, round ${sel.round}, ${SESSION_LABELS[sel.session]}`}>
-          <div className="p-4">
-            <PaceRanking drivers={analysis.data.drivers} />
-            <p className="mt-3 text-xs text-faint">{fuelNote(analysis.data.fuel)}</p>
-          </div>
-        </Panel>
+        <div className="flex flex-col gap-4">
+          <Panel title="Race pace" meta={`${sel.year}, round ${sel.round}, ${SESSION_LABELS[sel.session]}`}>
+            <div className="p-4">
+              <PaceRanking drivers={analysis.data.drivers} />
+              <p className="mt-3 text-xs text-faint">{fuelNote(analysis.data.fuel)}</p>
+            </div>
+          </Panel>
+          <Panel title="Stints">
+            <div className="p-4">
+              <StintChart drivers={analysis.data.drivers} />
+            </div>
+          </Panel>
+          <Panel title="Tyre degradation">
+            <div className="p-4">
+              <CompoundCurves compounds={analysis.data.compounds} />
+            </div>
+          </Panel>
+        </div>
       ) : (
         <Loading label="Analysing the session">
           <p className="mb-4 text-sm text-mute">
