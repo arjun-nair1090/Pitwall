@@ -30,7 +30,8 @@ function plural(n: number, one: string, many: string): string {
 
 function summary(d: BattleDriver): string {
   const start = d.grid === null ? "started from the pit lane" : `started ${ordinal(d.grid)}`;
-  const finish = d.finish === null ? "did not finish" : `finished ${ordinal(d.finish)}`;
+  const finish =
+    d.finish !== null ? `finished ${ordinal(d.finish)}` : d.finish_note === "DSQ" ? "was disqualified" : "did not finish";
   return `${d.code}: ${start}, ${finish}, ${plural(d.made, "pass", "passes")} made, ${d.lost} lost`;
 }
 

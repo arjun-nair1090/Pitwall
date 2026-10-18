@@ -27,8 +27,16 @@ describe("DriverMoves", () => {
     expect(cells[3]).toBe("Pit lane");
   });
 
-  it("dashes a non-finisher's finish", () => {
-    render(<DriverMoves drivers={BATTLES.drivers} />);
-    expect(cellsOf(screen.getAllByRole("row")[4])[2]).toBe("—");
+  it("says a retirement or a disqualification instead of a place, and dashes an unknown finish", () => {
+    const [nor, , , zho] = BATTLES.drivers;
+    const drivers = [
+      nor,
+      zho,
+      { ...zho, code: "RUS", finish_note: "DSQ" as const },
+      { ...zho, code: "ALB", finish_note: null },
+    ];
+    render(<DriverMoves drivers={drivers} />);
+    const finishes = screen.getAllByRole("row").slice(1).map((r) => cellsOf(r)[2]);
+    expect(finishes).toEqual(["1", "DNF", "DSQ", "—"]);
   });
 });

@@ -40,6 +40,16 @@ describe("LapChart", () => {
     expect(screen.getByTestId("lap-chart-summary")).toHaveTextContent("HAM: started 4th, did not finish, 0 passes made, 1 lost");
   });
 
+  it("says a disqualification, and a missing finish with no note as did not finish", async () => {
+    const [nor, ver, pia, ham] = drivers;
+    const marked = [nor, { ...ver, finish: null, finish_note: "DSQ" as const }, pia, { ...ham, finish_note: null }];
+    render(<LapChart drivers={marked} overtakes={overtakes} totalLaps={total_laps} />);
+    await userEvent.selectOptions(screen.getByLabelText("Highlight"), "VER");
+    expect(screen.getByTestId("lap-chart-summary")).toHaveTextContent("VER: started 1st, was disqualified, 0 passes made, 1 lost");
+    await userEvent.selectOptions(screen.getByLabelText("Highlight"), "HAM");
+    expect(screen.getByTestId("lap-chart-summary")).toHaveTextContent("HAM: started 4th, did not finish, 0 passes made, 1 lost");
+  });
+
   it("lists every driver in finishing order with a team-coloured swatch", () => {
     renderChart();
     const items = legend();

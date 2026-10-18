@@ -238,7 +238,10 @@ def fake_session():
     results = pd.DataFrame({
         "Abbreviation": ["AAA", "BBB", "CCC", "DDD"],
         "GridPosition": [5.0, 1.0, 0.0, 4.0],
-        "Position": [1.0, 2.0, np.nan, 3.0],
+        # FastF1 numbers every car, retirements and disqualifications included; ClassifiedPosition says
+        # which: CCC retired after lap 3 and DDD was disqualified.
+        "Position": [1.0, 2.0, 4.0, 3.0],
+        "ClassifiedPosition": ["1", "2", "R", "D"],
         "FullName": ["A A", "B B", "C C", "D D"],
         "TeamName": ["Alpha", "Beta", "Gamma", "Delta"],
         "TeamColor": ["112233", "445566", "778899", "AABBCC"],
@@ -265,6 +268,35 @@ def test_payload_drivers_have_a_position_per_lap_and_start_gains(monkeypatch):
     assert {"lap": 3, "driver": "AAA", "passed": "BBB", "position": 1} in payload["overtakes"]
     assert by_code["AAA"]["made"] == 2  # BBB and CCC on lap 3
     assert by_code["BBB"]["lost"] == 1
+
+
+def test_a_retirement_and_a_disqualification_have_no_finishing_place(monkeypatch):
+    monkeypatch.setattr(race_battles, "load_session", lambda *a, **k: fake_session())
+    by_code = {d["code"]: d for d in race_battles.race_battles_payload(2024, "Test", "R")["drivers"]}
+    assert (by_code["AAA"]["finish"], by_code["AAA"]["finish_note"]) == (1, None)
+    assert (by_code["BBB"]["finish"], by_code["BBB"]["finish_note"]) == (2, None)
+    assert (by_code["CCC"]["finish"], by_code["CCC"]["finish_note"]) == (None, "DNF")
+    assert (by_code["DDD"]["finish"], by_code["DDD"]["finish_note"]) == (None, "DSQ")
+
+
+@pytest.mark.parametrize("classified, expected", [
+    ("1", (1, None)), ("12", (12, None)),
+    ("D", (None, "DSQ")), ("E", (None, "DSQ")),
+    ("R", (None, "DNF")), ("N", (None, "DNF")), ("W", (None, "DNF")), ("F", (None, "DNF")),
+    ("", (None, None)), (np.nan, (None, None)), (None, (None, None)),
+])
+def test_classified_position_reads_as_a_finish_or_a_note(classified, expected):
+    assert race_battles._classified(classified) == expected
+
+
+def test_a_dnf_with_no_position_and_no_classification_sorts_last(monkeypatch):
+    session = fake_session()
+    session.results = session.results.drop(columns="ClassifiedPosition")
+    session.results.loc[session.results["Abbreviation"] == "CCC", "Position"] = np.nan
+    monkeypatch.setattr(race_battles, "load_session", lambda *a, **k: session)
+    drivers = race_battles.race_battles_payload(2024, "Test", "R")["drivers"]
+    assert [d["code"] for d in drivers] == ["AAA", "BBB", "DDD", "CCC"]
+    assert (drivers[-1]["finish"], drivers[-1]["finish_note"]) == (None, None)
 
 
 def test_qualifying_is_refused(monkeypatch):
