@@ -13,6 +13,7 @@ import type { RaceParams } from "@/lib/compareParams";
 import { SESSION_LABELS } from "@/lib/season";
 import BattleTable from "./BattleTable";
 import DriverMoves from "./DriverMoves";
+import LapChart from "./LapChart";
 import PassFeed from "./PassFeed";
 
 const SESSIONS = ["R", "S"] as const;
@@ -54,7 +55,12 @@ export default function BattlesPage({ initial }: { initial: RaceParams }) {
         <ErrorState title="Couldn't run the analysis" message={analysis.message} onRetry={analysis.notFound ? undefined : analysis.retry} />
       ) : analysis.status === "ready" ? (
         <div className="flex flex-col gap-4">
-          <Panel title="Drivers" meta={`${sel.year}, round ${sel.round}, ${SESSION_LABELS[sel.session]}`}>
+          <Panel title="Lap chart" meta={`${sel.year}, round ${sel.round}, ${SESSION_LABELS[sel.session]}`}>
+            <div className="p-4">
+              <LapChart drivers={analysis.data.drivers} overtakes={analysis.data.overtakes} totalLaps={analysis.data.total_laps} />
+            </div>
+          </Panel>
+          <Panel title="Drivers">
             <div className="p-4">
               <DriverMoves drivers={analysis.data.drivers} />
             </div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatStartGain, outcomeText, type Battle } from "./battles";
+import { formatStartGain, ordinal, outcomeText, type Battle } from "./battles";
 
 const base: Battle = { chaser: "NOR", leader: "VER", start_lap: 1, end_lap: 4, laps: 4, min_gap: 0.5, outcome: "flag", outcome_lap: 4 };
 
@@ -17,4 +17,11 @@ describe("outcomeText", () => {
   it("says to the flag", () => expect(outcomeText(base)).toBe("To the flag"));
   it("names the safety car lap", () => expect(outcomeText({ ...base, outcome: "neutralised", outcome_lap: 12 })).toBe("Safety car on lap 12"));
   it("says dropped back", () => expect(outcomeText({ ...base, outcome: "dropped", outcome_lap: null })).toBe("Dropped back"));
+});
+
+describe("ordinal", () => {
+  it.each([
+    [1, "1st"], [2, "2nd"], [3, "3rd"], [4, "4th"], [11, "11th"], [12, "12th"], [13, "13th"],
+    [21, "21st"], [22, "22nd"], [23, "23rd"], [101, "101st"], [111, "111th"],
+  ])("writes %i as %s", (n, text) => expect(ordinal(n)).toBe(text));
 });
