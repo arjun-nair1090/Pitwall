@@ -47,7 +47,7 @@ def duel(positions_a, gaps, *, flags=None, laps=None):
 
 
 def test_a_clean_pass_is_an_overtake():
-    laps = duel([2, 2, 1], [5.0, 5.0, -3.0])
+    laps = duel([2, 2, 1], [1.0, 1.0, -3.0])
     assert race_battles.find_overtakes(laps) == [{"lap": 3, "driver": "AAA", "passed": "BBB", "position": 1}]
 
 
@@ -64,22 +64,38 @@ def test_one_car_passing_two_counts_twice():
 
 
 def test_moving_up_while_a_rival_pits_is_not_an_overtake():
-    positions, gaps = [2, 2, 1, 1], [5.0, 5.0, -3.0, -3.0]
+    positions, gaps = [2, 2, 1, 1], [1.0, 1.0, -3.0, -3.0]
     assert race_battles.find_overtakes(duel(positions, gaps, flags={("BBB", 3): ("in",)})) == []
     assert race_battles.find_overtakes(duel(positions, gaps, flags={("BBB", 3): ("out",)})) == []
 
 
-def test_the_passer_pitting_is_not_an_overtake():
-    laps = duel([2, 2, 1, 1], [5.0, 5.0, -3.0, -3.0], flags={("AAA", 3): ("out",)})
+@pytest.mark.parametrize("kind", ["in", "out"])
+def test_the_passer_pitting_is_not_an_overtake(kind):
+    laps = duel([2, 2, 1, 1], [1.0, 1.0, -3.0, -3.0], flags={("AAA", 3): (kind,)})
     assert race_battles.find_overtakes(laps) == []
 
 
-@pytest.mark.parametrize("status", ["4", "6"])
+@pytest.mark.parametrize("status", ["4", "5", "6", "7"])
 def test_no_overtakes_under_a_safety_car(status):
     for who in ("AAA", "BBB"):
-        laps = duel([2, 2, 1, 1], [5.0, 5.0, -3.0, -3.0])
+        laps = duel([2, 2, 1, 1], [1.0, 1.0, -3.0, -3.0])
         laps.loc[(laps["Driver"] == who) & (laps["LapNumber"] == 3.0), "TrackStatus"] = status
         assert race_battles.find_overtakes(laps) == []
+
+
+def test_driving_past_a_car_that_crashed_is_not_an_overtake():
+    assert race_battles.find_overtakes(duel([2, 2, 1], [6.0, 6.0, -3.0])) == []
+
+
+def test_a_pass_needs_the_passer_within_two_and_a_half_seconds():
+    assert len(race_battles.find_overtakes(duel([2, 2, 1], [2.4, 2.4, -3.0]))) == 1
+    assert race_battles.find_overtakes(duel([2, 2, 1], [2.6, 2.6, -3.0])) == []
+
+
+def test_a_pass_with_no_gap_is_not_an_overtake():
+    laps = duel([2, 2, 1], [1.0, 1.0, -3.0])
+    laps.loc[(laps["Driver"] == "BBB") & (laps["LapNumber"] == 2.0), "Time"] = pd.NaT
+    assert race_battles.find_overtakes(laps) == []
 
 
 def test_lap_one_is_not_an_overtake():
@@ -122,6 +138,51 @@ def test_a_battle_that_ends_in_the_pits():
     laps = duel([2] * 6, [9.0, 0.8, 0.5, 0.4, 3.0, 3.0], flags={("BBB", 5): ("in",)})
     battle = race_battles.find_battles(laps)[0]
     assert (battle["end_lap"], battle["outcome"], battle["outcome_lap"]) == (4, "pits", 5)
+
+
+@pytest.mark.parametrize("flags", [
+    {("BBB", 5): ("in",)}, {("AAA", 5): ("out",)}, {("AAA", 5): ("in",)}, {("BBB", 5): ("out",)},
+])
+def test_a_pit_lap_ends_a_battle_even_with_the_gap_still_closed(flags):
+    laps = duel([2] * 6, [9.0, 0.8, 0.5, 0.4, 0.3, 3.0], flags=flags)
+    battle = race_battles.find_battles(laps)[0]
+    assert (battle["end_lap"], battle["outcome"], battle["outcome_lap"]) == (4, "pits", 5)
+
+
+def test_a_new_car_ahead_splits_the_run():
+    laps = make_laps({
+        "AAA": [(i, 3, 90 * i + 0.5) for i in range(1, 4)] + [(i, 2, 90 * i + 0.5) for i in range(4, 7)],
+        "BBB": [(i, 2, 90 * i) for i in range(1, 4)] + [(i, 3, 90 * i + 50) for i in range(4, 7)],
+        "CCC": [(i, 1, 90 * i - 0.1) for i in range(1, 4)] + [(i, 1, 90 * i - 0.2) for i in range(4, 7)],
+    })
+    chasing = [(b["leader"], b["start_lap"], b["end_lap"]) for b in race_battles.find_battles(laps) if b["chaser"] == "AAA"]
+    assert chasing == [("BBB", 1, 3), ("CCC", 4, 6)]
+
+
+def test_exactly_one_second_is_not_a_battle_lap():
+    assert race_battles.find_battles(duel([2] * 6, [9.0, 1.0, 1.0, 1.0, 1.0, 1.0])) == []
+
+
+def test_a_negative_gap_is_not_a_battle_lap():
+    assert race_battles.find_battles(duel([2] * 6, [9.0, -0.5, -0.5, -0.5, -0.5, -0.5])) == []
+
+
+def test_a_car_coming_between_is_dropped():
+    laps = make_laps({
+        "AAA": [(i, 2, 90 * i + 0.5) for i in range(1, 4)] + [(i, 3, 90 * i + 1.5) for i in range(4, 6)],
+        "BBB": [(i, 1, 90 * i) for i in range(1, 6)],
+        "CCC": [(i, 3, 90 * i + 40) for i in range(1, 4)] + [(i, 2, 90 * i + 1.0) for i in range(4, 6)],
+    })
+    battle = [b for b in race_battles.find_battles(laps) if b["chaser"] == "AAA"][0]
+    assert (battle["end_lap"], battle["outcome"], battle["outcome_lap"]) == (3, "dropped", None)
+
+
+def test_the_flag_outranks_the_pits():
+    laps = duel([2] * 5, [9.0, 0.8, 0.5, 0.4, 0.3], flags={("BBB", 5): ("in",)})
+    battle = race_battles.find_battles(laps)[0]
+    assert (battle["end_lap"], battle["outcome"]) == (4, "pits")
+    laps = duel([2] * 5, [9.0, 0.8, 0.5, 0.4, 0.3], flags={("BBB", 6): ("in",)})
+    assert race_battles.find_battles(laps)[0]["outcome"] == "flag"
 
 
 def test_a_battle_to_the_flag():
