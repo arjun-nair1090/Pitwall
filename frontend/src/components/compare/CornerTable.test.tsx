@@ -69,6 +69,17 @@ describe("CornerTable", () => {
     expect(screen.getByText("Level through every corner")).toBeInTheDocument();
   });
 
+  it("calls the summary level when the only difference rounds to 0.000", () => {
+    renderTable([row(1, 0.0004)]);
+    expect(screen.getByText("Level through every corner")).toBeInTheDocument();
+    expect(screen.queryByText(/gained most/)).not.toBeInTheDocument();
+  });
+
+  it("doesn't credit a level corner as a driver's best", () => {
+    renderTable([row(1, 0.0004), row(2, -0.1)]);
+    expect(screen.getByText("NOR gained most at T2 (0.100 s)")).toBeInTheDocument();
+  });
+
   it("explains when there is no corner data", () => {
     renderTable([]);
     expect(screen.getByText("Corner data isn't available for this session")).toBeInTheDocument();

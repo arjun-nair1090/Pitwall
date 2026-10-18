@@ -145,6 +145,7 @@ export default function CompareTool({ initial }: { initial: RaceParams }) {
             </Panel>
           </div>
           <Panel title="Corner by corner" meta="Each turn runs halfway to the next">
+            {/* a response without corners (an older backend) reads as no corner data */}
             <CornerTable rows={result.corners ?? []} code1={result.driver1.code} code2={result.driver2.code} style={style} />
           </Panel>
         </div>

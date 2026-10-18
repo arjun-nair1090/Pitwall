@@ -1,10 +1,9 @@
 import DataTable, { type Column } from "@/components/ui/DataTable";
 import EmptyState from "@/components/ui/EmptyState";
-import { biggestGains, brakeVerdict, type CornerDuelRow } from "@/lib/corners";
+import { biggestGains, brakeVerdict, isLevel, type CornerDuelRow } from "@/lib/corners";
 import type { DuelStyle } from "@/lib/duel";
 
 const seconds = (s: number) => Math.abs(s).toFixed(3);
-const isLevel = (s: number) => seconds(s) === "0.000";
 const pair = (a: number, b: number) => `${Math.round(a)} / ${Math.round(b)}`;
 
 // Every corner of the lap with who was quicker through it, and the speeds and braking behind that.
