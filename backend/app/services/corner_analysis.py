@@ -16,6 +16,9 @@ from app.services.session_info import SessionDataError, driver_laps, driver_prof
 # still be matched to that corner. Keeps a corner from snapping onto a track crossing.
 MARKER_WINDOW_M = 300.0
 
+# A release shorter than this, between two bursts of braking, is still one braking event.
+BRAKE_GAP_M = 50.0
+
 # A driver needs this many clean laps before their spread means anything.
 MIN_CLEAN_LAPS = 3
 # Laps slower than this multiple of the driver's best are traffic, a mistake or a safety car.
@@ -116,8 +119,18 @@ def corner_metrics(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[Dic
         braked = in_zone[(in_zone <= apex) & braking[in_zone]]
         if len(braked):
             first = int(braked[-1])
-            while first > 0 and braking[first - 1]:  # the run may have begun in the previous zone
-                first -= 1
+            while True:
+                while first > 0 and braking[first - 1]:  # the run may have begun in the previous zone
+                    first -= 1
+                # a brief release followed by more braking is the same event, but never reach
+                # back past the previous corner's apex
+                earlier = np.flatnonzero(braking[previous_apex + 1:first])
+                if not len(earlier):
+                    break
+                before = previous_apex + 1 + int(earlier[-1])
+                if distance[first] - distance[before] >= BRAKE_GAP_M:
+                    break
+                first = before
             # a run reaching the previous corner's apex is that corner's braking, not this one's
             if first > previous_apex:
                 brake_before = float(marker - distance[first])
@@ -156,8 +169,13 @@ def corner_duel(corners: List[Dict[str, Any]], tel1: pd.DataFrame, tel2: pd.Data
 
 
 def clean_laps(laps: pd.DataFrame) -> pd.DataFrame:
-    """One driver's representative laps: timed, not a pit lap, not deleted, within 7% of their best."""
+    """One driver's representative laps: timed, not a pit lap, not deleted, not the standing-start
+    lap, not run under a Safety Car, red flag or VSC, and within 7% of their best."""
     timed = laps[laps["LapTime"].notna() & laps["PitInTime"].isna() & laps["PitOutTime"].isna()]
+    timed = timed[timed["LapNumber"] != 1]
+    if "TrackStatus" in timed.columns:
+        neutralised = timed["TrackStatus"].map(lambda status: pd.notna(status) and any(c in str(status) for c in "4567"))
+        timed = timed[~neutralised]
     if "Deleted" in timed.columns:
         deleted = timed["Deleted"].map(lambda flag: bool(flag) if pd.notna(flag) else False)
         timed = timed[~deleted]
