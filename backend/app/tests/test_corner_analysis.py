@@ -158,6 +158,32 @@ def test_braking_run_through_the_previous_apex_belongs_to_the_previous_corner():
     assert metrics[1]["brake_before_m"] is None
 
 
+def _braking_lap(corner_at, apexes, brake_ranges):
+    distance = np.arange(0, 1001, 5)
+    speed = np.full(len(distance), 250.0)
+    for apex in apexes:
+        speed[distance == apex] = 80.0
+    brake = np.zeros(len(distance), dtype=bool)
+    for lo, hi in brake_ranges:
+        brake |= (distance >= lo) & (distance <= hi)
+    return _tel(distance, speed=speed, brake=brake), [_corner(c, number=n + 1) for n, c in enumerate(corner_at)]
+
+
+def test_a_brief_release_does_not_split_one_braking_event():
+    tel, corners = _braking_lap([500], [500], [(390, 470), (490, 495)])  # 20 m release, then a re-dab
+    assert ca.corner_metrics(tel, corners)[0]["brake_before_m"] == 110
+
+
+def test_a_release_of_the_gap_length_starts_a_new_braking_event():
+    tel, corners = _braking_lap([620], [620], [(490, 540), (600, 610)])  # 60 m release
+    assert ca.corner_metrics(tel, corners)[0]["brake_before_m"] == 20
+
+
+def test_bridging_a_release_never_reaches_back_past_the_previous_apex():
+    tel, corners = _braking_lap([300, 500], [300, 500], [(270, 295), (320, 490)])
+    assert ca.corner_metrics(tel, corners)[1]["brake_before_m"] == 180
+
+
 def test_apex_is_never_above_entry_or_exit_when_a_zone_ends_mid_deceleration():
     distance = np.arange(0, 1001, 100)
     speed = [250, 250, 250, 200, 150, 50, 60, 120, 200, 250, 250]
@@ -262,11 +288,29 @@ def test_clean_laps_drop_pit_deleted_and_slow_laps():
 
 
 def test_clean_laps_treat_a_missing_or_blank_deleted_flag_as_not_deleted():
-    rows = [(1, 100.0, False, False, False), (2, 101.0, False, False, False)]
-    assert list(ca.clean_laps(_laps_frame(rows).drop(columns="Deleted"))["LapNumber"]) == [1, 2]
+    rows = [(2, 100.0, False, False, False), (3, 101.0, False, False, False)]
+    assert list(ca.clean_laps(_laps_frame(rows).drop(columns="Deleted"))["LapNumber"]) == [2, 3]
     laps = _laps_frame(rows)
     laps["Deleted"] = [np.nan, False]
-    assert list(ca.clean_laps(laps)["LapNumber"]) == [1, 2]
+    assert list(ca.clean_laps(laps)["LapNumber"]) == [2, 3]
+
+
+def test_clean_laps_drop_the_standing_start_lap_even_when_fast_enough():
+    rows = [(1, 101.0, False, False, False), (2, 100.0, False, False, False), (3, 100.5, False, False, False)]
+    assert list(ca.clean_laps(_laps_frame(rows))["LapNumber"]) == [2, 3]
+
+
+def test_clean_laps_drop_safety_car_and_red_flag_laps_by_track_status():
+    rows = [(n, 100.0 + n / 10, False, False, False) for n in range(2, 8)]
+    laps = _laps_frame(rows)
+    laps["TrackStatus"] = ["14", "1", "12", np.nan, "67", "5"]
+    assert list(ca.clean_laps(laps)["LapNumber"]) == [3, 4, 5]
+
+
+def test_clean_laps_work_without_a_track_status_column():
+    rows = [(2, 100.0, False, False, False), (3, 100.5, False, False, False)]
+    assert "TrackStatus" not in _laps_frame(rows).columns
+    assert list(ca.clean_laps(_laps_frame(rows))["LapNumber"]) == [2, 3]
 
 
 def _metrics(zone_time, apex=100.0, brake=50.0):
@@ -354,10 +398,10 @@ def _patch_session(monkeypatch, lap_numbers, corners_frame=CORNER_FRAME, no_tele
 
 
 def test_payload_summarises_clean_laps_with_driver_details(monkeypatch):
-    _patch_session(monkeypatch, [1, 2, 3, 4])
+    _patch_session(monkeypatch, [2, 3, 4, 5])
     payload = ca.corner_consistency_payload(2024, "Belgium", "R", "VER")
     assert payload["driver"] == {"code": "VER", "name": "Max Verstappen", "team": "Red Bull", "color": "#3671C6"}
-    assert payload["laps"] == [1, 2, 3, 4]
+    assert payload["laps"] == [2, 3, 4, 5]
     assert [c["label"] for c in payload["corners"]] == ["T1", "T2"]
     json.dumps(payload, allow_nan=False)
 
@@ -369,14 +413,14 @@ def test_payload_refuses_too_few_clean_laps(monkeypatch):
 
 
 def test_payload_rechecks_the_minimum_after_skipping_laps_without_telemetry(monkeypatch):
-    _patch_session(monkeypatch, [1, 2, 3], no_telemetry=[2])
+    _patch_session(monkeypatch, [2, 3, 4], no_telemetry=[3])
     with pytest.raises(ca.SessionDataError, match="only 2 clean laps"):
         ca.corner_consistency_payload(2024, "Belgium", "R", "VER")
 
 
 def test_payload_skips_a_lap_without_telemetry(monkeypatch):
-    _patch_session(monkeypatch, [1, 2, 3, 4], no_telemetry=[2])
-    assert ca.corner_consistency_payload(2024, "Belgium", "R", "VER")["laps"] == [1, 3, 4]
+    _patch_session(monkeypatch, [2, 3, 4, 5], no_telemetry=[3])
+    assert ca.corner_consistency_payload(2024, "Belgium", "R", "VER")["laps"] == [2, 4, 5]
 
 
 def test_payload_refuses_when_corner_data_is_missing(monkeypatch):
