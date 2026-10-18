@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CartesianGrid, ComposedChart, Line, ResponsiveContainer, Scatter, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart, Tooltip, XAxis, YAxis } from "recharts";
 import { CHART } from "@/components/charts/chartTheme";
 import EmptyState from "@/components/ui/EmptyState";
 import Select from "@/components/ui/Select";
@@ -30,6 +30,8 @@ function LapTooltip({ active, payload }: { active?: boolean; payload?: { payload
 }
 
 // One driver's clean laps, fuel-corrected, coloured by compound, with each stint's fitted wear line.
+// A ScatterChart, not a ComposedChart: only its item tooltip finds the hovered point itself, where
+// the axis tooltip looks a scatter point up by its index in the series.
 export default function StintChart({ drivers }: { drivers: readonly PaceDriver[] }) {
   const candidates = drivers.filter((d) => d.stints.some((s) => s.laps.length > 0));
   const [code, setCode] = useState<string | null>(null);
@@ -47,9 +49,9 @@ export default function StintChart({ drivers }: { drivers: readonly PaceDriver[]
         {candidates.map((d) => <option key={d.code} value={d.code}>{`${d.name} (${d.code})`}</option>)}
       </Select>
 
-      <div style={{ height: 320 }} className="w-full">
+      <div style={{ height: 320 }} className="w-full" role="img" aria-label={`Lap times for ${driver.name}, fuel-corrected, by stint`}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+          <ScatterChart margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
             <CartesianGrid {...CHART.grid} />
             <XAxis type="number" dataKey="lap" domain={[1, Math.max(lastLap, 2)]} allowDecimals={false} {...CHART.axis} />
             <YAxis
@@ -66,20 +68,16 @@ export default function StintChart({ drivers }: { drivers: readonly PaceDriver[]
             ))}
             {driver.stints.map((s) =>
               s.fit ? (
-                <Line
+                <ReferenceLine
                   key={`f${s.stint}`}
-                  data={[{ lap: s.fit.from.lap, corrected: s.fit.from.time }, { lap: s.fit.to.lap, corrected: s.fit.to.time }]}
-                  dataKey="corrected"
+                  segment={[{ x: s.fit.from.lap, y: s.fit.from.time }, { x: s.fit.to.lap, y: s.fit.to.time }]}
                   stroke={getCompoundStyle(s.compound).color}
                   strokeDasharray="6 4"
-                  dot={false}
-                  activeDot={false}
-                  isAnimationActive={false}
-                  legendType="none"
+                  ifOverflow="extendDomain"
                 />
               ) : null,
             )}
-          </ComposedChart>
+          </ScatterChart>
         </ResponsiveContainer>
       </div>
 
