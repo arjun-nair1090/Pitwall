@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, field_validator, model_validator
 from typing import List, Optional
 from app.services.f1_data_service import f1_service
-from app.services import corner_analysis, duel_telemetry, latest_result, race_pace, race_replay
+from app.services import corner_analysis, duel_telemetry, latest_result, race_battles, race_pace, race_replay
 from app.services import session_info as session_info_service
 from app.services.race_debrief import NoResultsError
 from app.services.session_info import SessionDataError
@@ -241,6 +241,38 @@ async def race_pace_endpoint(req: RacePaceRequest):
         )
     except Exception as e:
         raise _analysis_error(e, "the race pace analysis")
+
+
+class RaceBattlesRequest(BaseModel):
+    year: int
+    gp: str = ""
+    round: Optional[int] = None
+    session: str = "R"
+
+    @field_validator("session")
+    @classmethod
+    def _race_or_sprint(cls, value: str) -> str:
+        code = value.strip().upper()
+        if code not in {"R", "S"}:
+            raise ValueError("Overtakes need a race or a sprint.")
+        return code
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
+
+
+@router.post("/telemetry/race-battles")
+async def race_battles_endpoint(req: RaceBattlesRequest):
+    """Overtakes and battles for a race or sprint, read from the lap-by-lap positions."""
+    try:
+        return await asyncio.to_thread(
+            race_battles.race_battles_payload, req.year, req.gp, req.session, req.round
+        )
+    except Exception as e:
+        raise _analysis_error(e, "the overtake analysis")
 
 
 @router.get("/stats/standings")
