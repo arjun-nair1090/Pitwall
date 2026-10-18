@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, FlaskConical, GitCommit, Map as MapIcon, Newspaper, Radio, Target, Trophy, Zap,
+  Activity, Archive, FlaskConical, Gauge, GitCommit, Map as MapIcon, Newspaper, Radio, Target, Trophy, Zap,
   type LucideIcon,
 } from "lucide-react";
 import type { Searchable } from "./search";
@@ -37,6 +37,9 @@ export const MODULES: AppModule[] = [
   { id: "strategy", label: "Strategy simulator", href: "/strategy", group: "Analysis", icon: FlaskConical,
     description: "Test a tyre strategy against a real session's own degradation data.",
     keywords: ["tyre", "tire", "pit", "stops", "compound"] },
+  { id: "pace", label: "Race pace", href: "/pace", group: "Analysis", icon: Gauge,
+    description: "Fuel-corrected race pace for every driver, and how fast each tyre compound wore.",
+    keywords: ["pace", "degradation", "tyre wear", "fuel", "long run", "stint"] },
   { id: "stats", label: "Season stats", href: "/stats", group: "Analysis", icon: Trophy,
     description: "Championship standings for every driver and constructor since 2018.",
     keywords: ["standings", "championship", "points", "drivers", "constructors"] },

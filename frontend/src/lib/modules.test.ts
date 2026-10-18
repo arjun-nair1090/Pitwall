@@ -24,6 +24,7 @@ describe("module registry", () => {
 describe("findModuleForPath", () => {
   it("matches exact paths", () => expect(findModuleForPath("/live")?.id).toBe("live"));
   it("matches nested paths by prefix", () => expect(findModuleForPath("/compare/x")?.id).toBe("compare"));
+  it("matches the race pace page", () => expect(findModuleForPath("/pace")?.id).toBe("pace"));
   it("does not match a longer sibling name", () => expect(findModuleForPath("/livestock")).toBeUndefined());
   it("returns undefined for the landing page and unknown routes", () => {
     expect(findModuleForPath("/")).toBeUndefined();
@@ -36,6 +37,10 @@ describe("searching modules", () => {
   it("finds by title", () => expect(search("live")[0].id).toBe("live"));
   it("finds by keyword", () => {
     expect(search("h2h")[0].id).toBe("compare");
+    expect(search("tyre")[0].id).toBe("strategy");
+  });
+  it("finds race pace by what it measures", () => {
+    expect(search("degradation")[0].id).toBe("pace");
     expect(search("tyre")[0].id).toBe("strategy");
   });
   it("returns nothing for gibberish", () => expect(search("zzzz")).toEqual([]));
