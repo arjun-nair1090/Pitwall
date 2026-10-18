@@ -97,6 +97,7 @@ def corner_metrics(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[Dic
     bounds.append(float(distance[-1]))
 
     rows: List[Dict[str, Optional[float]]] = []
+    previous_apex = -1  # sample index of the previous corner's apex; no corner before the first
     for i, marker in enumerate(markers):
         start, end = bounds[i], bounds[i + 1]
         in_zone = np.flatnonzero((distance >= start) & (distance <= end))
@@ -117,7 +118,10 @@ def corner_metrics(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[Dic
             first = int(braked[-1])
             while first > 0 and braking[first - 1]:  # the run may have begun in the previous zone
                 first -= 1
-            brake_before = float(marker - distance[first])
+            # a run reaching the previous corner's apex is that corner's braking, not this one's
+            if first > previous_apex:
+                brake_before = float(marker - distance[first])
+        previous_apex = apex
 
         rows.append({
             "zone_time": float(np.interp(end, distance, seconds) - np.interp(start, distance, seconds)),

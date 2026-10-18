@@ -138,11 +138,24 @@ def test_no_corners_gives_no_metrics():
 def test_braking_run_that_starts_in_the_previous_zone_is_measured_in_full():
     distance = np.arange(0, 1001, 10)
     speed = np.full(len(distance), 250.0)
+    speed[distance == 300] = 100.0  # the first corner's apex, well before the braking starts
     speed[distance == 500] = 80.0
-    brake = (distance >= 380) & (distance <= 490)  # zone boundary between the corners is 450 m
+    brake = (distance >= 380) & (distance <= 490)  # zone boundary between the corners is 400 m
     tel = _tel(distance, speed=speed, brake=brake)
-    metrics = ca.corner_metrics(tel, [_corner(400), _corner(500, number=2)])
+    metrics = ca.corner_metrics(tel, [_corner(300), _corner(500, number=2)])
     assert metrics[1]["brake_before_m"] == 120
+
+
+def test_braking_run_through_the_previous_apex_belongs_to_the_previous_corner():
+    distance = np.arange(0, 1001, 10)
+    speed = np.full(len(distance), 250.0)
+    speed[distance == 300] = 100.0
+    speed[distance == 500] = 80.0
+    brake = (distance >= 250) & (distance <= 490)  # one run, from before the first apex to the second
+    tel = _tel(distance, speed=speed, brake=brake)
+    metrics = ca.corner_metrics(tel, [_corner(300), _corner(500, number=2)])
+    assert metrics[0]["brake_before_m"] == 50
+    assert metrics[1]["brake_before_m"] is None
 
 
 def test_apex_is_never_above_entry_or_exit_when_a_zone_ends_mid_deceleration():
