@@ -13,7 +13,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 import numpy as np
 import pandas as pd
 
-from app.services.session_info import SessionDataError, driver_profile, load_session
+from app.services.session_info import SessionDataError, driver_profile, load_session, neutralised_laps
 
 # A chaser this close to the car ahead at the end of a lap is inside the DRS window.
 BATTLE_GAP_S = 1.0
@@ -26,8 +26,6 @@ MAX_PASS_GAP_S = 2.5
 MAX_PASSED_GAP_S = 4.0
 # Fewest consecutive laps in the window before it is called a battle.
 MIN_BATTLE_LAPS = 3
-# Track status digits for a safety car, red flag, VSC and VSC ending (as in corner_analysis.clean_laps).
-NEUTRALISED_DIGITS = "4567"
 
 SESSIONS = ("R", "S")
 
@@ -80,9 +78,7 @@ class _Grid:
         pit = laps["PitInTime"].notna() | laps["PitOutTime"].notna()
         self.pit = _flag_table(laps, pit, positions)
         if "TrackStatus" in laps.columns:
-            neutral = laps["TrackStatus"].map(
-                lambda s: pd.notna(s) and any(c in str(s) for c in NEUTRALISED_DIGITS)
-            ).astype(bool)
+            neutral = neutralised_laps(laps["TrackStatus"])
         else:
             neutral = pd.Series(False, index=laps.index)
         self.neutral = _flag_table(laps, neutral, positions)

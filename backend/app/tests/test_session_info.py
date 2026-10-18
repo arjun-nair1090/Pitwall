@@ -191,3 +191,10 @@ def test_driver_colour_uses_the_session_results():
 
 def test_driver_colour_falls_back_for_an_unknown_driver():
     assert si.driver_profile(FakeSession(), "XXX")["color"] == si.FALLBACK_COLOR
+
+
+def test_neutralised_laps_are_those_under_a_safety_car_red_flag_or_vsc():
+    statuses = pd.Series(["1", "2", "4", "5", "6", "7", "124", "671", "", None, float("nan"), 1])
+    assert si.neutralised_laps(statuses).tolist() == [
+        False, False, True, True, True, True, True, True, False, False, False, False,
+    ]

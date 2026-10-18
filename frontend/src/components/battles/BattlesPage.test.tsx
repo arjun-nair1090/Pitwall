@@ -50,7 +50,7 @@ describe("BattlesPage", () => {
     render(<BattlesPage initial={initial} />);
     expect(
       await screen.findByText(
-        "Positions are read at the end of each lap, so a pass and re-pass within one lap won't show, and passes during pit stops or behind a safety car don't count.",
+        "Positions are read at the end of each lap, so a pass and re-pass within one lap won't show, and passes during pit stops or behind a safety car don't count. After a red flag, places changed at the standing restart count as passes.",
       ),
     ).toBeInTheDocument();
   });

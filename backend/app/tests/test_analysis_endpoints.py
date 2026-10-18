@@ -347,3 +347,12 @@ def test_race_battles_reports_missing_data_as_404(monkeypatch):
     response = client.post("/api/v1/telemetry/race-battles", json=BATTLES)
     assert response.status_code == 404
     assert response.json()["detail"] == "nope"
+
+
+def test_race_battles_failures_do_not_leak_internals(monkeypatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError("KeyError: 'internal'")
+
+    monkeypatch.setattr(race_battles, "race_battles_payload", boom)
+    response = client.post("/api/v1/telemetry/race-battles", json=BATTLES)
+    assert response.status_code == 502 and "internal" not in response.json()["detail"]
