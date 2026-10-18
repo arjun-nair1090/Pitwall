@@ -37,8 +37,16 @@ def circuit_corners(session) -> List[Dict[str, Any]]:
     return corners
 
 
+def _usable(tel: pd.DataFrame) -> pd.DataFrame:
+    """Telemetry without the samples that can't be placed, timed or have a speed (raw data has gaps)."""
+    return tel.dropna(subset=["Distance", "Time", "Speed"])
+
+
 def corner_markers(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[float]:
     """Where each corner sits on this lap, as a distance in metres, never going backwards."""
+    tel = _usable(tel)
+    if tel.empty:
+        return []
     distance = tel["Distance"].to_numpy(dtype=float)
     x = tel["X"].to_numpy(dtype=float)
     y = tel["Y"].to_numpy(dtype=float)
@@ -60,13 +68,14 @@ def corner_markers(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[flo
 
 def corner_metrics(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[Dict[str, Optional[float]]]:
     """Per-corner time, apex/entry/exit speed and braking distance for one lap, in corner order."""
-    if not corners:
+    tel = _usable(tel)
+    if not corners or tel.empty:
         return []
     markers = corner_markers(tel, corners)
     distance = tel["Distance"].to_numpy(dtype=float)
     seconds = tel["Time"].dt.total_seconds().to_numpy(dtype=float)
     speed = tel["Speed"].to_numpy(dtype=float)
-    braking = tel["Brake"].to_numpy(dtype=bool)
+    braking = (tel["Brake"] == True).to_numpy()  # a missing flag isn't braking
 
     bounds = [float(distance[0])]
     bounds += [(a + b) / 2 for a, b in zip(markers, markers[1:])]
@@ -76,26 +85,30 @@ def corner_metrics(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[Dic
     for i, marker in enumerate(markers):
         start, end = bounds[i], bounds[i + 1]
         in_zone = np.flatnonzero((distance >= start) & (distance <= end))
+        speed_start = float(np.interp(start, distance, speed))
+        speed_end = float(np.interp(end, distance, speed))
         if len(in_zone):
             apex = int(in_zone[int(np.argmin(speed[in_zone]))])
-            entry = float(speed[in_zone[0]:apex + 1].max())
+            entry = max(speed_start, float(speed[in_zone[0]:apex + 1].max()))
         else:
             apex = int(np.argmin(np.abs(distance - marker)))
-            entry = max(float(np.interp(start, distance, speed)), float(speed[apex]))
+            entry = max(speed_start, float(speed[apex]))
+        # a zone can end while the car is still slowing, so the zone edges count towards the minimum
+        apex_speed = min(float(speed[apex]), speed_start, speed_end)
 
         brake_before: Optional[float] = None
         braked = in_zone[(in_zone <= apex) & braking[in_zone]]
         if len(braked):
             first = int(braked[-1])
-            while first - 1 >= in_zone[0] and braking[first - 1]:
+            while first > 0 and braking[first - 1]:  # the run may have begun in the previous zone
                 first -= 1
             brake_before = float(marker - distance[first])
 
         rows.append({
             "zone_time": float(np.interp(end, distance, seconds) - np.interp(start, distance, seconds)),
-            "apex_speed": float(speed[apex]),
+            "apex_speed": apex_speed,
             "entry_speed": entry,
-            "exit_speed": float(np.interp(end, distance, speed)),
+            "exit_speed": speed_end,
             "brake_before_m": brake_before,
         })
     return rows
