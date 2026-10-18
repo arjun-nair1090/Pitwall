@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import corner_analysis, duel_telemetry
+from app.services import corner_analysis, duel_telemetry, race_pace
 from app.services import session_info as si
 from app.tests.test_session_info import FakeSession
 
@@ -260,3 +260,40 @@ def test_corner_consistency_upper_cases_the_driver(monkeypatch):
 def test_corner_consistency_needs_a_race():
     response = client.post("/api/v1/telemetry/corner-consistency", json={"year": 2024, "driver": "VER"})
     assert response.status_code == 422
+
+
+# ---- race pace ----
+
+PACE = {"year": 2024, "gp": "Belgium", "session": "R"}
+
+
+def test_race_pace_passes_the_round_and_session_through(monkeypatch):
+    seen = {}
+
+    def fake(year, gp, session, round_number=None):
+        seen["args"] = (year, gp, session, round_number)
+        return {"drivers": []}
+
+    monkeypatch.setattr(race_pace, "race_pace_payload", fake)
+    response = client.post("/api/v1/telemetry/race-pace", json={"year": 2024, "round": 14, "session": "s"})
+    assert response.status_code == 200
+    assert seen["args"] == (2024, "", "S", 14)
+    assert response.json() == {"drivers": []}
+
+
+def test_race_pace_rejects_qualifying():
+    response = client.post("/api/v1/telemetry/race-pace", json={**PACE, "session": "Q"})
+    assert response.status_code == 422
+    assert "Race pace needs a race or a sprint." in response.text
+
+
+def test_race_pace_needs_a_race_or_a_round():
+    response = client.post("/api/v1/telemetry/race-pace", json={"year": 2024, "session": "R"})
+    assert response.status_code == 422
+
+
+def test_race_pace_reports_missing_data_as_404(monkeypatch):
+    monkeypatch.setattr(race_pace, "race_pace_payload", _raise("nope"))
+    response = client.post("/api/v1/telemetry/race-pace", json=PACE)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "nope"

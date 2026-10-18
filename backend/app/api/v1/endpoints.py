@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, field_validator, model_validator
 from typing import List, Optional
 from app.services.f1_data_service import f1_service
-from app.services import corner_analysis, duel_telemetry, latest_result, race_replay
+from app.services import corner_analysis, duel_telemetry, latest_result, race_pace, race_replay
 from app.services import session_info as session_info_service
 from app.services.race_debrief import NoResultsError
 from app.services.session_info import SessionDataError
@@ -209,6 +209,38 @@ async def corner_consistency(req: CornerConsistencyRequest):
         )
     except Exception as e:
         raise _analysis_error(e, "the corner consistency analysis")
+
+
+class RacePaceRequest(BaseModel):
+    year: int
+    gp: str = ""
+    round: Optional[int] = None
+    session: str = "R"
+
+    @field_validator("session")
+    @classmethod
+    def _race_or_sprint(cls, value: str) -> str:
+        code = value.strip().upper()
+        if code not in {"R", "S"}:
+            raise ValueError("Race pace needs a race or a sprint.")
+        return code
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
+
+
+@router.post("/telemetry/race-pace")
+async def race_pace_endpoint(req: RacePaceRequest):
+    """Fuel-corrected race pace and tyre degradation for a race or sprint."""
+    try:
+        return await asyncio.to_thread(
+            race_pace.race_pace_payload, req.year, req.gp, req.session, req.round
+        )
+    except Exception as e:
+        raise _analysis_error(e, "the race pace analysis")
 
 
 @router.get("/stats/standings")
