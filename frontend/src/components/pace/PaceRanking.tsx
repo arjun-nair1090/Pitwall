@@ -20,7 +20,7 @@ function StintBadge({ stint }: { stint: PaceStint }) {
 }
 
 // The ranking is the server's order: fastest fuel-corrected pace first, then the drivers with too
-// few clean laps to measure, who get a dash instead of a position.
+// few clean laps to compare with the field, who get a dash instead of a position.
 export default function PaceRanking({ drivers }: { drivers: PaceDriver[] }) {
   const unranked = drivers.filter((d) => d.pace === null).length;
   let position = 0;
@@ -65,7 +65,7 @@ export default function PaceRanking({ drivers }: { drivers: PaceDriver[] }) {
       />
       {unranked > 0 ? (
         <p className="mt-3 text-xs text-faint">
-          {`${unranked} ${unranked === 1 ? "driver" : "drivers"} had too few clean laps to rank.`}
+          {`${unranked} ${unranked === 1 ? "driver" : "drivers"} ran too few clean laps to compare with the field.`}
         </p>
       ) : null}
     </>
