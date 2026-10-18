@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from app.services import corner_analysis
 from app.services.session_info import (
     SessionDataError,
     driver_profile,
@@ -120,6 +121,7 @@ def head_to_head_payload(
     return {
         "driver1": _driver_payload(session, driver1, lap1, tel1),
         "driver2": _driver_payload(session, driver2, lap2, tel2),
+        "corners": corner_analysis.corner_duel(corner_analysis.circuit_corners(session), tel1, tel2),
     }
 
 

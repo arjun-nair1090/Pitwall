@@ -180,3 +180,34 @@ def test_nan_samples_do_not_leak_into_the_metrics():
     assert all(v is None or math.isfinite(v) for v in metrics.values())
     assert metrics["apex_speed"] == 80
     assert metrics["brake_before_m"] is None
+
+
+def _duel_laps():
+    distance = np.arange(0, 2001, 10)
+    fast = _tel(distance)
+    slow = _tel(distance, seconds=distance / 30.0 * 1.1)
+    return fast, slow, [_corner(500, 1), _corner(1000, 2, "a"), _corner(1500, 3)]
+
+
+def test_corner_duel_pairs_each_corner_with_both_drivers_metrics():
+    fast, slow, corners = _duel_laps()
+    rows = ca.corner_duel(corners, fast, slow)
+    assert [r["label"] for r in rows] == ["T1", "T2a", "T3"]
+    assert rows[1]["number"] == 2 and rows[1]["letter"] == "a"
+    assert (rows[1]["x"], rows[1]["y"], rows[1]["angle"]) == (1000.0, 0.0, 0.0)
+    assert set(rows[0]) == {"label", "number", "letter", "x", "y", "angle", "driver1", "driver2", "time_delta"}
+    assert all(r["time_delta"] > 0 for r in rows)
+    assert rows[0]["driver2"]["zone_time"] > rows[0]["driver1"]["zone_time"]
+
+
+def test_corner_duel_deltas_sum_to_the_lap_time_difference():
+    fast, slow, corners = _duel_laps()
+    rows = ca.corner_duel(corners, fast, slow)
+    lap1 = fast["Time"].iloc[-1].total_seconds()
+    lap2 = slow["Time"].iloc[-1].total_seconds()
+    assert sum(r["time_delta"] for r in rows) == pytest.approx(lap2 - lap1)
+
+
+def test_corner_duel_is_empty_without_corners():
+    fast, slow, _ = _duel_laps()
+    assert ca.corner_duel([], fast, slow) == []
