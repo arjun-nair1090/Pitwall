@@ -41,6 +41,12 @@ describe("biggestGains", () => {
     expect(biggestGains([row("T1", 0)])).toEqual({ first: null, second: null });
   });
 
+  it("skips corners whose delta rounds to 0.000", () => {
+    expect(biggestGains([row("T1", 0.0004)])).toEqual({ first: null, second: null });
+    expect(biggestGains([row("T1", 0.0004), row("T2", -0.1)]).first).toBeNull();
+    expect(biggestGains([row("T1", -0.0004), row("T2", 0.1)]).second).toBeNull();
+  });
+
   it("returns nulls for an empty list", () => {
     expect(biggestGains([])).toEqual({ first: null, second: null });
   });
