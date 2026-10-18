@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, FlaskConical, Gauge, GitCommit, Map as MapIcon, Newspaper, Radio, Target, Trophy, Zap,
+  Activity, Archive, FlaskConical, Gauge, GitCommit, Map as MapIcon, Newspaper, Radio, Swords, Target, Trophy, Zap,
   type LucideIcon,
 } from "lucide-react";
 import type { Searchable } from "./search";
@@ -46,6 +46,9 @@ export const MODULES: AppModule[] = [
   { id: "debrief", label: "Race debrief", shortLabel: "Debrief", mobilePrimary: true, href: "/debrief", group: "Race", icon: Newspaper,
     description: "Auto-written race summaries, plus what-if counterfactuals on real strategies.",
     keywords: ["summary", "what if", "recap", "results"] },
+  { id: "battles", label: "Overtakes and battles", href: "/battles", group: "Race", icon: Swords,
+    description: "Every on-track pass, places gained at the start, and every fight within a second, for any race since 2018.",
+    keywords: ["overtakes", "passes", "battles", "lap chart", "positions", "drs"] },
   { id: "archive", label: "Archive", href: "/archive", group: "Race", icon: Archive,
     description: "Browse past seasons, calendars and race results.",
     keywords: ["history", "past", "seasons", "calendar"] },
