@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import duel_telemetry
+from app.services import corner_analysis, duel_telemetry
 from app.services import session_info as si
 from app.tests.test_session_info import FakeSession
 
@@ -230,3 +230,33 @@ def test_replay_failures_do_not_leak_internals(monkeypatch):
     response = client.get("/api/v1/telemetry/replay", params={"year": 2024, "round": 14})
     assert response.status_code == 502 and "internal" not in response.json()["detail"]
 
+
+
+# ---- corner consistency ----
+
+CONSISTENCY = {"year": 2024, "gp": "Belgium", "session": "R", "driver": "ver"}
+
+
+def test_corner_consistency_reports_missing_data_as_404(monkeypatch):
+    monkeypatch.setattr(corner_analysis, "corner_consistency_payload", _raise("VER has only 2 clean laps in this session; at least 3 are needed to judge consistency."))
+    response = client.post("/api/v1/telemetry/corner-consistency", json=CONSISTENCY)
+    assert response.status_code == 404
+    assert "at least 3" in response.json()["detail"]
+
+
+def test_corner_consistency_upper_cases_the_driver(monkeypatch):
+    seen = {}
+
+    def fake(year, gp, session, driver, round_number=None):
+        seen.update(driver=driver, session=session, round=round_number)
+        return {"driver": {"code": driver}}
+
+    monkeypatch.setattr(corner_analysis, "corner_consistency_payload", fake)
+    response = client.post("/api/v1/telemetry/corner-consistency", json={**CONSISTENCY, "round": 14})
+    assert response.status_code == 200
+    assert seen == {"driver": "VER", "session": "R", "round": 14}
+
+
+def test_corner_consistency_needs_a_race():
+    response = client.post("/api/v1/telemetry/corner-consistency", json={"year": 2024, "driver": "VER"})
+    assert response.status_code == 422

@@ -4,14 +4,29 @@ The maths lives in small pure functions over telemetry frames so it can be teste
 network. A lap is cut into one zone per corner (halfway between neighbouring corner markers),
 and each zone is summarised by its time, speeds and braking point.
 """
-from typing import Any, Dict, List, Optional
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
+from app.services.session_info import SessionDataError, driver_laps, driver_profile, load_session
+
 # How far along the lap, either side of a corner's reference distance, a sample may sit and
 # still be matched to that corner. Keeps a corner from snapping onto a track crossing.
 MARKER_WINDOW_M = 300.0
+
+# A driver needs this many clean laps before their spread means anything.
+MIN_CLEAN_LAPS = 3
+# Laps slower than this multiple of the driver's best are traffic, a mistake or a safety car.
+CLEAN_LAP_LIMIT = 1.07
+
+_CACHE_TTL_SECONDS = 600
+_cache: Dict[Tuple, Tuple[float, Dict[str, Any]]] = {}
+
+
+def clear_cache() -> None:
+    _cache.clear()
 
 
 def circuit_corners(session) -> List[Dict[str, Any]]:
@@ -134,3 +149,97 @@ def corner_duel(corners: List[Dict[str, Any]], tel1: pd.DataFrame, tel2: pd.Data
         }
         for corner, one, two in zip(corners, metrics1, metrics2)
     ]
+
+
+def clean_laps(laps: pd.DataFrame) -> pd.DataFrame:
+    """One driver's representative laps: timed, not a pit lap, not deleted, within 7% of their best."""
+    timed = laps[laps["LapTime"].notna() & laps["PitInTime"].isna() & laps["PitOutTime"].isna()]
+    if "Deleted" in timed.columns:
+        deleted = timed["Deleted"].map(lambda flag: bool(flag) if pd.notna(flag) else False)
+        timed = timed[~deleted]
+    if timed.empty:
+        return timed
+    return timed[timed["LapTime"] <= timed["LapTime"].min() * CLEAN_LAP_LIMIT]
+
+
+def _mean_sd(values: List[float]) -> Dict[str, float]:
+    return {
+        "mean": float(np.mean(values)),
+        "sd": float(np.std(values, ddof=1)) if len(values) > 1 else 0.0,
+    }
+
+
+def summarise_consistency(corners: List[Dict[str, Any]], per_lap: Dict[int, List[Dict[str, Any]]]) -> Dict[str, Any]:
+    """Spread of each corner across a driver's laps, plus their best lap and the ideal lap
+    built from each corner's best zone time. Both laps are on the telemetry basis."""
+    laps = sorted(per_lap)
+    rows = []
+    for i, corner in enumerate(corners):
+        times = [per_lap[lap][i]["zone_time"] for lap in laps]
+        best = min(times)
+        braked = [per_lap[lap][i]["brake_before_m"] for lap in laps if per_lap[lap][i]["brake_before_m"] is not None]
+        rows.append({
+            "label": corner["label"],
+            "number": corner["number"],
+            "letter": corner["letter"],
+            "apex_speed": _mean_sd([per_lap[lap][i]["apex_speed"] for lap in laps]),
+            "brake_before_m": _mean_sd(braked) if braked else None,
+            "zone_time": {"best": best, **_mean_sd(times)},
+            "per_lap": [
+                {
+                    "lap": lap,
+                    "zone_time": time_,
+                    "delta_to_best": time_ - best,
+                    "apex_speed": per_lap[lap][i]["apex_speed"],
+                    "brake_before_m": per_lap[lap][i]["brake_before_m"],
+                }
+                for lap, time_ in zip(laps, times)
+            ],
+        })
+    return {
+        "laps": laps,
+        "corners": rows,
+        "best_lap": min(sum(m["zone_time"] for m in per_lap[lap]) for lap in laps),
+        "ideal_lap": sum(row["zone_time"]["best"] for row in rows),
+    }
+
+
+def _too_few(code: str, count: int) -> SessionDataError:
+    return SessionDataError(
+        f"{code} has only {count} clean laps in this session; at least {MIN_CLEAN_LAPS} are needed to judge consistency."
+    )
+
+
+def corner_consistency_payload(
+    year: int, gp: str, session_name: str, driver: str, round_number: Optional[int] = None
+) -> Dict[str, Any]:
+    key = (year, round_number or gp, session_name, driver)
+    cached = _cache.get(key)
+    if cached and time.time() - cached[0] < _CACHE_TTL_SECONDS:
+        return cached[1]
+
+    from app.services.duel_telemetry import _lap_telemetry  # duel_telemetry imports this module
+
+    session = load_session(year, gp, session_name, round_number, telemetry=True)
+    corners = circuit_corners(session)
+    if not corners:
+        raise SessionDataError("Corner data isn't available for this session.")
+
+    clean = clean_laps(driver_laps(session.laps, driver))
+    if len(clean) < MIN_CLEAN_LAPS:
+        raise _too_few(driver, len(clean))
+
+    per_lap: Dict[int, List[Dict[str, Any]]] = {}
+    for _, lap in clean.iterlaps():
+        try:
+            metrics = corner_metrics(_lap_telemetry(lap, driver), corners)
+        except SessionDataError:
+            continue  # a lap without telemetry is left out rather than failing the rest
+        if metrics:
+            per_lap[int(lap["LapNumber"])] = metrics
+    if len(per_lap) < MIN_CLEAN_LAPS:
+        raise _too_few(driver, len(per_lap))
+
+    payload = {**summarise_consistency(corners, per_lap), "driver": {"code": driver, **driver_profile(session, driver)}}
+    _cache[key] = (time.time(), payload)
+    return payload
