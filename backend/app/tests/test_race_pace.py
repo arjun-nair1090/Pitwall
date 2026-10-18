@@ -220,16 +220,54 @@ def test_a_driver_who_ran_half_the_race_or_less_is_not_ranked(monkeypatch):
     assert payload["compounds"][0]["stints"] == 4
 
 
-def test_a_driver_just_past_half_the_typical_distance_is_ranked(monkeypatch):
+def full_distance(driver, clean_to, base, total=46):
+    """A driver who runs every lap to the flag, with only laps 2 to `clean_to` within 107%."""
+    spl = 0.03 * 110 / total
+    return pd.concat([
+        make_laps(driver, 2, clean_to, base=base, total=total, spl=spl),
+        make_laps(driver, clean_to + 1, total, stint=2, base=base + 20.0, total=total, spl=spl, first_life=1),
+    ], ignore_index=True)
+
+
+@pytest.mark.parametrize("clean_to, ranked", [(23, False), (24, True)])
+def test_a_driver_needs_half_the_typical_clean_laps(monkeypatch, clean_to, ranked):
     laps = pd.concat([
-        make_laps("AAA", 2, 46, base=100.0, total=46),
-        make_laps("BBB", 2, 46, base=100.2, total=46),
-        make_laps("RET", 2, 24, base=99.0, total=46),
+        make_laps("AAA", 2, 46, base=100.0, total=46, spl=0.03 * 110 / 46),
+        make_laps("BBB", 2, 46, base=100.2, total=46, spl=0.03 * 110 / 46),
+        full_distance("SLO", clean_to, base=99.0),
     ], ignore_index=True)
     patch_session(monkeypatch, laps)
     payload = race_pace.race_pace_payload(2024, "Silverstone", "R", 12)
-    # 23 clean laps against a typical 45: 23 >= 22.5
-    assert payload["drivers"][0]["code"] == "RET"
+    slo = next(d for d in payload["drivers"] if d["code"] == "SLO")
+    # 22 or 23 clean laps against a typical 45: half is 22.5
+    assert slo["clean_laps"] == clean_to - 1
+    assert (slo["pace"] is not None) is ranked
+    assert (payload["drivers"][0]["code"] == "SLO") is ranked
+
+
+def test_a_driver_who_retired_before_the_flag_is_not_ranked(monkeypatch):
+    # The real Silverstone 2024: rain left the field about 34 clean laps of 52. Russell retired on
+    # lap 33 with 22, all from the dry first half, which is more than half of 34.
+    total, spl = 52, 0.03 * 110 / 52
+
+    def driver(code, base, last_lap):
+        return pd.concat([
+            make_laps(code, 2, 25, base=base, total=total, spl=spl),
+            make_laps(code, 26, min(last_lap, 42), stint=2, compound="INTERMEDIATE", base=base + 20.0,
+                      total=total, spl=spl, first_life=1),
+            make_laps(code, 43, last_lap, stint=3, compound="SOFT", base=base, total=total, spl=spl, first_life=1),
+        ], ignore_index=True)
+
+    laps = pd.concat([driver("AAA", 100.0, 52), driver("BBB", 100.2, 52), driver("LAP", 100.4, 47),
+                      driver("RUS", 99.0, 33)], ignore_index=True)
+    patch_session(monkeypatch, laps)
+    payload = race_pace.race_pace_payload(2024, "Silverstone", "R", 12)
+    drivers = {d["code"]: d for d in payload["drivers"]}
+    assert drivers["AAA"]["clean_laps"] == 34 and drivers["RUS"]["clean_laps"] == 24
+    assert drivers["RUS"]["pace"] is None and drivers["RUS"]["gap"] is None
+    # a driver lapped five times still covered 90% of the distance
+    assert drivers["LAP"]["pace"] is not None
+    assert [d["code"] for d in payload["drivers"]] == ["AAA", "BBB", "LAP", "RUS"]
 
 
 def test_no_driver_with_enough_laps_is_a_session_data_error(monkeypatch):
