@@ -30,6 +30,13 @@ describe("PassFeed", () => {
     expect(lines()).toEqual(["Lap 4 · VER passed SAR for P2"]);
   });
 
+  it("says so when the chosen driver has no passes either way", async () => {
+    render(<PassFeed overtakes={BATTLES.overtakes} drivers={BATTLES.drivers} />);
+    await userEvent.selectOptions(screen.getByLabelText("Driver"), "ZHO");
+    expect(screen.getByText("No on-track passes involve ZHO.")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
   it("says so when there were no passes", () => {
     render(<PassFeed overtakes={[]} drivers={BATTLES.drivers} />);
     expect(screen.getByText("No on-track passes")).toBeInTheDocument();

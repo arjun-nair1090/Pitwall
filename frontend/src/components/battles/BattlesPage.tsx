@@ -57,12 +57,12 @@ export default function BattlesPage({ initial }: { initial: RaceParams }) {
           <Panel title="Drivers" meta={`${sel.year}, round ${sel.round}, ${SESSION_LABELS[sel.session]}`}>
             <div className="p-4">
               <DriverMoves drivers={analysis.data.drivers} />
-              <p className="mt-3 text-xs text-faint">{CAVEAT}</p>
             </div>
           </Panel>
           <Panel title="Passes">
             <div className="p-4">
               <PassFeed overtakes={analysis.data.overtakes} drivers={analysis.data.drivers} />
+              <p className="mt-3 text-xs text-faint">{CAVEAT}</p>
             </div>
           </Panel>
           <Panel title="Battles">
@@ -76,7 +76,7 @@ export default function BattlesPage({ initial }: { initial: RaceParams }) {
           <p className="mb-4 text-sm text-mute">
             {sel.round === null
               ? "Loading the season's races…"
-              : "Measuring every driver's clean laps. The first time a race is opened this can take up to a minute."}
+              : "Reading every lap's running order. The first time a race is opened this can take up to a minute."}
           </p>
           <Skeleton className="h-96" />
         </Loading>
