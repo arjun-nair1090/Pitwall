@@ -83,4 +83,19 @@ describe("DominanceMap", () => {
     render(<DominanceMap lap1={[]} lap2={[]} code1="VER" code2="NOR" style={duelStyle("#3671C6", "#FF8000")} />);
     expect(screen.getByText(/no track data/i)).toBeInTheDocument();
   });
+
+  it("labels each turn on the map", () => {
+    const corners = [
+      { label: "T1", x: 400, y: 0, angle: 90 },
+      { label: "T11a", x: 400, y: 200, angle: 0 },
+    ];
+    const { container } = render(<DominanceMap lap1={fastFirstHalf} lap2={fastSecondHalf} code1="VER" code2="NOR" style={duelStyle("#3671C6", "#FF8000")} corners={corners} />);
+    const labels = Array.from(container.querySelectorAll("svg text[data-turn]")).map((t) => t.textContent);
+    expect(labels).toEqual(["1", "11a"]);
+  });
+
+  it("draws no turn labels without corner data", () => {
+    const { container } = render(<DominanceMap lap1={fastFirstHalf} lap2={fastSecondHalf} code1="VER" code2="NOR" style={duelStyle("#3671C6", "#FF8000")} />);
+    expect(container.querySelectorAll("[data-turn]")).toHaveLength(0);
+  });
 });
