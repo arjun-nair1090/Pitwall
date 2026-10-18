@@ -135,7 +135,7 @@ export default function CompareTool({ initial }: { initial: RaceParams }) {
           <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <Panel title="Where the time was won" meta={`${session.event_name} ${sel.year}`} className="xl:sticky xl:top-20">
               <div className="p-4">
-                <DominanceMap lap1={result.driver1.telemetry} lap2={result.driver2.telemetry} code1={result.driver1.code} code2={result.driver2.code} style={style} />
+                <DominanceMap lap1={result.driver1.telemetry} lap2={result.driver2.telemetry} code1={result.driver1.code} code2={result.driver2.code} style={style} corners={result.corners ?? []} />
               </div>
             </Panel>
             <Panel title="Telemetry" meta="Both laps, by distance round the lap">

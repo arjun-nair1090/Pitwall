@@ -7,6 +7,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { readableTextColor } from "@/lib/color";
 import { dominanceSegments, gapAtTime, lapDuration, positionAtTime, type DuelStyle, type TelemetryPoint } from "@/lib/duel";
 import { exportSvgAsPng } from "@/lib/exportSvg";
+import type { CornerDuelRow } from "@/lib/corners";
 import { makeProjector } from "@/lib/trackProjection";
 import { formatDelta } from "@/lib/timing";
 
@@ -16,16 +17,19 @@ interface DominanceMapProps {
   code1: string;
   code2: string;
   style: DuelStyle;
+  corners?: readonly Pick<CornerDuelRow, "label" | "x" | "y" | "angle">[];
 }
 
 const SIZE = 500;
 const ASPHALT = "#2A303A";
+const MUTE = "#ACACBE";
+const LABEL_OFFSET = 16;
 const RATES = [1, 2, 4] as const;
 
 // Where each driver was quicker round the lap, drawn on the racing line, plus a replay of the two
 // laps side by side. The cars are placed by lap time (not by sample number), so the quicker car
 // really does pull ahead.
-export default function DominanceMap({ lap1, lap2, code1, code2, style }: DominanceMapProps) {
+export default function DominanceMap({ lap1, lap2, code1, code2, style, corners = [] }: DominanceMapProps) {
   const segments = useMemo(() => dominanceSegments(lap1, lap2), [lap1, lap2]);
   const project = useMemo(() => makeProjector([...lap1, ...lap2], SIZE, 40), [lap1, lap2]);
   const duration = Math.max(lapDuration(lap1), lapDuration(lap2));
@@ -75,6 +79,23 @@ export default function DominanceMap({ lap1, lap2, code1, code2, style }: Domina
   const toPath = (points: readonly { x: number; y: number }[]) =>
     points.map((p) => { const q = project(p); return `${q.x.toFixed(1)},${q.y.toFixed(1)}`; }).join(" ");
 
+  // The label sits LABEL_OFFSET px from its corner along FastF1's label angle. The angle is in circuit
+  // coordinates, so project the corner and a point one unit along it, then work out the screen direction.
+  const turnLabel = (corner: Pick<CornerDuelRow, "label" | "x" | "y" | "angle">) => {
+    const rad = (corner.angle * Math.PI) / 180;
+    const from = project(corner);
+    const to = project({ x: corner.x + Math.cos(rad), y: corner.y + Math.sin(rad) });
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const length = Math.hypot(dx, dy);
+    const [ox, oy] = length > 0 ? [(dx / length) * LABEL_OFFSET, (dy / length) * LABEL_OFFSET] : [0, 0];
+    return (
+      <text key={corner.label} data-turn={corner.label} x={from.x + ox} y={from.y + oy} fontSize={10} textAnchor="middle" dominantBaseline="central" fill={MUTE}>
+        {corner.label.replace(/^T/, "")}
+      </text>
+    );
+  };
+
   const marker = (car: { x: number; y: number } | null, code: string, color: string) => {
     if (!car) return null;
     const p = project(car);
@@ -116,6 +137,7 @@ export default function DominanceMap({ lap1, lap2, code1, code2, style }: Domina
             strokeLinejoin="round"
           />
         ))}
+        {corners.map(turnLabel)}
         {marker(carB, code2, style.color2)}
         {marker(carA, code1, style.color1)}
       </svg>
