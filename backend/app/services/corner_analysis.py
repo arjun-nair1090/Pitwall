@@ -19,6 +19,10 @@ MARKER_WINDOW_M = 300.0
 # A release shorter than this, between two bursts of braking, is still one braking event.
 BRAKE_GAP_M = 50.0
 
+# How far either side of a corner's marker its apex is looked for. Further out, the lowest speed
+# in a zone is often the previous corner's exit or the next one's braking.
+APEX_WINDOW_M = 100.0
+
 # A driver needs this many clean laps before their spread means anything.
 MIN_CLEAN_LAPS = 3
 # Laps slower than this multiple of the driver's best are traffic, a mistake or a safety car.
@@ -84,6 +88,17 @@ def corner_markers(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[flo
     return markers
 
 
+def _valleys(speed: np.ndarray) -> np.ndarray:
+    """Which samples sit at a local speed minimum: lower than the nearest different speed on each
+    side. Speeds repeat between samples, so a repeat on the way up or down isn't a minimum."""
+    changes = np.diff(speed) != 0
+    run = np.concatenate([[0], np.cumsum(changes)])  # which stretch of equal speeds each sample is in
+    level = speed[np.concatenate([[0], np.flatnonzero(changes) + 1])]
+    valley = np.zeros(len(level), dtype=bool)
+    valley[1:-1] = (level[1:-1] < level[:-2]) & (level[1:-1] < level[2:])
+    return valley[run]
+
+
 def corner_metrics(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[Dict[str, Optional[float]]]:
     """Per-corner time, apex/entry/exit speed and braking distance for one lap, in corner order."""
     tel = _usable(tel)
@@ -94,6 +109,7 @@ def corner_metrics(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[Dic
     seconds = tel["Time"].dt.total_seconds().to_numpy(dtype=float)
     speed = tel["Speed"].to_numpy(dtype=float)
     braking = (tel["Brake"] == True).to_numpy()  # a missing flag isn't braking
+    valleys = _valleys(speed)
 
     bounds = [float(distance[0])]
     bounds += [(a + b) / 2 for a, b in zip(markers, markers[1:])]
@@ -107,13 +123,26 @@ def corner_metrics(tel: pd.DataFrame, corners: List[Dict[str, Any]]) -> List[Dic
         speed_start = float(np.interp(start, distance, speed))
         speed_end = float(np.interp(end, distance, speed))
         if len(in_zone):
-            apex = int(in_zone[int(np.argmin(speed[in_zone]))])
-            entry = max(speed_start, float(speed[in_zone[0]:apex + 1].max()))
+            near = in_zone[np.abs(distance[in_zone] - marker) <= APEX_WINDOW_M]
+            dips = near[valleys[near]]
+            if len(dips):
+                apex = int(dips[int(np.argmin(speed[dips]))])
+                apex_speed = float(speed[apex])
+            else:
+                # taken flat or while accelerating: the corner's speed is the speed at its marker
+                pool = near if len(near) else in_zone
+                apex = int(pool[int(np.argmin(np.abs(distance[pool] - marker)))])
+                apex_speed = float(np.interp(marker, distance, speed))
+            # a zone can end while the car is still slowing, so its end counts towards the minimum
+            after = np.flatnonzero(distance > end)
+            if len(after) and speed[after[0]] < speed[in_zone[-1]]:
+                apex_speed = min(apex_speed, speed_end)
+            # the marker can sit just past the apex sample, so the apex speed counts towards the entry
+            entry = max(speed_start, float(speed[in_zone[0]:apex + 1].max()), apex_speed)
         else:
             apex = int(np.argmin(np.abs(distance - marker)))
             entry = max(speed_start, float(speed[apex]))
-        # a zone can end while the car is still slowing, so the zone edges count towards the minimum
-        apex_speed = min(float(speed[apex]), speed_start, speed_end)
+            apex_speed = min(float(speed[apex]), speed_start, speed_end)
 
         brake_before: Optional[float] = None
         braked = in_zone[(in_zone <= apex) & braking[in_zone]]
