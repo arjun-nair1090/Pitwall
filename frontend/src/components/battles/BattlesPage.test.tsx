@@ -34,9 +34,13 @@ describe("BattlesPage", () => {
     await screen.findByRole("heading", { name: "Drivers", level: 2 });
   });
 
-  it("has the drivers, passes and battles panels", async () => {
+  it("has the lap chart, drivers, passes and battles panels", async () => {
     render(<BattlesPage initial={initial} />);
     expect(await screen.findByRole("heading", { name: "Drivers", level: 2 })).toBeInTheDocument();
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.indexOf("Lap chart")).toBeGreaterThan(-1);
+    expect(headings.indexOf("Lap chart")).toBeLessThan(headings.indexOf("Drivers"));
+    expect(screen.getByLabelText("Highlight")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Passes", level: 2 })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Battles", level: 2 })).toBeInTheDocument();
     expect(screen.getByText("2024, round 14, Race")).toBeInTheDocument();

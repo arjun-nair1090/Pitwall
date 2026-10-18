@@ -21,3 +21,20 @@ export const BATTLES: RaceBattlesResult = {
     { chaser: "ALO", leader: "STR", start_lap: 20, end_lap: 22, laps: 3, min_gap: 0.5, outcome: "dropped", outcome_lap: null },
   ],
 };
+
+// A race whose positions, overtakes and lap count agree, for the lap chart: a leader passed on lap
+// 2, a pit-lane starter, teammates sharing a colour, and a driver who retires on the last lap.
+export const LAP_CHART: RaceBattlesResult = {
+  total_laps: 4,
+  drivers: [
+    { code: "NOR", name: "Lando Norris", team: "McLaren", color: "#FF8000", grid: 3, finish: 1, start_gain: 1, made: 1, lost: 0, positions: [2, 1, 1, 1] },
+    { code: "VER", name: "Max Verstappen", team: "Red Bull Racing", color: "#3671C6", grid: 1, finish: 2, start_gain: 0, made: 0, lost: 1, positions: [1, 2, 2, 2] },
+    { code: "PIA", name: "Oscar Piastri", team: "McLaren", color: "#FF8000", grid: null, finish: 3, start_gain: null, made: 1, lost: 0, positions: [4, 4, 3, 3] },
+    { code: "HAM", name: "Lewis Hamilton", team: "Mercedes", color: "#27F4D2", grid: 4, finish: null, start_gain: 1, made: 0, lost: 1, positions: [3, 3, 4, null] },
+  ],
+  overtakes: [
+    { lap: 2, driver: "NOR", passed: "VER", position: 1 },
+    { lap: 3, driver: "PIA", passed: "HAM", position: 3 },
+  ],
+  battles: [],
+};
