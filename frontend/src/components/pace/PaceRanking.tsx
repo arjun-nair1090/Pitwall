@@ -64,7 +64,7 @@ export default function PaceRanking({ drivers }: { drivers: PaceDriver[] }) {
         dense
       />
       {unranked > 0 ? (
-        <p className="px-3 pt-3 text-xs text-faint">
+        <p className="mt-3 text-xs text-faint">
           {`${unranked} ${unranked === 1 ? "driver" : "drivers"} had too few clean laps to rank.`}
         </p>
       ) : null}
