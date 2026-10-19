@@ -27,11 +27,14 @@ from app.services.session_info import driver_profile, load_session, neutralised_
 from app.services.strategy_simulator import (
     FALLBACK_DEGRADATION_RATES,
     MIN_SAMPLES_FOR_FIT,
+    _fit_laps,
     compute_compound_stats,
     estimate_pit_loss_seconds,
 )
 
 _CACHE_TTL_SECONDS = 600
+MIN_DISTINCT_AGES = 3
+_MAX_CACHED_SESSIONS = 3
 _sessions: Dict[Tuple, Tuple[float, Any]] = {}
 
 
@@ -43,29 +46,70 @@ def clear_cache() -> None:
     _sessions.clear()
 
 
+class _Scheduled:
+    """A session's scheduled distance as a whole number, for the shared race-pace rule."""
+
+    def __init__(self, total_laps: Any) -> None:
+        self.total_laps = total_laps
+
+
 def _total_laps(session: Any, laps: pd.DataFrame) -> int:
-    return fuel_distance(session, int(laps["LapNumber"].max()))
+    try:
+        scheduled = getattr(session, "total_laps", None)
+    except Exception:  # FastF1 raises before a load, not AttributeError
+        scheduled = None
+    # FastF1 can hand the distance back as a float (44.0); a whole one is the same number.
+    if isinstance(scheduled, float) and np.isfinite(scheduled) and scheduled.is_integer():
+        scheduled = int(scheduled)
+    return fuel_distance(_Scheduled(scheduled), int(laps["LapNumber"].max()))
+
+
+def _near_the_pace(laps: pd.DataFrame) -> pd.DataFrame:
+    """Drop laps more than 7% off the quickest accurate lap so far.
+
+    FastF1 can tag the slow laps after a stoppage with a green status, and early in a race they can
+    be most of what is known, which also drags the fit's own median cut-off up with them."""
+    seconds = laps["LapTime"].dt.total_seconds()
+    usable = seconds[laps["IsAccurate"].fillna(False).astype(bool)] if "IsAccurate" in laps.columns else seconds
+    if usable.dropna().empty:
+        return laps
+    return laps[~(seconds > usable.min() * 1.07)]
 
 
 def _tyre_model(known: pd.DataFrame) -> Tuple[TyreModel, float]:
     """The tyre model fitted on the known laps, and the pit loss."""
-    stats = compute_compound_stats(known)
+    # Laps behind a safety car or under a red flag say nothing about tyre wear, so they stay out of
+    # the fit. The states and the pit-loss estimate still read every known lap.
+    green = known[~neutralised_laps(known["TrackStatus"]).to_numpy()] if "TrackStatus" in known.columns else known
+    fit = _near_the_pace(green) if not green.empty else known
+    stats = compute_compound_stats(fit if not fit.empty else known)
     pit_loss = estimate_pit_loss_seconds(known, stats)
-    fitted_bases = [s["base_pace"] for c, s in stats.items()
-                    if c in DRY_COMPOUNDS and s["sample_size"] >= MIN_SAMPLES_FOR_FIT]
+    used_by_fit = _fit_laps(fit if not fit.empty else known)  # the laps the fit really reads
+
+    def trusted(c: str) -> bool:
+        s = stats.get(c)
+        if not s or s["sample_size"] < MIN_SAMPLES_FOR_FIT:
+            return False
+        ages = used_by_fit.loc[used_by_fit["Compound"] == c, "TyreLife"].dropna()
+        return ages.nunique() >= MIN_DISTINCT_AGES  # wear can't be read off a single tyre age
+
+    fitted_bases = [stats[c]["base_pace"] for c in DRY_COMPOUNDS if c in stats and trusted(c)]
+    seen_bases = [s["base_pace"] for c, s in stats.items() if c in DRY_COMPOUNDS]
     compounds: Dict[str, Tuple[float, float, bool, int]] = {}
     for c in DRY_COMPOUNDS:
         s = stats.get(c)
         samples = int(s["sample_size"]) if s else 0
-        if s and samples >= MIN_SAMPLES_FOR_FIT:
+        if trusted(c):
             compounds[c] = (float(s["base_pace"]), float(s["deg_rate"]), True, samples)
             continue
-        deg = float(s["deg_rate"]) if s else FALLBACK_DEGRADATION_RATES[c]
+        deg = FALLBACK_DEGRADATION_RATES[c]
         if fitted_bases:
             # Never faster than a compound we have measured.
             base = max(fitted_bases) + pit_strategy.UNFITTED_BASE_PENALTY_S
         elif s:
             base = float(s["base_pace"])
+        elif seen_bases:
+            base = max(seen_bases) + pit_strategy.UNFITTED_BASE_PENALTY_S
         else:
             base = pit_strategy.DEFAULT_BASE_S
         compounds[c] = (base, deg, False, samples)
@@ -158,7 +202,13 @@ def _loaded(year: int, gp: str, session_name: str, round_number: Optional[int]) 
     if cached and time.time() - cached[0] < _CACHE_TTL_SECONDS:
         return cached[1]
     session = load_session(year, gp, session_name, round_number)
-    _sessions[key] = (time.time(), session)
+    now = time.time()
+    for stale in [k for k, (at, _) in _sessions.items() if now - at >= _CACHE_TTL_SECONDS]:
+        del _sessions[stale]
+    _sessions.pop(key, None)
+    _sessions[key] = (now, session)
+    while len(_sessions) > _MAX_CACHED_SESSIONS:
+        del _sessions[min(_sessions, key=lambda k: _sessions[k][0])]
     return session
 
 
