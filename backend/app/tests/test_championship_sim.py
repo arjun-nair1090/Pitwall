@@ -430,3 +430,38 @@ def test_the_model_counts_simulated_wins_and_seconds_in_the_countback(monkeypatc
     monkeypatch.setattr(sim, "_simulate", fake([0.0, 0.0], [0.0, 1.0]))
     m = sim._model(2024, races, sprints, schedule, 2, 50)
     assert m["driver_odds"].tolist() == [0.0, 1.0]
+
+
+def test_racing_point_loses_15_points_from_2020_round_3():
+    rounds = [["A", "B", "C"]] * 4
+    teams = {"A": "Racing Point", "B": "Racing Point", "C": "McLaren"}
+    p = payload(2020, rounds, after=2, total=6, teams=teams)
+    by = {c["team"]: c for c in p["constructors"]}
+    assert by["Racing Point"]["points"] == 2 * (25 + 18)
+    p = payload(2020, rounds, after=3, total=6, teams=teams)
+    by = {c["team"]: c for c in p["constructors"]}
+    assert by["Racing Point"]["points"] == 3 * (25 + 18) - 15
+    assert by["McLaren"]["points"] == 3 * 15
+    # drivers keep their points: the deduction was the team's
+    assert driver(p, "A")["points"] == 75
+
+
+def test_the_deduction_only_reaches_its_own_season():
+    teams = {"A": "Racing Point", "B": "Racing Point", "C": "McLaren"}
+    p = payload(2021, [["A", "B", "C"]] * 4, after=3, total=6, teams=teams)
+    by = {c["team"]: c for c in p["constructors"]}
+    assert by["Racing Point"]["points"] == 3 * (25 + 18)
+
+
+def test_the_deduction_feeds_the_constructor_status():
+    # 2020, one race left (44 for a team). Racing Point's 129 would be out of McLaren's reach of
+    # 81 + 44 = 125, but after the deduction it is on 114, so neither has clinched.
+    teams = {"A": "Racing Point", "B": "Racing Point", "C": "McLaren", "D": "McLaren"}
+    p = payload(2020, [["A", "B", "C", "D"]] * 3, total=4, teams=teams)
+    by = {c["team"]: c for c in p["constructors"]}
+    assert by["Racing Point"]["points"] == 114
+    assert by["McLaren"]["points"] == 81
+    assert by["Racing Point"]["status"] == "contender"
+    assert by["McLaren"]["status"] == "contender"
+    p = payload(2021, [["A", "B", "C", "D"]] * 3, total=4, teams=teams)
+    assert {c["team"]: c for c in p["constructors"]}["Racing Point"]["status"] == "clinched"

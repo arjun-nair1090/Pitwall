@@ -33,6 +33,10 @@ SIGMA_FLOOR = 2.0
 # Pseudo-starts at the field's retirement rate.
 RETIREMENT_K = 4
 
+# Points taken off a constructor by the stewards: (team, first round it applies from, points). Racing
+# Point lost 15 over the 2020 brake-duct ruling, which Ergast applies to its standings from round 3.
+CONSTRUCTOR_DEDUCTIONS = {2020: (("Racing Point", 3, -15.0),)}
+
 RESULT_COLUMNS = ["round", "code", "name", "team", "position", "position_text", "points"]
 
 
@@ -87,9 +91,13 @@ def _driver_table(races: pd.DataFrame, sprints: pd.DataFrame, cut: int) -> pd.Da
     return table
 
 
-def _team_points(races: pd.DataFrame, sprints: pd.DataFrame, cut: int) -> pd.Series:
+def _team_points(year: int, races: pd.DataFrame, sprints: pd.DataFrame, cut: int) -> pd.Series:
     rows = pd.concat([f for f in (races[races["round"] <= cut], sprints[sprints["round"] <= cut]) if len(f)])
-    return rows.groupby("team")["points"].sum().astype(float).round(3)
+    teams = rows.groupby("team")["points"].sum().astype(float)
+    for team, from_round, points in CONSTRUCTOR_DEDUCTIONS.get(year, ()):
+        if cut >= from_round and team in teams.index:
+            teams[team] += points
+    return teams.round(3)
 
 
 def _entrants(races: pd.DataFrame, cut: int) -> List[str]:
@@ -197,7 +205,7 @@ def _model(year: int, races: pd.DataFrame, sprints: pd.DataFrame, schedule: pd.D
     """The whole simulation for one cut-off."""
     upto = races[races["round"] <= cut]
     drivers = _driver_table(races, sprints, cut)
-    teams = _team_points(races, sprints, cut)
+    teams = _team_points(year, races, sprints, cut)
     entrants = _entrants(races, cut)
     n = len(entrants)
 
