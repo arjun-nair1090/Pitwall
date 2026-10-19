@@ -9,6 +9,8 @@ from app.services import championship_sim
 
 _CACHE_TTL_SECONDS = 600
 _PAGE_SIZE = 100  # the mirror serves at most 100 rows a request
+_RETRY_DELAY_SECONDS = 1.0
+_sleep = time.sleep  # swapped out in tests
 
 _season_cache: Dict[int, Tuple[float, Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]]] = {}
 _odds_cache: Dict[Tuple[int, int], Tuple[float, Dict[str, Any]]] = {}
@@ -19,6 +21,16 @@ def clear_cache() -> None:
     _odds_cache.clear()
 
 
+def _page(fetch, year: int, offset: int):
+    """One page of results. The mirror answers 429 when pushed, so a failed page is tried once more
+    after a pause; a second failure propagates and nothing is cached."""
+    try:
+        return fetch(season=year, limit=_PAGE_SIZE, offset=offset)
+    except Exception:
+        _sleep(_RETRY_DELAY_SECONDS)
+        return fetch(season=year, limit=_PAGE_SIZE, offset=offset)
+
+
 def _results(fetch, year: int) -> pd.DataFrame:
     """Every result row of a season in the simulator's shape.
 
@@ -26,7 +38,7 @@ def _results(fetch, year: int) -> pd.DataFrame:
     frames = []
     offset = 0
     while True:
-        response = fetch(season=year, limit=_PAGE_SIZE, offset=offset)
+        response = _page(fetch, year, offset)
         for (_, desc), content in zip(response.description.iterrows(), response.content):
             if len(content) == 0:
                 continue

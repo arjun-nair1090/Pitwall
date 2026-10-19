@@ -196,12 +196,22 @@ def _title_share(key: np.ndarray) -> np.ndarray:
     return (tied / tied.sum(axis=1, keepdims=True)).mean(axis=0)
 
 
-def _status(points: np.ndarray, reach: np.ndarray, i: int) -> str:
-    """Clinched beats eliminated; both are about points alone, so ties are neither."""
-    others = np.delete(reach, i)
-    if len(others) == 0 or points[i] > others.max():
+def _status(points: np.ndarray, reach: np.ndarray, i: int,
+            wins: Optional[np.ndarray] = None, races_left: int = 0) -> str:
+    """Clinched beats eliminated. Both are about points, except that with wins given (drivers), a
+    tie on the most points anyone can reach goes to countback when the wins can no longer change
+    it. Constructors' ties are split, so for them a tie is neither."""
+    points, reach = np.round(points, 3), np.round(reach, 3)
+    others = np.delete(np.arange(len(points)), i)
+    out_of_reach = reach[others] < points[i]
+    if wins is not None:
+        out_of_reach |= (reach[others] == points[i]) & (wins[i] > wins[others] + races_left)
+    if out_of_reach.all():
         return "clinched"
-    if reach[i] < points.max():
+    leader = points.max()
+    if reach[i] < leader:
+        return "eliminated"
+    if wins is not None and reach[i] == leader and wins[i] + races_left < wins[points == leader].max():
         return "eliminated"
     return "contender"
 
@@ -247,6 +257,7 @@ def _model(year: int, races: pd.DataFrame, sprints: pd.DataFrame, schedule: pd.D
     reach = np.where(racing, points + driver_reach, points)
     return {
         "drivers": drivers, "teams": teams, "racing": racing, "reach": reach,
+        "driver_reach": driver_reach, "races_left": races_left,
         "team_reach": teams.to_numpy() + team_reach,
         "driver_odds": _title_share(key),
         "team_odds": _title_share(np.round(team_final, 3)),
@@ -296,10 +307,11 @@ def championship_payload(year: int, races: pd.DataFrame, sprints: pd.DataFrame, 
     names = dict(zip(schedule["round"], schedule["name"]))
     codes = list(drivers.index)
     points = drivers["points"].to_numpy()
+    wins = drivers["wins"].to_numpy()
 
     rows = []
     for i, code in enumerate(codes):
-        status = _status(points, m["reach"], i)
+        status = _status(points, m["reach"], i, wins, m["races_left"])
         # Someone who isn't on the grid is "not racing", not "eliminated": that is what a fan reads.
         if status != "clinched" and not m["racing"][i]:
             status = "not racing"
@@ -341,6 +353,8 @@ def championship_payload(year: int, races: pd.DataFrame, sprints: pd.DataFrame, 
         "completed_rounds": len(completed),
         "total_rounds": len(schedule),
         "simulations": N_SIMS,
+        # The most one driver can still score: what clinched and eliminated are measured against.
+        "points_available": _pts(m["driver_reach"]),
         "rounds": [{"round": r, "name": names.get(r, f"Round {r}")} for r in completed],
         "remaining": [{
             "round": int(row["round"]), "name": row["name"], "date": str(row["date"])[:10],
