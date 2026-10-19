@@ -10,6 +10,7 @@ import Skeleton, { Loading } from "@/components/ui/Skeleton";
 import { useAsync } from "@/hooks/useAsync";
 import { FIRST_YEAR, pointsAvailable, type ChampionshipResult } from "@/lib/championship";
 import ConstructorsTable from "./ConstructorsTable";
+import OddsHistory from "./OddsHistory";
 import OddsTable from "./OddsTable";
 import RemainingRaces from "./RemainingRaces";
 
@@ -73,6 +74,11 @@ export default function ChampionshipPage({ initial }: { initial: { year: number;
             <div className="p-4">
               <OddsTable drivers={odds.data.drivers} seasonOver={odds.data.remaining.length === 0} />
               <p className="mt-3 text-xs text-faint">{CAVEAT}</p>
+            </div>
+          </Panel>
+          <Panel title="Title odds through the season">
+            <div className="p-4">
+              <OddsHistory history={odds.data.history} drivers={odds.data.drivers} />
             </div>
           </Panel>
           <Panel title="Constructors' title odds">

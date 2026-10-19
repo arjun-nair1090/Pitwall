@@ -81,7 +81,7 @@ describe("ChampionshipPage", () => {
     await waitFor(() => expect(screen.queryByText("Kimi Antonelli")).not.toBeInTheDocument());
   });
 
-  it("names the simulation count, the caveat and the three panels", async () => {
+  it("names the simulation count and the caveat, and orders the four panels", async () => {
     render(<ChampionshipPage initial={initial} />);
     await screen.findByText("Kimi Antonelli");
     expect(screen.getByText("10,000 simulations")).toBeInTheDocument();
@@ -90,9 +90,10 @@ describe("ChampionshipPage", () => {
         "Each remaining race and sprint is simulated 10,000 times from every driver's finishing positions this season, weighted towards recent races, with their own retirement rate. It knows nothing about upgrades, grid penalties or team orders.",
       ),
     ).toBeInTheDocument();
-    for (const name of ["Drivers' title odds", "Constructors' title odds", "Races still to run"]) {
-      expect(screen.getByRole("heading", { name, level: 2 })).toBeInTheDocument();
-    }
+    const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(headings.filter((h) => h !== "Choose a season")).toEqual([
+      "Drivers' title odds", "Title odds through the season", "Constructors' title odds", "Races still to run",
+    ]);
     expect(screen.getByText("Up to 166 points still available to each driver")).toBeInTheDocument();
   });
 
