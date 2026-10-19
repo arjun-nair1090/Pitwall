@@ -23,6 +23,8 @@ export interface PitDriver {
   window: { open: number; close: number } | null;
   cheap_stop: boolean;
   rule_breach: boolean;
+  // The tyre the driver is on, or the first one the plan stops onto, has no fit of its own yet.
+  early: boolean;
 }
 
 export interface Undercut {
@@ -68,7 +70,8 @@ export function defaultLap(total: number): number {
   return Math.min(Math.max(1, Math.floor(total / 3)), Math.max(1, total - 1));
 }
 
-// The server's "Pick a lap from 1 to 43." names the last lap it will take.
+// The server's "Pick a lap from 1 to 43." names the last lap it will take. The wording is a contract
+// with the backend (pinned there by test_the_bad_lap_wording_is_a_contract_with_the_page).
 export function lastLapFromError(message: string): number | null {
   const m = /^Pick a lap from 1 to (\d+)\.$/.exec(message);
   return m ? Number(m[1]) : null;
@@ -99,8 +102,9 @@ export function lapsText(n: number): string {
   return `${n} ${n === 1 ? "lap" : "laps"}`;
 }
 
-export function cheapStopText(pitLoss: number): string {
-  return `Safety car: a stop costs about ${Math.round(pitLoss / 2)} s`;
+// No number: under a red flag the stop is free, so any figure would mislead.
+export function cheapStopText(): string {
+  return "Safety car or red flag: a cheap time to stop";
 }
 
 export function wearText(degPerLap: number): string {

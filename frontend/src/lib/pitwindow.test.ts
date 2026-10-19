@@ -7,6 +7,7 @@ import {
 const base: PitDriver = {
   code: "VER", name: "Max Verstappen", team: "Red Bull Racing", color: "#3671C6", position: 1, compound: "MEDIUM",
   tyre_age: 12, used: ["MEDIUM"], gap_ahead: null, status: "box now", best: null, window: null, cheap_stop: false, rule_breach: false,
+  early: false,
 };
 const d = (o: Partial<PitDriver>): PitDriver => ({ ...base, ...o });
 
@@ -42,9 +43,8 @@ describe("small formatters", () => {
     expect(lapsText(12)).toBe("12 laps");
     expect(lapsText(1)).toBe("1 lap");
   });
-  it("halves the pit loss for a safety car stop", () => {
-    expect(cheapStopText(21.4)).toBe("Safety car: a stop costs about 11 s");
-    expect(cheapStopText(20)).toBe("Safety car: a stop costs about 10 s");
+  it("says a neutralised lap is a cheap time to stop, with no number (a red flag makes it free)", () => {
+    expect(cheapStopText()).toBe("Safety car or red flag: a cheap time to stop");
   });
   it("signs the wear", () => {
     expect(wearText(0.0814)).toBe("+0.081 s a lap");

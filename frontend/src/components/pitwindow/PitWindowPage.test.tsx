@@ -13,6 +13,7 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ replace }) }));
 
 const races: Race[] = [
   { round: 14, country: "Belgium", location: "Spa", event_name: "Belgian Grand Prix", race_start_utc: "2024-07-28T13:00:00Z", sessions: ["FP1", "Q", "S", "R"] },
+  { round: 15, country: "Netherlands", location: "Zandvoort", event_name: "Dutch Grand Prix", race_start_utc: "2024-08-25T13:00:00Z", sessions: ["FP1", "Q", "R"] },
 ];
 vi.mock("@/hooks/useRaceData", () => ({ useSeasonRaces: () => ({ status: "ready", data: races, retry: vi.fn() }) }));
 
@@ -109,18 +110,43 @@ describe("PitWindowPage", () => {
     await screen.findByText("Box lap 23 → Hard");
   });
 
-  it("shows the server's message for a bad lap, without a retry, and keeps the stepper usable", async () => {
+  it("clamps a linked lap past the end to the lap before the last", async () => {
     post.mockReset().mockImplementation(((_u: string, body: { lap: number }) =>
       body.lap > 43
         ? Promise.reject({ response: { status: 422, data: { detail: "Pick a lap from 1 to 43." } } })
         : Promise.resolve({ data: { ...PIT_WINDOW, lap: body.lap } })) as never);
-    render(<PitWindowPage initial={{ ...initial, lap: 99 }} />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Pick a lap from 1 to 43.");
-    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
-    expect(lapsAsked()).toEqual([99]);
-    fireEvent.change(screen.getByRole("slider", { name: "Lap" }), { target: { value: "30" } });
+    render(<PitWindowPage initial={{ ...initial, lap: 60 }} />);
+    expect(await screen.findByText("Lap 43 of 44")).toBeInTheDocument();
     expect(await screen.findByText("Box lap 23 → Hard")).toBeInTheDocument();
+    expect(lapsAsked()).toEqual([60, 43]); // one refusal, then the clamped lap: no extra 422s
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await waitFor(() => expect(replace).toHaveBeenLastCalledWith("/pitwindow?year=2024&round=14&session=R&lap=43", { scroll: false }));
+  });
+
+  it("clamps the lap when a good answer shows the race is shorter than the lap asked for", async () => {
+    render(<PitWindowPage initial={{ ...initial, lap: 50 }} />);
+    expect(await screen.findByText("Lap 43 of 44")).toBeInTheDocument();
+    expect(lapsAsked()).toEqual([50, 43]);
+  });
+
+  it("starts the new race afresh when another race is picked", async () => {
+    const reply = (round: number, lap: number) => ({ data: { ...PIT_WINDOW, round, total_laps: round === 15 ? 72 : 44, lap } });
+    let releaseNewRace: () => void = () => {};
+    post.mockReset().mockImplementation(((_u: string, body: { round: number; lap: number }) =>
+      body.round === 15 && body.lap === 10
+        ? new Promise((resolve) => { releaseNewRace = () => resolve(reply(15, 10)); })
+        : Promise.resolve(reply(body.round, body.lap))) as never);
+    render(<PitWindowPage initial={{ ...initial, lap: 20 }} />);
+    await screen.findByText("Lap 20 of 44");
+    fireEvent.change(screen.getByLabelText("Race"), { target: { value: "15" } });
+    // The lap and the race length are forgotten: lap 10 with no total while the new race loads ...
+    expect(await screen.findByText("Lap 10")).toBeInTheDocument();
+    releaseNewRace();
+    // ... then a third of the way into the new race.
+    expect(await screen.findByText("Lap 24 of 72")).toBeInTheDocument();
+    const asked = post.mock.calls.map((c) => [(c[1] as { round: number }).round, (c[1] as { lap: number }).lap]);
+    expect(asked).toEqual([[14, 20], [15, 10], [15, 24]]);
+    await waitFor(() => expect(replace).toHaveBeenLastCalledWith("/pitwindow?year=2024&round=15&session=R&lap=24", { scroll: false }));
   });
 
   it("shows the server's message for an unknown race, without a retry", async () => {

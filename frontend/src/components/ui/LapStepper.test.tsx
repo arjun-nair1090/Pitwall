@@ -44,8 +44,11 @@ describe("LapStepper", () => {
     expect(screen.getByRole("slider", { name: "Lap" })).toBeDisabled();
   });
 
-  it("uses a custom label", () => {
+  it("uses a custom label for the readout, the range and the buttons", () => {
     render(<LapStepper lap={5} total={20} label="Replay lap" onChange={() => {}} />);
     expect(screen.getByText("Replay lap 5 of 20")).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "Replay lap" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous replay lap" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next replay lap" })).toBeInTheDocument();
   });
 });
