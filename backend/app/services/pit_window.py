@@ -211,6 +211,18 @@ def _states(known: pd.DataFrame, lap: int) -> List[DriverState]:
     return states
 
 
+def lap_state(session: Any, lap: int) -> Tuple[List[DriverState], TyreModel, float, int]:
+    """(driver states, tyre model, pit loss, scheduled laps) as known at the end of `lap`.
+
+    Only laps up to and including `lap` feed any of it. The lap isn't range-checked here: callers
+    that need the last lap of the race (the win probability) use it too."""
+    laps = session.laps
+    total = _total_laps(session, laps)
+    known = laps[laps["LapNumber"] <= lap]
+    model, pit_loss = _tyre_model(known)
+    return _states(known, int(lap)), model, pit_loss, total
+
+
 def pit_window_payload(session: Any, lap: int, sprint: bool = False) -> Dict[str, Any]:
     """The pit window of every driver at the end of `lap`, and the undercuts on, from a loaded session.
     `sprint` waives the two-compound rule: a sprint has no mandatory stop."""
@@ -221,10 +233,7 @@ def pit_window_payload(session: Any, lap: int, sprint: bool = False) -> Dict[str
         raise PitWindowInputError(f"Pick a lap from 1 to {total - 1}.")
     lap = int(lap)
     remaining = total - lap
-    known = laps[laps["LapNumber"] <= lap]
-
-    model, pit_loss = _tyre_model(known)
-    states = _states(known, lap)
+    states, model, pit_loss, _ = lap_state(session, lap)
 
     drivers: List[Dict[str, Any]] = []
     for s in states:

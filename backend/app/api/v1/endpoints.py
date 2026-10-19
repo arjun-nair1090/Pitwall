@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, field_validator, model_validator
 from typing import List, Optional
 from app.services.f1_data_service import f1_service
-from app.services import championship_data, championship_sim, corner_analysis, duel_telemetry, latest_result, pit_window, race_battles, race_pace, race_replay
+from app.services import championship_data, championship_sim, corner_analysis, duel_telemetry, latest_result, pit_window, race_battles, race_pace, race_replay, win_probability
 from app.services import session_info as session_info_service
 from app.services.race_debrief import NoResultsError
 from app.services.session_info import SessionDataError
@@ -332,6 +332,41 @@ async def pit_window_endpoint(req: PitWindowRequest):
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise _analysis_error(e, "the pit window")
+
+
+class WinProbabilityRequest(BaseModel):
+    year: int
+    gp: str = ""
+    round: Optional[int] = None
+    session: str = "R"
+    lap: Optional[int] = None
+
+    @field_validator("session")
+    @classmethod
+    def _race_or_sprint(cls, value: str) -> str:
+        code = value.strip().upper()
+        if code not in {"R", "S"}:
+            raise ValueError("Win probability needs a race or a sprint.")
+        return code
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
+
+
+@router.post("/telemetry/win-probability")
+async def win_probability_endpoint(req: WinProbabilityRequest):
+    """Each driver's chance of winning, lap by lap, from only the laps run so far."""
+    try:
+        return await asyncio.to_thread(
+            win_probability.win_probability_replay, req.year, req.gp, req.session, req.round, req.lap
+        )
+    except pit_window.PitWindowInputError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise _analysis_error(e, "the win probability")
 
 
 @router.get("/stats/standings")
