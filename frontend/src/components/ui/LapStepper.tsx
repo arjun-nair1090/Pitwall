@@ -6,11 +6,13 @@ interface LapStepperProps {
   total: number | null;
   onChange: (lap: number) => void;
   label?: string;
+  // Allow the final lap too, for pages where it still has something to show.
+  includeLast?: boolean;
 }
 
-// Steps through the laps of a race. The last lap is left out: nothing is left to decide on it.
-export default function LapStepper({ lap, total, onChange, label = "Lap" }: LapStepperProps) {
-  const last = total === null ? null : Math.max(1, total - 1);
+// Steps through the laps of a race. The last lap is left out unless asked for: nothing is left to decide on it.
+export default function LapStepper({ lap, total, onChange, label = "Lap", includeLast = false }: LapStepperProps) {
+  const last = total === null ? null : includeLast ? Math.max(1, total) : Math.max(1, total - 1);
   const off = last === null;
   const name = label.toLowerCase();
   return (

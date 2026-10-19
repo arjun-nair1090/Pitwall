@@ -87,15 +87,19 @@ export function windowText(d: PitDriver): string {
   return d.window ? `Laps ${d.window.open}–${d.window.close}` : DASH;
 }
 
-export function statusText(d: PitDriver): string {
-  if (d.rule_breach) return "Can't meet the two-compound rule";
-  switch (d.status) {
+export function statusLabel(status: PitStatus, ruleBreach: boolean, windowOpen: number | null): string {
+  if (ruleBreach) return "Can't meet the two-compound rule";
+  switch (status) {
     case "box now": return "Box now";
     case "window open": return "Window open";
-    case "window opens": return d.window ? `Window opens lap ${d.window.open}` : "Window opens";
+    case "window opens": return windowOpen !== null ? `Window opens lap ${windowOpen}` : "Window opens";
     case "stay out": return "Stay out";
     case "wet": return "Wet tyres";
   }
+}
+
+export function statusText(d: PitDriver): string {
+  return statusLabel(d.status, d.rule_breach, d.window ? d.window.open : null);
 }
 
 export function lapsText(n: number): string {

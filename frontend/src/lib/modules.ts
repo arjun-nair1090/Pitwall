@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, Crown, FlaskConical, Gauge, GitCommit, Map as MapIcon, Newspaper, Radio, Swords, Target, Timer, Trophy, Zap,
+  Activity, Archive, Crown, FlaskConical, Gauge, GitCommit, Map as MapIcon, Newspaper, Radio, Swords, Target, Timer, TrendingUp, Trophy, Zap,
   type LucideIcon,
 } from "lucide-react";
 import type { Searchable } from "./search";
@@ -55,6 +55,9 @@ export const MODULES: AppModule[] = [
   { id: "pitwindow", label: "Pit window", href: "/pitwindow", group: "Race", icon: Timer,
     description: "Replay any lap of a past race: each driver's best pit plan, when their window opens, and who could undercut.",
     keywords: ["pit stop", "undercut", "box", "window", "strategy", "overcut"] },
+  { id: "winprob", label: "Win probability", href: "/winprob", group: "Race", icon: TrendingUp,
+    description: "Replay any race or sprint lap by lap: every driver's chance of winning, and the table behind any lap.",
+    keywords: ["win probability", "who wins", "odds", "chance", "simulation", "race win", "favourite"] },
   { id: "archive", label: "Archive", href: "/archive", group: "Race", icon: Archive,
     description: "Browse past seasons, calendars and race results.",
     keywords: ["history", "past", "seasons", "calendar"] },

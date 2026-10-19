@@ -52,3 +52,18 @@ describe("LapStepper", () => {
     expect(screen.getByRole("button", { name: "Next replay lap" })).toBeInTheDocument();
   });
 });
+
+describe("LapStepper with the last lap included", () => {
+  it("runs to the final lap and stops there", () => {
+    const onChange = vi.fn();
+    render(<LapStepper lap={44} total={44} includeLast onChange={onChange} />);
+    expect(screen.getByRole("slider", { name: "Lap" })).toHaveAttribute("max", "44");
+    expect(screen.getByRole("button", { name: "Next lap" })).toBeDisabled();
+    expect(screen.getByText("Lap 44 of 44")).toBeInTheDocument();
+  });
+
+  it("can still step up to the final lap", () => {
+    render(<LapStepper lap={43} total={44} includeLast onChange={() => {}} />);
+    expect(screen.getByRole("button", { name: "Next lap" })).toBeEnabled();
+  });
+});
