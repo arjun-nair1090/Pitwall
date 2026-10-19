@@ -42,7 +42,7 @@ describe("AskPage", () => {
     fireEvent.click(askButton());
     expect(post).toHaveBeenCalledWith("/api/v1/ask", { question: "Who had the best pace?", history: [] });
     expect(await screen.findByText(ASK_ANSWER.answer)).toHaveClass("whitespace-pre-wrap");
-    expect(screen.getByText("Who had the best pace?")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Who had the best pace?" })).toBeInTheDocument();
     expect(box().value).toBe("");
     const pace = screen.getByRole("link", { name: "Race pace · 2024 round 14" });
     expect(pace).toHaveAttribute("href", "/pace?year=2024&round=14&session=R");
@@ -62,6 +62,40 @@ describe("AskPage", () => {
     expect(post).not.toHaveBeenCalled();
     await user.type(box(), "{Enter}");
     expect(post).toHaveBeenCalledWith("/api/v1/ask", { question: "one\ntwo", history: [] });
+  });
+
+  it("does not submit on Enter while an input method is composing", () => {
+    render(<AskPage />);
+    fireEvent.change(box(), { target: { value: "Verstappen" } });
+    fireEvent.keyDown(box(), { key: "Enter", isComposing: true });
+    fireEvent.keyDown(box(), { key: "Enter", keyCode: 229 });
+    expect(post).not.toHaveBeenCalled();
+    fireEvent.keyDown(box(), { key: "Enter" });
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("repeats the full question in the body, as the panel title is cut to one line", async () => {
+    const question = "Across the whole 2024 season, " + "which driver gained the most places at the start ".repeat(5) + "?";
+    render(<AskPage />);
+    fireEvent.change(box(), { target: { value: question } });
+    fireEvent.click(askButton());
+    await screen.findByText(ASK_ANSWER.answer);
+    const exchange = screen.getByRole("region", { name: question.trim() });
+    const body = Array.from(exchange.querySelectorAll("p")).find((p) => p.textContent === question.trim());
+    expect(body).toBeDefined();
+    expect(body).not.toHaveClass("truncate");
+  });
+
+  it("trims a long earlier answer to 2000 characters when sending it as history", async () => {
+    const user = userEvent.setup();
+    const long = "a".repeat(2500);
+    post.mockResolvedValueOnce({ data: { answer: long, sources: [] } });
+    render(<AskPage />);
+    await user.type(box(), "q1{Enter}");
+    await screen.findByText(long);
+    await user.type(box(), "q2{Enter}");
+    const history = (post.mock.calls[1][1] as { history: { role: string; text: string }[] }).history;
+    expect(history).toEqual([{ role: "user", text: "q1" }, { role: "assistant", text: "a".repeat(2000) }]);
   });
 
   it("asks a suggested question when it is clicked", async () => {
@@ -105,7 +139,9 @@ describe("AskPage", () => {
     fireEvent.click(askButton());
     expect(screen.getByText("Looking that up…")).toBeInTheDocument();
     expect(askButton()).toBeDisabled();
-    expect(screen.getByText("Looking that up…").closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
+    const live = screen.getByText("Looking that up…").closest("[aria-live]");
+    expect(live).toHaveAttribute("aria-live", "polite");
+    expect(live).toHaveAttribute("aria-relevant", "additions");
     resolve({ data: ASK_ANSWER });
     await waitFor(() => expect(screen.queryByText("Looking that up…")).toBeNull());
   });

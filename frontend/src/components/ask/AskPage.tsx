@@ -7,7 +7,15 @@ import { useState, type KeyboardEvent } from "react";
 import PageHeader from "@/components/ui/PageHeader";
 import Panel from "@/components/ui/Panel";
 import Button from "@/components/ui/Button";
-import { MAX_QUESTION, sourceLabel, sourceLink, type AskResponse, type AskSource, type AskTurn } from "@/lib/ask";
+import {
+  MAX_HISTORY_TEXT,
+  MAX_QUESTION,
+  sourceLabel,
+  sourceLink,
+  type AskResponse,
+  type AskSource,
+  type AskTurn,
+} from "@/lib/ask";
 
 const NOTE =
   "Answers come only from this app's own analyses, and each one lists its sources. The assistant can still misread a question, so check the linked page.";
@@ -37,8 +45,8 @@ function failureOf(err: unknown): { status: number | null; message: string } {
 
 function historyOf(exchanges: Exchange[]): AskTurn[] {
   return exchanges.slice(-HISTORY_PAIRS).flatMap((e): AskTurn[] => [
-    { role: "user", text: e.question },
-    { role: "assistant", text: e.answer },
+    { role: "user", text: e.question.slice(0, MAX_HISTORY_TEXT) },
+    { role: "assistant", text: e.answer.slice(0, MAX_HISTORY_TEXT) },
   ]);
 }
 
@@ -69,6 +77,9 @@ export default function AskPage() {
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter also confirms a word in an input method (Japanese, Chinese, Korean); that isn't a submit.
+    // Safari reports such an Enter as keyCode 229 rather than isComposing.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void ask(text);
@@ -132,10 +143,11 @@ export default function AskPage() {
         </Panel>
       )}
 
-      <div aria-live="polite" className="flex flex-col gap-4">
+      <div aria-live="polite" aria-relevant="additions" className="flex flex-col gap-4">
         {exchanges.map((e, i) => (
           <Panel key={i} title={e.question}>
             <div className="p-4">
+              <p className="mb-3 whitespace-pre-wrap text-sm text-mute">{e.question}</p>
               <p className="whitespace-pre-wrap text-sm text-chalk">{e.answer}</p>
               {e.sources.length > 0 && (
                 <div className="mt-4">
@@ -152,10 +164,13 @@ export default function AskPage() {
         ))}
         {pending !== null && (
           <Panel title={pending}>
-            <p className="flex items-center gap-2 p-4 text-sm text-mute">
-              <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
-              Looking that up…
-            </p>
+            <div className="p-4">
+              <p className="mb-3 whitespace-pre-wrap text-sm text-mute">{pending}</p>
+              <p className="flex items-center gap-2 text-sm text-mute">
+                <Loader2 aria-hidden className="h-4 w-4 animate-spin" />
+                Looking that up…
+              </p>
+            </div>
           </Panel>
         )}
       </div>
