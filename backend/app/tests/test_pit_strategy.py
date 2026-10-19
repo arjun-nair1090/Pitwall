@@ -333,3 +333,78 @@ def test_all_twenty_drivers_at_monaco_distance_are_fast():
     assert elapsed < 0.5, elapsed
     assert all(math.isfinite(r["best"]["cost"]) for r in results)
     print(f"R=78, 20 drivers: {elapsed:.3f}s")
+
+
+def first_stop_costs(st, model, R):
+    """Cheapest legal plan per first-stop offset k, by the same lap-by-lap loop as `brute`."""
+    out = {}
+    used_dry = {c for c in st.used | {st.compound} if c in DRY}
+    for n_stops in (1, 2):
+        for ks in itertools.combinations(range(1, R), n_stops):
+            stints = [b - a for a, b in zip((0,) + ks, ks + (R,))]
+            if any(length < ps.MIN_STINT_LAPS for length in stints[1:]):
+                continue
+            for comps in itertools.product(DRY, repeat=n_stops):
+                if len(used_dry | set(comps)) < 2:
+                    continue
+                cost, age, comp, nxt = 0.0, st.tyre_age, st.compound, 0
+                for j in range(1, R + 1):
+                    age += 1
+                    base, deg, _, _ = model.compounds[comp]
+                    cost += base + deg * age
+                    if nxt < n_stops and ks[nxt] == j:
+                        cost += model.pit_loss * (
+                            ps.SC_PIT_LOSS_FACTOR if (j == 1 and st.neutralised) else 1.0)
+                        comp, age, nxt = comps[nxt], 0, nxt + 1
+                out[ks[0]] = min(out.get(ks[0], math.inf), cost)
+    return out
+
+
+def test_a_tie_goes_to_fewer_stops_then_the_earlier_stop():
+    # Old MEDIUM never wears; SOFT is 0.3 s quicker but wears 0.1 s a lap; stops are free; HARD is slow.
+    # One stop at k=10 puts 5 laps on SOFT: 5*89.7 + 0.1*15 = 450, plus 10*90 = 900 -> 1350.
+    # Two stops at k=5 and k=10 put 5+5 laps on SOFT: 5*90 + 2*450 = 1350. An exact tie, and the
+    # two-stop's first stop is earlier, so only the fewer-stops rule picks the one-stop.
+    model = TyreModel({"SOFT": fit(89.7, 0.1), "MEDIUM": fit(90, 0.0), "HARD": fit(95, 0.1)}, 0.0)
+    st = state("MEDIUM", age=1, used={"MEDIUM"}, lap=10)
+    plan = ps.best_plan(st, model, 15)
+    assert plan.cost == pytest.approx(1350.0)
+    assert plan.stops == (Stop(20, "SOFT"),)
+    assert ps.pit_window(st, model, 15)["best"] == {"stops": [{"lap": 20, "compound": "SOFT"}],
+                                                    "cost": 1350.0}
+    # The two-stop really does tie it (so the test could fail): same cost by the loop.
+    two = brute(st, model, 15)
+    assert two[0][0] == pytest.approx(1350.0, abs=1e-6)
+    # With free stops and flat compounds, no-stop wins when legal, else the earliest one-stop.
+    flat = TyreModel({"SOFT": fit(90, 0.0), "MEDIUM": fit(90, 0.0), "HARD": fit(90, 0.0)}, 0.0)
+    assert ps.best_plan(state("MEDIUM", 1, {"MEDIUM", "HARD"}, lap=10), flat, 15).stops == ()
+    assert ps.best_plan(state("MEDIUM", 1, {"MEDIUM"}, lap=10), flat, 15).stops == (Stop(11, "SOFT"),)
+
+
+def test_an_integer_pit_loss_does_not_truncate_the_safety_car_half():
+    model = TyreModel({"SOFT": fit(95, 0.1), "MEDIUM": fit(90, 0.1), "HARD": fit(90.2, 0.1)}, 25)
+    st = state("HARD", 10, {"HARD", "MEDIUM"}, neutralised=True)
+    float_model = TyreModel(dict(model.compounds), 25.0)
+    assert ps.best_plan(st, model, 30).cost == ps.best_plan(st, float_model, 30).cost
+    # Hand: stop at lap 11 pays 12.5, not 12.
+    assert ps.best_plan(st, model, 30).stops[0].lap == 11
+    assert ps.best_plan(st, model, 30).cost == pytest.approx(brute(st, float_model, 30)[0][0], abs=1e-5)
+
+
+def test_window_does_not_jump_a_gap_to_a_cheap_safety_car_stop():
+    # R = 10 allows no two-stop. Old HARD never wears, fresh MEDIUM wears 0.1 s a lap at equal base,
+    # so the later the stop the better: stop k costs 0.1*(10-k)(11-k)/2 of wear, which is
+    # k=5: 1.5, k=4: 2.1, k=3: 2.8, k=2: 3.6, k=1: 4.5. With a 4 s loss halved to 2 on the next
+    # lap, k=1 costs 2.5: 1.0 above the best (k=5), inside 2 s, while k=2 is 2.1 above. The window
+    # is k=3..5; it must not reach back across k=2 to k=1.
+    model = TyreModel({"SOFT": fit(99, 0.1), "MEDIUM": fit(90, 0.1), "HARD": fit(90, 0.0)}, 4.0)
+    st = state("HARD", 10, {"HARD"}, neutralised=True)
+    costs = first_stop_costs(st, model, 10)
+    best = min(costs.values())
+    assert costs[5] == pytest.approx(best) and best == pytest.approx(905.5)
+    assert costs[1] - best == pytest.approx(1.0) and costs[2] - best == pytest.approx(2.1)
+    out = ps.pit_window(st, model, 10)
+    assert out["best"] == {"stops": [{"lap": 15, "compound": "MEDIUM"}], "cost": 905.5}
+    assert out["window"] == {"open": 13, "close": 15}
+    assert out["status"] == "window opens"
+    assert out["cheap_stop"] is True
