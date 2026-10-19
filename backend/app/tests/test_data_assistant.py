@@ -37,15 +37,21 @@ def reply(*blocks, stop="end_turn"):
 
 
 class FakeClient:
+    """Shaped like the async SDK client: await client.messages.create(...) and await client.close()."""
+
     def __init__(self, *scripted):
         self.scripted = list(scripted)
         self.calls = []
         self.messages = self
+        self.closed = False
 
-    def create(self, **kwargs):
+    async def create(self, **kwargs):
         # the loop appends to one list, so keep what each call saw
         self.calls.append({**kwargs, "messages": [dict(m) for m in kwargs["messages"]]})
         return self.scripted.pop(0)
+
+    async def close(self):
+        self.closed = True
 
 
 @pytest.fixture(autouse=True)
@@ -146,8 +152,8 @@ def test_tool_error_is_reported_to_the_model_not_raised(monkeypatch):
 @pytest.mark.parametrize("error", [
     championship_sim.ChampionshipError("Round 30 of 2024 hasn't been run yet.", 422),
     NoResultsError("This race has no final classification yet."),
-    ValueError("Pick a lap from 1 to 43."),
     pit_window.PitWindowInputError("Pick a lap from 1 to 43."),
+    si.SessionDataError("No data for that race."),
 ])
 def test_every_service_error_keeps_its_own_message(monkeypatch, error):
     stub(monkeypatch, "race_result", error=error)
@@ -169,18 +175,26 @@ def test_an_unexpected_failure_is_generic_and_logged(monkeypatch, capsys):
     assert "secret" not in out[0]
 
 
+def test_a_plain_value_error_is_generic_and_logged(monkeypatch, capsys):
+    # a ValueError from deep inside pandas or numpy says nothing a fan should read
+    stub(monkeypatch, "race_result", error=ValueError("cannot reindex on an axis with duplicate labels"))
+    out = data_assistant.run_tool("race_result", {"year": 2024, "round": 3})
+    assert out == ("That analysis failed to load.", False)
+    assert "duplicate labels" in capsys.readouterr().out
+
+
 def test_unknown_tool_and_bad_input_are_errors(monkeypatch):
     calls = stub(monkeypatch, "race_pace", {"x": 1})
     client = FakeClient(
         reply(tool_use("t1", "launch_missiles", {}),
               tool_use("t2", "race_pace", {"round": 14}),
               tool_use("t3", "race_pace", {"year": "2024", "round": 14}),
-              tool_use("t4", "race_pace", {"year": 2024, "round": 14, "session": "Q"}),
-              tool_use("t5", "race_pace", {"year": True, "round": 14}), stop="tool_use"),
+              tool_use("t4", "race_pace", {"year": 2024, "round": 14, "session": "Q"}), stop="tool_use"),
+        reply(tool_use("t5", "race_pace", {"year": True, "round": 14}), stop="tool_use"),
         reply(text("I couldn't run that.")),
     )
     out = go("Do things", client)
-    results = tool_results(client.calls[1])
+    results = tool_results(client.calls[1]) + tool_results(client.calls[2])
     assert all(r["is_error"] for r in results)
     assert results[0]["content"] == "Unknown tool: launch_missiles."
     assert "year" in results[1]["content"] and "required" in results[1]["content"]
@@ -203,8 +217,144 @@ def test_round_cap_forces_a_text_answer(monkeypatch):
     assert all("tool_choice" not in c for c in client.calls[:-1])
     assert client.calls[-1]["tool_choice"] == {"type": "none"}
     assert client.calls[-1]["tools"] == data_assistant.TOOLS  # the history holds tool calls, so the schema stays
+    assert all(c["cache_control"] == {"type": "ephemeral"} for c in client.calls)
     assert out["answer"] == "Here is what I found."
     assert len(out["sources"]) == 6
+
+
+CAPPED = "Too many lookups; answer with what you have."
+
+
+def test_at_most_four_lookups_run_in_one_round(monkeypatch):
+    calls = stub(monkeypatch, "race_pace", {"x": 1})
+    client = FakeClient(
+        reply(*[tool_use(f"t{i}", "race_pace", {"year": 2024, "round": i}) for i in range(1, 7)], stop="tool_use"),
+        reply(text("Done.")),
+    )
+    out = go("Every race?", client)
+    assert data_assistant.MAX_CALLS_PER_ROUND == 4
+    assert sorted(c["round"] for c in calls) == [1, 2, 3, 4]
+    results = tool_results(client.calls[1])
+    assert [r["tool_use_id"] for r in results] == [f"t{i}" for i in range(1, 7)]  # every call still gets a result
+    assert [r.get("is_error", False) for r in results] == [False] * 4 + [True] * 2
+    assert all(r["content"] == CAPPED for r in results[4:])
+    assert [s["input"]["round"] for s in out["sources"]] == [1, 2, 3, 4]
+
+
+def test_at_most_twelve_lookups_run_in_one_request(monkeypatch):
+    calls = stub(monkeypatch, "race_pace", {"x": 1})
+    rounds, n = [], 0
+    for size_ in (4, 4, 3, 3):
+        rounds.append(reply(*[tool_use(f"t{n + i}", "race_pace", {"year": 2024, "round": n + i + 1})
+                              for i in range(size_)], stop="tool_use"))
+        n += size_
+    client = FakeClient(*rounds, reply(text("Done.")))
+    out = go("Everything?", client)
+    assert data_assistant.MAX_CALLS_PER_REQUEST == 12
+    assert len(calls) == 12
+    last = tool_results(client.calls[4])
+    assert [r.get("is_error", False) for r in last] == [False, True, True]
+    assert [r["content"] for r in last[1:]] == [CAPPED, CAPPED]
+    assert len(out["sources"]) == 12
+
+
+def test_bad_calls_count_towards_the_cap(monkeypatch):
+    calls = stub(monkeypatch, "race_pace", {"x": 1})
+    client = FakeClient(
+        reply(*[tool_use(f"t{i}", "nope", {}) for i in range(4)],
+              tool_use("t9", "race_pace", {"year": 2024, "round": 1}), stop="tool_use"),
+        reply(text("Done.")),
+    )
+    go("?", client)
+    assert calls == []
+    assert tool_results(client.calls[1])[-1]["content"] == CAPPED
+
+
+def test_the_tools_in_one_turn_run_at_the_same_time(monkeypatch):
+    import threading
+    # each tool waits for the other: run one after the other, the first would time out
+    barrier = threading.Barrier(2, timeout=5)
+
+    def meet(**kwargs):
+        barrier.wait()
+        return {"met": kwargs["round"]}
+
+    monkeypatch.setitem(data_assistant._IMPLEMENTATIONS, "race_pace", meet)
+    client = FakeClient(
+        reply(tool_use("t1", "race_pace", {"year": 2024, "round": 1}),
+              tool_use("t2", "race_pace", {"year": 2024, "round": 2}), stop="tool_use"),
+        reply(text("ok")),
+    )
+    go("Both?", client)
+    results = tool_results(client.calls[1])
+    assert [r.get("is_error", False) for r in results] == [False, False]
+    assert [json.loads(r["content"]) for r in results] == [{"met": 1}, {"met": 2}]
+
+
+def test_thinking_blocks_are_replayed_exactly(monkeypatch):
+    stub(monkeypatch, "race_pace", {"x": 1})
+    thinking = SimpleNamespace(type="thinking", thinking="Spa is round 14.", signature="sig-abc")
+    said = text("Checking.")
+    lookup = tool_use("t1", "race_pace", {"year": 2024, "round": 14})
+    client = FakeClient(reply(thinking, said, lookup, stop="tool_use"), reply(text("Norris.")))
+    go("Pace at Spa?", client)
+    assistant = client.calls[1]["messages"][-2]
+    assert assistant["role"] == "assistant"
+    assert assistant["content"] == [thinking, said, lookup]
+    replayed = assistant["content"][0]
+    assert (replayed.type, replayed.thinking, replayed.signature) == ("thinking", "Spa is round 14.", "sig-abc")
+
+
+def test_an_answer_cut_off_by_the_token_limit_says_so():
+    out = go("Tell me everything", FakeClient(reply(text("Norris led from lap 3 and"), stop="max_tokens")))
+    assert out["answer"] == "Norris led from lap 3 and (cut short)"
+
+
+def test_an_empty_answer_cut_off_by_the_token_limit_apologises():
+    out = go("Tell me everything", FakeClient(reply(stop="max_tokens")))
+    assert out["answer"] == data_assistant.NO_ANSWER
+
+
+def test_a_cut_during_a_tool_round_apologises_and_runs_nothing(monkeypatch):
+    calls = stub(monkeypatch, "race_pace", {"x": 1})
+    client = FakeClient(reply(text("Let me check the pace."), tool_use("t1", "race_pace", {"year": 2024, "round": 14}),
+                              stop="max_tokens"))
+    out = go("Pace?", client)
+    assert out["answer"] == data_assistant.NO_ANSWER
+    assert calls == [] and len(client.calls) == 1
+
+
+def test_every_call_asks_for_prompt_caching():
+    client = FakeClient(reply(text("ok")))
+    go("Hi", client)
+    assert client.calls[0]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_the_client_has_a_timeout_and_retries(monkeypatch):
+    import asyncio
+    import anthropic
+    monkeypatch.setattr(data_assistant.settings, "ANTHROPIC_API_KEY", "sk-test-not-real")
+    client = data_assistant.make_client()
+    try:
+        assert isinstance(client, anthropic.AsyncAnthropic)
+        assert client.timeout == 60.0
+        assert client.max_retries == 2
+    finally:
+        asyncio.run(client.close())
+
+
+def test_ask_closes_a_client_it_built(monkeypatch):
+    import asyncio
+    fake = FakeClient(reply(text("ok")))
+    monkeypatch.setattr(data_assistant, "make_client", lambda: fake)
+    assert asyncio.run(data_assistant.ask("Hi", []))["answer"] == "ok"
+    assert fake.closed is True
+
+
+def test_ask_leaves_a_client_it_was_given_open():
+    fake = FakeClient(reply(text("ok")))
+    go("Hi", fake)
+    assert fake.closed is False
 
 
 def test_empty_answer_falls_back_to_an_apology():
@@ -224,6 +374,34 @@ def test_tool_list_is_exactly_the_seven_tools():
     assert client.calls[0]["tools"] == data_assistant.TOOLS
     sessions = data_assistant.TOOLS[3]["input_schema"]["properties"]["session"]
     assert sessions["enum"] == ["R", "S"]
+    with_session = [t for t in data_assistant.TOOLS if "session" in t["input_schema"]["properties"]]
+    assert [t["name"] for t in with_session] == ["race_pace", "overtakes", "pit_window", "win_probability"]
+    assert all(t["input_schema"]["properties"]["session"]["default"] == "R" for t in with_session)
+
+
+def test_a_year_outside_the_data_is_refused_before_any_service_runs(monkeypatch):
+    from datetime import date
+    last = date.today().year + 1
+    calls = stub(monkeypatch, "race_pace", {"x": 1})
+    schedule = stub(monkeypatch, "season_schedule", [])
+    for year in (2017, last + 1, 1950):
+        out, ok = data_assistant.run_tool("race_pace", {"year": year, "round": 1})
+        assert ok is False and "year" in out and "2018" in out and str(last) in out
+        assert data_assistant.run_tool("season_schedule", {"year": year})[1] is False
+    assert calls == [] and schedule == []
+    assert data_assistant.run_tool("race_pace", {"year": 2018, "round": 1})[1]
+    assert data_assistant.run_tool("season_schedule", {"year": last})[1]
+
+
+def test_season_schedule_reads_the_public_memoised_season(monkeypatch):
+    loads = []
+    frames = (pd.DataFrame(), pd.DataFrame(),
+              pd.DataFrame({"round": [1], "name": ["Grand Prix 1"], "date": [pd.Timestamp("2024-03-02")], "sprint": [False]}))
+    monkeypatch.setattr(championship_data, "load_season", lambda year: loads.append(year) or frames)
+    assert championship_data.season_frames(2024) is frames
+    out, ok = data_assistant.run_tool("season_schedule", {"year": 2024})
+    assert ok and json.loads(out) == [{"round": 1, "name": "Grand Prix 1", "date": "2024-03-02", "sprint": False}]
+    assert loads == [2024]  # loaded once, then served from the memo
 
 
 @pytest.mark.parametrize("model, sent", [("claude-opus-5", True), ("claude-sonnet-5-5", True), ("claude-3-haiku", False)])
@@ -332,11 +510,9 @@ def race_rows():
 def test_race_result_condenser():
     payload = latest_result.race_results(2024, 14, load_results=lambda y, r: race_rows())
     out = data_assistant.condense_race_result(payload)
-    assert [r["position"] for r in out[:10]] == list(range(1, 11))
+    assert [r["position"] for r in out] == list(range(1, 21))  # the whole field, finishers and not
     assert set(out[0]) == {"position", "code", "team", "points", "status"}
-    # beyond the top ten only cars that did not finish appear
-    assert [r["code"] for r in out[10:]] == ["D16", "D17"]
-    assert all(r["status"] == "Engine" for r in out[10:])
+    assert [r["status"] for r in out[15:]] == ["Engine", "Engine", "Lapped", "Lapped", "Lapped"]
     size(out)
 
 
@@ -365,18 +541,22 @@ def test_race_pace_condenser(monkeypatch):
     payload = race_pace.race_pace_payload(2024, "", "R", 14)
     out = data_assistant.condense_race_pace(payload)
     assert set(out) == {"drivers", "compounds"}
-    assert len(out["drivers"]) == 10
+    assert len(out["drivers"]) == 20
     assert out["drivers"][0] == {"code": "D00", "pace_gap_s": 0.0, "clean_laps": 43}
+    assert out["drivers"][-1]["code"] == "D19"
     assert out["drivers"][1]["pace_gap_s"] == pytest.approx(0.1, abs=0.001)
     assert {c["compound"] for c in out["compounds"]} == {"SOFT", "MEDIUM", "HARD"}
     assert set(out["compounds"][0]) == {"compound", "deg_per_lap"}
     size(out)
 
 
-def test_race_pace_condenser_skips_unranked_drivers():
+def test_race_pace_condenser_keeps_unranked_drivers_without_a_gap():
     payload = {"drivers": [{"code": "AAA", "gap": 0.0, "clean_laps": 40}, {"code": "BBB", "gap": None, "clean_laps": 3}],
                "compounds": []}
-    assert [d["code"] for d in data_assistant.condense_race_pace(payload)["drivers"]] == ["AAA"]
+    assert data_assistant.condense_race_pace(payload)["drivers"] == [
+        {"code": "AAA", "pace_gap_s": 0.0, "clean_laps": 40},
+        {"code": "BBB", "pace_gap_s": None, "clean_laps": 3},
+    ]
 
 
 def test_overtakes_condenser(monkeypatch):

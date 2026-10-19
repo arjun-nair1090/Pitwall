@@ -370,22 +370,29 @@ async def win_probability_endpoint(req: WinProbabilityRequest):
         raise _analysis_error(e, "the win probability")
 
 
+ASK_TURN_CHARS = 2000
+
+
 class AskTurn(BaseModel):
     role: Literal["user", "assistant"]
-    text: str = Field(max_length=2000)
+    text: str = Field(min_length=1)
+
+    @field_validator("text")
+    @classmethod
+    def _trimmed(cls, value: str) -> str:
+        # an earlier answer can run long; keep its start rather than refuse every follow-up
+        return value[:ASK_TURN_CHARS]
 
 
 class AskRequest(BaseModel):
-    question: str = Field(max_length=500)
+    question: str = Field(min_length=1, max_length=500)
     history: List[AskTurn] = Field(default_factory=list, max_length=6)
 
-    @field_validator("question")
+    @field_validator("question", mode="before")
     @classmethod
-    def _not_blank(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
-            raise ValueError("Ask a question.")
-        return value
+    def _stripped(cls, value):
+        # strip first, so the length limits judge what will be asked
+        return value.strip() if isinstance(value, str) else value
 
 
 @router.post("/ask")
@@ -401,6 +408,8 @@ async def ask_the_data(req: AskRequest):
     except Exception as e:
         print(f"The assistant failed: {e!r}")
         raise HTTPException(status_code=502, detail="The assistant couldn't be reached. Try again shortly.")
+    finally:
+        await client.close()
 
 
 @router.get("/stats/standings")

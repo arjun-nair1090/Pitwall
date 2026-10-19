@@ -467,6 +467,7 @@ def test_ask_treats_the_placeholder_key_as_unset(monkeypatch):
     {"question": ""}, {"question": "   "}, {"question": "x" * 501}, {},
     {"question": "ok", "history": [{"role": "user", "text": "a"}] * 7},
     {"question": "ok", "history": [{"role": "system", "text": "a"}]},
+    {"question": "ok", "history": [{"role": "user", "text": ""}]},
 ])
 def test_ask_rejects_bad_requests_with_a_422(monkeypatch, body):
     fake = _ask_client(monkeypatch, _says("never reached"))
@@ -495,6 +496,35 @@ def test_ask_answers_with_sources(monkeypatch):
     assert fake.calls[0]["messages"][-1] == {"role": "user", "content": "Who had the best pace?"}
 
 
+def test_ask_trims_a_long_history_turn_instead_of_refusing(monkeypatch):
+    fake = _ask_client(monkeypatch, _says("ok"))
+    response = client.post("/api/v1/ask", json={
+        "question": "And then?",
+        "history": [{"role": "user", "text": "Tell me all"}, {"role": "assistant", "text": "x" * 2500}],
+    })
+    assert response.status_code == 200
+    assert fake.calls[0]["messages"][1] == {"role": "assistant", "content": "x" * 2000}
+
+
+def test_ask_strips_the_question_before_measuring_it(monkeypatch):
+    fake = _ask_client(monkeypatch, _says("ok"))
+    response = client.post("/api/v1/ask", json={"question": "   " + "q" * 500 + "   "})
+    assert response.status_code == 200
+    assert fake.calls[0]["messages"][-1]["content"] == "q" * 500
+
+
+def test_ask_closes_the_client_after_answering(monkeypatch):
+    fake = _ask_client(monkeypatch, _says("ok"))
+    assert client.post("/api/v1/ask", json={"question": "Who won?"}).status_code == 200
+    assert fake.closed is True
+
+
+def test_ask_closes_the_client_after_a_failure(monkeypatch):
+    boom = _raising(monkeypatch, RuntimeError("down"))
+    assert client.post("/api/v1/ask", json={"question": "Who won?"}).status_code == 502
+    assert boom.closed is True
+
+
 def _status_error(cls, status):
     import httpx
     request = httpx.Request("POST", "https://api.example.invalid/v1/messages")
@@ -506,13 +536,18 @@ def _raising(monkeypatch, error):
 
     class Boom:
         messages = None
+        closed = False
 
-        def create(self, **kwargs):
+        async def create(self, **kwargs):
             raise error
+
+        async def close(self):
+            self.closed = True
 
     boom = Boom()
     boom.messages = boom
     monkeypatch.setattr(data_assistant, "make_client", lambda: boom)
+    return boom
 
 
 def test_ask_maps_a_rate_limit_to_429(monkeypatch):
