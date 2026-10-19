@@ -66,6 +66,17 @@ describe("WinChart", () => {
     expect(x(b.container)).toBeGreaterThan(at2);
   });
 
+  it("shades safety-car laps half a lap either side, kept inside the plot", () => {
+    const spans = (c: HTMLElement) =>
+      Array.from(c.querySelectorAll(".recharts-reference-area-rect")).map((r) => [Number(r.getAttribute("x1")), Number(r.getAttribute("x2"))]);
+    const inner = renderChart();
+    expect(spans(inner.container)).toEqual([[1.5, 2.5], [3.5, 5.5]]);
+    inner.unmount();
+    // Lap 1 and the last lap sit on the plot edges, so half a lap would hang off the plot.
+    const edges = renderChart({ data: { ...WIN_PROB, sc_laps: [1, 6] } });
+    expect(spans(edges.container)).toEqual([[1, 1.5], [5.5, 6]]);
+  });
+
   it("selects the lap that is clicked", async () => {
     const { container, onSelect } = renderChart();
     const { surface, init } = hover(container, 3);

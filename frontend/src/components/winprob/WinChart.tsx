@@ -48,6 +48,8 @@ export default function WinChart({ data, lap, onSelect }: { data: WinProbResult;
           <LineChart
             data={rows}
             margin={{ top: 8, right: 16, bottom: 4, left: 0 }}
+            // A click selects a lap only after a hover has put the tooltip on one (Recharts 3). Keyboard and
+            // screen-reader users pick laps with the LapStepper.
             onClick={(state) => {
               const label = Number(state?.activeLabel);
               if (Number.isFinite(label) && label >= 1) onSelect(label);
@@ -59,9 +61,8 @@ export default function WinChart({ data, lap, onSelect }: { data: WinProbResult;
             {spans.map(([from, to]) => (
               <ReferenceArea
                 key={`sc-${from}`}
-                x1={from - 0.5}
-                x2={to + 0.5}
-                ifOverflow="hidden"
+                x1={Math.max(from - 0.5, 1)}
+                x2={Math.min(to + 0.5, Math.max(total, 2))}
                 fill={CHART.tooltip.cursor.stroke}
                 fillOpacity={0.18}
                 stroke="none"

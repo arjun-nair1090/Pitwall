@@ -30,8 +30,8 @@ const lapsAsked = () => bodies().map((b) => b.lap);
 
 // The server answers for the lap it is asked about, or lap 4 when it isn't.
 const answer = (_url: string, body?: unknown) => {
-  const lap = (body as { lap?: number }).lap ?? 4;
-  return Promise.resolve({ data: { ...WIN_PROB, at: { ...WIN_PROB.at, lap } } });
+  const { lap = 4, round, session } = body as { lap?: number; round: number; session: string };
+  return Promise.resolve({ data: { ...WIN_PROB, round, session, at: { ...WIN_PROB.at, lap } } });
 };
 
 beforeEach(() => {
@@ -98,6 +98,42 @@ describe("WinProbPage", () => {
         "Each lap is worked out only from the laps run so far: every driver's best remaining strategy, plus thousands of simulated finishes with random pace, retirements and a possible safety car. It predicts who crosses the line first, so a later penalty or disqualification isn't known to it.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the chart on screen while the next lap loads, then updates the table", async () => {
+    let release: () => void = () => {};
+    post.mockReset().mockImplementation(((_u: string, body: { lap?: number }) =>
+      body.lap === 5
+        ? new Promise((resolve) => {
+            release = () =>
+              resolve({
+                data: { ...WIN_PROB, at: { lap: 5, rows: WIN_PROB.at.rows.map((r) => ({ ...r, probability: r.code === "VER" ? 0.7 : r.probability })) } },
+              });
+          })
+        : answer(_u, body)) as never);
+    render(<WinProbPage initial={initial} />);
+    const chart = await screen.findByRole("img", { name: /chance of winning/i });
+    const xOf = () => Number(document.querySelector(".recharts-reference-line line")?.getAttribute("x1"));
+    const before = xOf();
+    fireEvent.click(screen.getByRole("button", { name: "Next lap" }));
+    await waitFor(() => expect(lapsAsked()).toEqual([undefined, 5]));
+    expect(screen.getByRole("img", { name: /chance of winning/i })).toBe(chart);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(xOf()).toBeGreaterThan(before);
+    expect(screen.getByRole("table").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getAllByRole("row")[2]).toHaveTextContent("55.0%");
+    release();
+    await waitFor(() => expect(screen.getAllByRole("row")[2]).toHaveTextContent("70.0%"));
+    expect(screen.getByRole("table").closest("[aria-busy]")).toHaveAttribute("aria-busy", "false");
+  });
+
+  it("drops the old race's chart when another race is picked", async () => {
+    render(<WinProbPage initial={initial} />);
+    await screen.findByRole("img", { name: /chance of winning/i });
+    post.mockReset().mockReturnValue(new Promise(() => {}));
+    fireEvent.change(screen.getByLabelText("Race"), { target: { value: "15" } });
+    expect(await screen.findByRole("status")).toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: /chance of winning/i })).not.toBeInTheDocument();
   });
 
   it("offers only the sprint and the race", async () => {
