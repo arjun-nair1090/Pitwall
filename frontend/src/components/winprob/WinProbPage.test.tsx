@@ -121,10 +121,13 @@ describe("WinProbPage", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
     expect(xOf()).toBeGreaterThan(before);
     expect(screen.getByRole("table").closest("[aria-busy]")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("table").closest("[aria-busy]")).toHaveClass("opacity-60");
+    expect(screen.getByRole("table").closest("[aria-busy]")).not.toHaveAttribute("style");
     expect(screen.getAllByRole("row")[2]).toHaveTextContent("55.0%");
     release();
     await waitFor(() => expect(screen.getAllByRole("row")[2]).toHaveTextContent("70.0%"));
     expect(screen.getByRole("table").closest("[aria-busy]")).toHaveAttribute("aria-busy", "false");
+    expect(screen.getByRole("table").closest("[aria-busy]")).not.toHaveClass("opacity-60");
   });
 
   it("drops the old race's chart when another race is picked", async () => {

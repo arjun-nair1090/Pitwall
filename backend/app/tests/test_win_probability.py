@@ -139,8 +139,13 @@ def test_project_finish_adds_the_cost():
 
 # ---- the payload ----
 
+# Two more cars on mediums, so the medium has a fit by lap 6 and the field is projected from plans
+# (with one car per compound nothing is fitted, and the field goes on one scale).
+FITTED = {**CARS, "DDD": (60.0, [("MEDIUM", 1, 12)]), "EEE": (70.0, [("MEDIUM", 1, 12)])}
+
+
 def test_projected_finish_uses_best_plan_cost_and_falls_back_to_recent_laps():
-    laps = make_laps()
+    laps = make_laps(FITTED)
     laps.loc[laps["Driver"] == "CCC", "Compound"] = "UNKNOWN"  # no plan for CCC
     p = payload(FakeSession(laps), lap=6)
     r = rows(p)
@@ -179,7 +184,7 @@ def in_lap_laps(slow_in=4.0, slow_out=18.0, cars=None, laps=12):
 
 def test_in_lap_driver_is_treated_as_already_stopped():
     # AAA's lap 6 is an in-lap, 4 s slow; lap 7 is on HARD at age 1.
-    laps = in_lap_laps()
+    laps = in_lap_laps(cars=FITTED)
     p = payload(FakeSession(laps), lap=6)
     model, pit_loss = pit_window._tyre_model(laps[laps["LapNumber"] <= 6])
     stopped = DriverState(code="AAA", position=1, lap=6, compound="HARD", tyre_age=0,
@@ -191,9 +196,9 @@ def test_in_lap_driver_is_treated_as_already_stopped():
     cost = {d["code"]: d["best"]["cost"] for d in plan["drivers"] if d["best"]}
     t = {c: laps[(laps["Driver"] == c) & (laps["LapNumber"] == 6)]["Time"].iloc[0].total_seconds() for c in CARS}
     F = {"AAA": t["AAA"] + c_a, "BBB": t["BBB"] + cost["BBB"], "CCC": t["CCC"] + cost["CCC"]}
-    low = min(F.values())
     for code in F:
-        assert rows(p)[code]["projected_gap"] == pytest.approx(F[code] - low, abs=0.2)
+        assert (rows(p)[code]["projected_gap"] - rows(p)["BBB"]["projected_gap"]
+                == pytest.approx(F[code] - F["BBB"], abs=0.2))
 
 
 def test_two_cars_stopping_on_consecutive_laps_look_alike_on_their_in_laps():
@@ -207,6 +212,37 @@ def test_two_cars_stopping_on_consecutive_laps_look_alike_on_their_in_laps():
         r = rows(wp.win_probability_payload(FakeSession(laps), lap, year=2024, round_number=1))
         swing.append(r["BBB"]["projected_gap"] - r["AAA"]["projected_gap"])
     assert abs(swing[0] - swing[1]) < 1.5
+
+
+INTER_STOP = {"AAA": (0.0, [("MEDIUM", 1, 6), ("INTERMEDIATE", 7, 12)]),
+              "BBB": (2.0, [("SOFT", 1, 5), ("MEDIUM", 6, 12)]),
+              "CCC": (30.0, [("HARD", 1, 7), ("MEDIUM", 8, 12)])}
+
+
+def lap_end(laps, code, lap):
+    return laps[(laps["Driver"] == code) & (laps["LapNumber"] == lap)]["Time"].iloc[0].total_seconds()
+
+
+def test_an_in_lap_onto_intermediates_keeps_the_rest_of_its_stop():
+    # AAA boxes on lap 6 for intermediates. However slow its in-lap, the stop is paid in full: a
+    # slower in-lap costs race time now and leaves less of the stop still to come.
+    found = {}
+    for slow_in in (4.0, 14.0):
+        laps = in_lap_laps(slow_in=slow_in, cars=INTER_STOP)
+        found[slow_in] = rows(payload(FakeSession(laps), lap=6))
+    gap = {k: r["AAA"]["projected_gap"] - r["CCC"]["projected_gap"] for k, r in found.items()}
+    assert gap[14.0] == pytest.approx(gap[4.0], abs=0.05)
+
+
+def test_an_in_lap_onto_intermediates_counts_toward_the_wet_field():
+    # AAA, the leader, is on intermediates from its stop: the whole field goes on one scale, so the
+    # dry cars are projected from their recent laps, not from plans.
+    laps = in_lap_laps(cars=INTER_STOP)
+    r = rows(payload(FakeSession(laps), lap=6))
+    m_b = np.median([90.4 + 0.1 * a for a in (2, 3, 4)])  # laps 5 and 6 are BBB's in- and out-lap
+    m_c = np.median([89.7 + 0.1 * a for a in range(2, 7)])
+    expected = lap_end(laps, "CCC", 6) - lap_end(laps, "BBB", 6) + 6 * (m_c - m_b)
+    assert r["CCC"]["projected_gap"] - r["BBB"]["projected_gap"] == pytest.approx(expected, abs=0.01)
 
 
 def test_an_in_lap_with_no_next_lap_uses_the_state_as_is():
@@ -263,6 +299,87 @@ def test_a_quarter_of_the_field_on_wets_switches_it_even_with_a_dry_leader():
     p = payload(six_car_laps(["D4", "D5"]), lap=4)  # 2 of 6 wet, the leader dry
     for code, gap in recent_pace_gaps().items():
         assert projected_gaps(p)[code] == pytest.approx(gap, abs=0.01)
+
+
+def slowed(laps, code, first, last, seconds):
+    mine = (laps["Driver"] == code) & laps["LapNumber"].between(first, last)
+    laps.loc[mine, "LapTime"] = laps.loc[mine, "LapTime"] + pd.Timedelta(seconds=seconds)
+    return laps
+
+
+def test_on_one_scale_a_drivers_pace_comes_from_the_current_stint():
+    # All on wet tyres. BBB's first stint was 3 s a lap slower; at lap 7 its current stint has two
+    # clean laps (6 and 7), so only they count. CCC's current stint has one (lap 7), too few, so its
+    # last five clean laps stand in.
+    cars = {"AAA": (0.0, [("INTERMEDIATE", 1, 12)]),
+            "BBB": (2.0, [("WET", 1, 4), ("INTERMEDIATE", 5, 12)]),
+            "CCC": (4.0, [("INTERMEDIATE", 1, 5), ("WET", 6, 12)])}
+    laps = slowed(make_laps(cars), "BBB", 1, 4, 3.0)
+    r = rows(payload(FakeSession(laps), lap=7))
+    m = {"AAA": np.median([90.0 + 0.1 * a for a in range(2, 8)]),
+         "BBB": np.median([90.2, 90.3]),
+         "CCC": np.median([90.2, 90.3, 90.4, 90.2])}  # laps 2-4 and 7
+    F = {c: 90.0 * 7 + cars[c][0] + 5 * m[c] for c in cars}
+    for c in cars:
+        assert r[c]["projected_gap"] == pytest.approx(F[c] - min(F.values()), abs=0.01)
+
+
+def test_the_slower_tyre_group_is_projected_at_the_faster_groups_pace_plus_a_stop():
+    # It is raining: the two cars on intermediates lap 4-5 s quicker than the two on slicks. The slick
+    # cars keep their pace against each other, but run at the intermediate pace after a stop.
+    cars = {"AAA": (0.0, [("INTERMEDIATE", 1, 12)]),
+            "BBB": (3.0, [("INTERMEDIATE", 1, 12)]),
+            "CCC": (6.0, [("SOFT", 1, 12)]),
+            "DDD": (9.0, [("MEDIUM", 1, 12)])}
+    laps = slowed(slowed(make_laps(cars), "CCC", 1, 12, 4.0), "DDD", 1, 12, 5.0)
+    r = rows(payload(FakeSession(laps), lap=6))
+    pit_loss = pit_window._tyre_model(laps[laps["LapNumber"] <= 6])[1]
+    m = {"AAA": 90.4, "BBB": 90.4, "CCC": 94.8, "DDD": 95.4}
+    wet, dry = 90.4, np.median([94.8, 95.4])
+    assert 6 * (dry - wet) > pit_loss  # the stop pays
+    F = {c: 90.0 * 6 + cars[c][0] + 6 * m[c] for c in ("AAA", "BBB")}
+    F.update({c: 90.0 * 6 + cars[c][0] + 6 * (m[c] - dry + wet) + pit_loss for c in ("CCC", "DDD")})
+    for c in cars:
+        assert r[c]["projected_gap"] == pytest.approx(F[c] - min(F.values()), abs=0.01)
+
+
+def test_a_lap_with_no_fitted_dry_compound_puts_the_field_on_one_scale():
+    # Lap 1: no clean laps and no fit, so every car runs at the field's pace and the projection
+    # keeps the order on the road, whatever tyre a car started on.
+    for r in payload(lap=1)["at"]["rows"]:
+        assert r["projected_gap"] == pytest.approx(r["gap"], abs=0.01)
+
+
+def test_a_slower_tyre_group_stays_out_when_a_stop_would_not_pay():
+    # The slick cars are only 0.5 s a lap slower with six laps left: 3 s, less than a stop. They
+    # are projected at their own pace, with no stop.
+    cars = {"AAA": (0.0, [("INTERMEDIATE", 1, 12)]),
+            "BBB": (3.0, [("INTERMEDIATE", 1, 12)]),
+            "CCC": (6.0, [("SOFT", 1, 12)]),
+            "DDD": (9.0, [("MEDIUM", 1, 12)])}
+    laps = slowed(make_laps(cars), "DDD", 1, 12, 0.9)  # CCC's soft is 0.4 s slower; DDD 0.9 s
+    r = rows(payload(FakeSession(laps), lap=6))
+    m = {"AAA": 90.4, "BBB": 90.4, "CCC": 90.8, "DDD": 91.3}
+    F = {c: 90.0 * 6 + cars[c][0] + 6 * m[c] for c in cars}
+    for c in cars:
+        assert r[c]["projected_gap"] == pytest.approx(F[c] - min(F.values()), abs=0.01)
+
+
+def test_with_no_fitted_dry_compound_the_known_laps_do_not_separate_the_field():
+    # Lap 3: each compound has one car, so nothing is fitted. The two clean laps each car has run
+    # are too few to project 9 laps from, so the projection keeps the order on the road.
+    for r in payload(lap=3)["at"]["rows"]:
+        assert r["projected_gap"] == pytest.approx(r["gap"], abs=0.01)
+
+
+def test_the_final_lap_goes_to_the_road_leader_even_without_a_lap_end_time():
+    laps = make_laps()
+    final = laps["LapNumber"] == 12
+    laps.loc[final & (laps["Driver"] == "BBB"), ["Position", "Time"]] = [1.0, pd.NaT]
+    laps.loc[final & (laps["Driver"] == "AAA"), "Position"] = 2.0
+    p = payload(FakeSession(laps), lap=12)
+    assert p["laps"][-1]["odds"] == {"BBB": 1.0}
+    assert rows(p)["BBB"]["probability"] == 1.0
 
 
 def test_one_wet_car_in_six_with_a_dry_leader_does_not_switch_the_field():
