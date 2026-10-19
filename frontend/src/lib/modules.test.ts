@@ -23,6 +23,13 @@ describe("module registry", () => {
     expect(m).toMatchObject({ label: "Pit window", href: "/pitwindow", group: "Race" });
     expect(m?.mobilePrimary).toBeFalsy();
   });
+  it("lists win probability in the Race group straight after the pit window", () => {
+    const ids = MODULES.map((m) => m.id);
+    expect(ids.indexOf("winprob")).toBe(ids.indexOf("pitwindow") + 1);
+    const m = MODULES.find((x) => x.id === "winprob");
+    expect(m).toMatchObject({ label: "Win probability", href: "/winprob", group: "Race" });
+    expect(m?.mobilePrimary).toBeFalsy();
+  });
   it("describes every module", () => {
     for (const m of MODULES) expect(m.description.length).toBeGreaterThan(10);
   });
@@ -35,6 +42,7 @@ describe("findModuleForPath", () => {
   it("matches the championship odds page", () => expect(findModuleForPath("/championship")?.id).toBe("championship"));
   it("matches the overtakes page", () => expect(findModuleForPath("/battles")?.id).toBe("battles"));
   it("matches the pit window page", () => expect(findModuleForPath("/pitwindow")?.id).toBe("pitwindow"));
+  it("matches the win probability page", () => expect(findModuleForPath("/winprob")?.id).toBe("winprob"));
   it("does not match a longer sibling name", () => expect(findModuleForPath("/livestock")).toBeUndefined());
   it("returns undefined for the landing page and unknown routes", () => {
     expect(findModuleForPath("/")).toBeUndefined();
@@ -54,6 +62,10 @@ describe("searching modules", () => {
     expect(search("tyre")[0].id).toBe("strategy");
   });
   it("finds overtakes and battles by what they show", () => expect(search("overtakes")[0].id).toBe("battles"));
+  it("finds win probability by what it answers", () => {
+    expect(search("win probability")[0].id).toBe("winprob");
+    expect(search("who wins")[0].id).toBe("winprob");
+  });
   it("finds the pit window by what it answers", () => {
     expect(search("undercut")[0].id).toBe("pitwindow");
     expect(search("pit stop")[0].id).toBe("pitwindow");

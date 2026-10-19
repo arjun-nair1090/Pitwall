@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  cheapStopText, defaultLap, lapsText, lastLapFromError, planText, statusText, undercutLead, wearText, windowText,
+  cheapStopText, defaultLap, lapsText, lastLapFromError, planText, statusLabel, statusText, undercutLead, wearText, windowText,
   type PitDriver,
 } from "./pitwindow";
 
@@ -67,4 +67,14 @@ describe("laps", () => {
     expect(lastLapFromError("Pick a lap from 1 to 43.")).toBe(43);
     expect(lastLapFromError("There's no data for round 14 2024 yet.")).toBeNull();
   });
+});
+
+describe("statusLabel", () => {
+  it("labels each status from its parts", () => {
+    expect(statusLabel("box now", false, 19)).toBe("Box now");
+    expect(statusLabel("window opens", false, 21)).toBe("Window opens lap 21");
+    expect(statusLabel("window opens", false, null)).toBe("Window opens");
+    expect(statusLabel("wet", false, null)).toBe("Wet tyres");
+  });
+  it("puts the two-compound rule first", () => expect(statusLabel("box now", true, 19)).toBe("Can't meet the two-compound rule"));
 });
