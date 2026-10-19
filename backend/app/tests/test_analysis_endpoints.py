@@ -432,3 +432,117 @@ def test_championship_odds_memoises_the_season_and_the_result(monkeypatch):
     assert calls["load"] == 1
     assert seen == [2, 1]
     championship_data.clear_cache()
+
+
+# ---- POST /ask ----
+
+def _ask_client(monkeypatch, *scripted):
+    from app.services import data_assistant
+    from app.tests.test_data_assistant import FakeClient
+    fake = FakeClient(*scripted)
+    monkeypatch.setattr(data_assistant, "make_client", lambda: fake)
+    return fake
+
+
+def _says(value):
+    from app.tests.test_data_assistant import reply, text
+    return reply(text(value))
+
+
+def test_ask_without_a_key_is_a_503(monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "")
+    response = client.post("/api/v1/ask", json={"question": "Who won?"})
+    assert response.status_code == 503
+    assert response.json()["detail"] == "The assistant isn't set up on this server (no Anthropic API key)."
+
+
+def test_ask_treats_the_placeholder_key_as_unset(monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "your_anthropic_api_key_here")
+    assert client.post("/api/v1/ask", json={"question": "Who won?"}).status_code == 503
+
+
+@pytest.mark.parametrize("body", [
+    {"question": ""}, {"question": "   "}, {"question": "x" * 501}, {},
+    {"question": "ok", "history": [{"role": "user", "text": "a"}] * 7},
+    {"question": "ok", "history": [{"role": "system", "text": "a"}]},
+])
+def test_ask_rejects_bad_requests_with_a_422(monkeypatch, body):
+    fake = _ask_client(monkeypatch, _says("never reached"))
+    assert client.post("/api/v1/ask", json=body).status_code == 422
+    assert fake.calls == []
+
+
+def test_ask_answers_with_sources(monkeypatch):
+    from app.services import data_assistant
+    from app.tests.test_data_assistant import reply, text, tool_use
+    monkeypatch.setitem(data_assistant._IMPLEMENTATIONS, "race_pace", lambda **k: {"drivers": []})
+    fake = _ask_client(
+        monkeypatch,
+        reply(tool_use("t1", "race_pace", {"year": 2024, "round": 14}), stop="tool_use"),
+        reply(text("Norris.")),
+    )
+    response = client.post("/api/v1/ask", json={
+        "question": "  Who had the best pace?  ",
+        "history": [{"role": "user", "text": "Hi"}, {"role": "assistant", "text": "Hello."}],
+    })
+    assert response.status_code == 200
+    assert response.json() == {
+        "answer": "Norris.",
+        "sources": [{"tool": "race_pace", "input": {"year": 2024, "round": 14, "session": "R"}, "ok": True}],
+    }
+    assert fake.calls[0]["messages"][-1] == {"role": "user", "content": "Who had the best pace?"}
+
+
+def _status_error(cls, status):
+    import httpx
+    request = httpx.Request("POST", "https://api.example.invalid/v1/messages")
+    return cls("secret upstream detail: key sk-123", response=httpx.Response(status, request=request), body=None)
+
+
+def _raising(monkeypatch, error):
+    from app.services import data_assistant
+
+    class Boom:
+        messages = None
+
+        def create(self, **kwargs):
+            raise error
+
+    boom = Boom()
+    boom.messages = boom
+    monkeypatch.setattr(data_assistant, "make_client", lambda: boom)
+
+
+def test_ask_maps_a_rate_limit_to_429(monkeypatch):
+    import anthropic
+    _raising(monkeypatch, _status_error(anthropic.RateLimitError, 429))
+    response = client.post("/api/v1/ask", json={"question": "Who won?"})
+    assert response.status_code == 429
+    assert response.json()["detail"] == "The assistant is busy. Try again in a minute."
+    assert "secret" not in response.text and "sk-123" not in response.text
+
+
+def test_ask_maps_an_api_error_to_502(monkeypatch):
+    import anthropic
+    import httpx
+    _raising(monkeypatch, anthropic.APIError(
+        "secret upstream detail: key sk-123", httpx.Request("POST", "https://api.example.invalid"), body=None))
+    response = client.post("/api/v1/ask", json={"question": "Who won?"})
+    assert response.status_code == 502
+    assert response.json()["detail"] == "The assistant couldn't be reached. Try again shortly."
+    assert "secret" not in response.text
+
+
+def test_ask_maps_a_server_error_to_502(monkeypatch):
+    import anthropic
+    _raising(monkeypatch, _status_error(anthropic.InternalServerError, 500))
+    assert client.post("/api/v1/ask", json={"question": "Who won?"}).status_code == 502
+
+
+def test_ask_does_not_leak_an_unexpected_failure(monkeypatch):
+    _raising(monkeypatch, RuntimeError("secret traceback /srv/app"))
+    response = client.post("/api/v1/ask", json={"question": "Who won?"})
+    assert response.status_code == 502
+    assert "secret" not in response.text
