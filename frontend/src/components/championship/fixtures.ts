@@ -1,4 +1,4 @@
-import type { ChampionDriver, ChampionTeam, ChampionshipResult, RemainingRound } from "@/lib/championship";
+import type { ChampionDriver, ChampionTeam, ChampionshipResult, HistoryPoint, RemainingRound } from "@/lib/championship";
 
 // 2026 after round 17 of 23. Six races are left, two of them sprints, so a driver can still add
 // 6 x 25 + 2 x 8 = 166 points.
@@ -71,3 +71,25 @@ export const SEASON_OVER: ChampionshipResult = {
   ],
   constructors: [{ ...CONSTRUCTORS[0], title_probability: 1, status: "clinched" }],
 };
+
+// A season in four rounds, in the shape of a real history: only drivers with non-zero odds appear,
+// the lead changes hands, and each round sums to about 1. The drivers are listed in an order that is
+// neither alphabetical nor the order they first appear in the history. LEC never reaches 1%.
+function seasonDriver(code: string, name: string, team: string): ChampionDriver {
+  return { ...DRIVERS[0], code, name, team };
+}
+
+export const HISTORY_DRIVERS: ChampionDriver[] = [
+  seasonDriver("HAM", "Lewis Hamilton", "Ferrari"),
+  seasonDriver("VER", "Max Verstappen", "Red Bull"),
+  seasonDriver("NOR", "Lando Norris", "McLaren"),
+  seasonDriver("PIA", "Oscar Piastri", "McLaren"),
+  seasonDriver("LEC", "Charles Leclerc", "Ferrari"),
+];
+
+export const SEASON_HISTORY: HistoryPoint[] = [
+  { round: 1, name: "Australian Grand Prix", odds: { VER: 0.4, NOR: 0.3, PIA: 0.2, HAM: 0.096, LEC: 0.004 } },
+  { round: 2, name: "Chinese Grand Prix", odds: { NOR: 0.45, VER: 0.3, PIA: 0.15, HAM: 0.1 } },
+  { round: 3, name: "Japanese Grand Prix", odds: { PIA: 0.5, NOR: 0.25, HAM: 0.15, VER: 0.1 } },
+  { round: 4, name: "Bahrain Grand Prix", odds: { NOR: 0.6, PIA: 0.3, HAM: 0.1 } },
+];
