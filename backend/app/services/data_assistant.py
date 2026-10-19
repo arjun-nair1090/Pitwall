@@ -1,4 +1,4 @@
-"""Answer a fan's question by letting a language model call the app's own analyses as tools.
+"""Answer a fan's question by letting the assistant call the app's own analyses as tools.
 
 The model never sees raw payloads: each tool returns a short summary (a few thousand characters at
 most) and the model may only report what those summaries say. Every call made is returned alongside
@@ -16,17 +16,28 @@ from app.services import (
 )
 from app.services.championship_sim import ChampionshipError
 from app.services.llm_utils import extract_text, supports_effort
+from app.services.pit_window import PitWindowInputError
 from app.services.race_debrief import NoResultsError
 from app.services.session_info import SessionDataError
 
 MAX_TOOL_ROUNDS = 6
+# Lookups the model may make in one round and in one request; the rest are answered with CAPPED.
+MAX_CALLS_PER_ROUND = 4
+MAX_CALLS_PER_REQUEST = 12
 MAX_TOKENS = 2048
 MAX_RESULT_CHARS = 4000
+FIRST_YEAR = 2018
+CLIENT_TIMEOUT_S = 60.0
+CLIENT_RETRIES = 2
 NO_ANSWER = "Sorry, I couldn't put an answer together. Try rephrasing the question."
 FAILED = "That analysis failed to load."
+CAPPED = "Too many lookups; answer with what you have."
+CUT_SHORT = " (cut short)"
 _TRUNCATED = " ...(cut short)"
 
-_SERVICE_ERRORS = (SessionDataError, ChampionshipError, NoResultsError, ValueError, HTTPException)
+# Errors whose message is written for a reader (win probability raises PitWindowInputError too). Any
+# other exception, a bare ValueError from pandas included, becomes FAILED.
+_SERVICE_ERRORS = (PitWindowInputError, SessionDataError, ChampionshipError, NoResultsError)
 
 
 def system_prompt() -> str:
@@ -52,10 +63,8 @@ def condense_season_schedule(schedule: Any) -> List[Dict[str, Any]]:
 
 
 def condense_race_result(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
-    rows = payload["classification"]
-    shown = rows[:10] + [r for r in rows[10:] if not r.get("finished")]
     return [{"position": r["position"], "code": r["code"], "team": r["team"],
-             "points": r.get("points"), "status": r.get("status")} for r in shown]
+             "points": r.get("points"), "status": r.get("status")} for r in payload["classification"]]
 
 
 def condense_championship_odds(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -70,10 +79,14 @@ def condense_championship_odds(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def condense_race_pace(payload: Dict[str, Any]) -> Dict[str, Any]:
-    ranked = [d for d in payload["drivers"] if d.get("gap") is not None][:10]
+    """The whole field: ranked drivers by gap, then those with too few clean laps (no gap)."""
+    ranked = [d for d in payload["drivers"] if d.get("gap") is not None]
+    unranked = [d for d in payload["drivers"] if d.get("gap") is None]
     return {
-        "drivers": [{"code": d["code"], "pace_gap_s": round(float(d["gap"]), 3), "clean_laps": d["clean_laps"]}
-                    for d in ranked],
+        "drivers": [{"code": d["code"],
+                     "pace_gap_s": None if d.get("gap") is None else round(float(d["gap"]), 3),
+                     "clean_laps": d["clean_laps"]}
+                    for d in ranked + unranked],
         "compounds": [{"compound": c["compound"], "deg_per_lap": round(float(c["deg_per_lap"]), 3)}
                       for c in payload["compounds"]],
     }
@@ -132,7 +145,7 @@ def _race_tool(description: str, extra: Optional[Dict[str, Any]] = None, session
         "round": {"type": "integer", "description": "The race's round number in that season."},
     }
     if session:
-        properties["session"] = {"type": "string", "enum": ["R", "S"],
+        properties["session"] = {"type": "string", "enum": ["R", "S"], "default": "R",
                                  "description": "R for the race (the default), S for the sprint."}
     properties.update(extra or {})
     return {"description": description, "properties": properties}
@@ -145,8 +158,8 @@ _SPECS: Dict[str, Dict[str, Any]] = {
         "required": ["year"],
     },
     "race_result": {
-        **_race_tool("The final classification of a race: the top ten and every car that didn't finish, "
-                     "with team, points and finishing status.", session=False),
+        **_race_tool("The final classification of a race: every car's position, team, points and "
+                     "finishing status.", session=False),
         "required": ["year", "round"],
     },
     "championship_odds": {
@@ -191,6 +204,10 @@ _ENUMS = {"session": ("R", "S")}
 _DEFAULTS = {"session": "R"}
 
 
+def _last_year() -> int:
+    return date.today().year + 1
+
+
 def _clean(name: str, args: Any) -> Dict[str, Any]:
     """The input the tool will run with, or a ValueError the model can read and correct."""
     spec = _SPECS[name]
@@ -210,6 +227,8 @@ def _clean(name: str, args: Any) -> Dict[str, Any]:
                 raise ValueError(f"{key} must be one of {', '.join(_ENUMS[key])}.")
         elif isinstance(value, bool) or not isinstance(value, int):
             raise ValueError(f"{key} must be a whole number.")
+        elif key == "year" and not FIRST_YEAR <= value <= _last_year():
+            raise ValueError(f"year must be from {FIRST_YEAR} to {_last_year()}.")
         elif value < 1:
             raise ValueError(f"{key} must be 1 or more.")
         clean[key] = value
@@ -217,7 +236,7 @@ def _clean(name: str, args: Any) -> Dict[str, Any]:
 
 
 def _season_schedule(year: int) -> Any:
-    return condense_season_schedule(championship_data._season(year)[2])
+    return condense_season_schedule(championship_data.season_frames(year)[2])
 
 
 def _race_result(year: int, round: int) -> Any:
@@ -280,7 +299,7 @@ def _run_clean(name: str, clean: Dict[str, Any]) -> Tuple[str, bool]:
         return str(e.detail), False
     except _SERVICE_ERRORS as e:
         return str(e), False
-    except Exception as e:
+    except Exception as e:  # a bare ValueError lands here: its text is internals, not a message
         print(f"The assistant's {name} tool failed: {e!r}")
         return FAILED, False
 
@@ -288,12 +307,13 @@ def _run_clean(name: str, clean: Dict[str, Any]) -> Tuple[str, bool]:
 # ---- the loop ----
 
 def make_client() -> Any:
-    """A client built from settings, or None when no usable key is configured."""
+    """A fresh async client built from settings, or None when no usable key is configured. Build one
+    per request and close it afterwards."""
     key = settings.ANTHROPIC_API_KEY
     if not key or "your_anthropic" in key:
         return None
-    from anthropic import Anthropic
-    return Anthropic(api_key=key)
+    from anthropic import AsyncAnthropic
+    return AsyncAnthropic(api_key=key, timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_RETRIES)
 
 
 def _conversation(question: str, history: List[Dict[str, str]]) -> List[Dict[str, Any]]:
@@ -314,18 +334,22 @@ async def _call(client: Any, messages: List[Dict[str, Any]], forced_text: bool) 
     kwargs: Dict[str, Any] = dict(
         model=settings.ANTHROPIC_MODEL, max_tokens=MAX_TOKENS, system=system_prompt(),
         messages=messages, tools=TOOLS,
+        # the tools and system prompt repeat on every call of the loop, so let them be cached
+        cache_control={"type": "ephemeral"},
     )
     if supports_effort(settings.ANTHROPIC_MODEL):
         kwargs["output_config"] = {"effort": "low"}
     if forced_text:
         kwargs["tool_choice"] = {"type": "none"}
-    return await asyncio.to_thread(client.messages.create, **kwargs)
+    return await client.messages.create(**kwargs)
 
 
-async def _run_block(block: Any) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
-    """(the tool_result block, the source it came from or None)."""
+async def _run_block(block: Any, capped: bool = False) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+    """(the tool_result block, the source it came from or None). A capped call is answered, not run."""
     name, args = block.name, block.input
-    if name not in _SPECS:
+    if capped:
+        text, ok, source = CAPPED, False, None
+    elif name not in _SPECS:
         text, ok, source = f"Unknown tool: {name}.", False, None
     else:
         try:
@@ -341,22 +365,51 @@ async def _run_block(block: Any) -> Tuple[Dict[str, Any], Optional[Dict[str, Any
     return result, source
 
 
+def _tool_uses(response: Any) -> List[Any]:
+    return [b for b in response.content if getattr(b, "type", None) == "tool_use"]
+
+
+def _answer(response: Any) -> str:
+    """The reply's text, marked when the token limit cut it off; NO_ANSWER when there is nothing usable.
+    A cut that landed in a round of tool calls leaves only a preamble ("let me check"), not an answer."""
+    text = extract_text(response)
+    if response.stop_reason == "max_tokens":
+        if not text or _tool_uses(response):
+            return NO_ANSWER
+        return text + CUT_SHORT
+    return text or NO_ANSWER
+
+
 async def ask(question: str, history: List[Dict[str, str]], client: Any = None) -> Dict[str, Any]:
-    client = client if client is not None else make_client()
+    """Answer with the given client, which the caller closes; with none, build one and close it here."""
+    if client is not None:
+        return await _ask(question, history, client)
+    client = make_client()
     if client is None:
         raise RuntimeError("No client is configured.")
+    try:
+        return await _ask(question, history, client)
+    finally:
+        await client.close()
+
+
+async def _ask(question: str, history: List[Dict[str, str]], client: Any) -> Dict[str, Any]:
     messages = _conversation(question, history)
     sources: List[Dict[str, Any]] = []
     seen = set()
 
     response = await _call(client, messages, forced_text=False)
     rounds = 0
+    calls = 0
     while response.stop_reason == "tool_use" and rounds < MAX_TOOL_ROUNDS:
-        blocks = [b for b in response.content if getattr(b, "type", None) == "tool_use"]
+        blocks = _tool_uses(response)
         if not blocks:
             break
         rounds += 1
-        outcomes = await asyncio.gather(*(_run_block(b) for b in blocks))
+        # every tool_use needs a tool_result, so calls over a cap are answered with CAPPED, not dropped
+        allowed = max(0, min(MAX_CALLS_PER_ROUND, MAX_CALLS_PER_REQUEST - calls))
+        calls += min(len(blocks), allowed)
+        outcomes = await asyncio.gather(*(_run_block(b, capped=i >= allowed) for i, b in enumerate(blocks)))
         for _, source in outcomes:
             if source is None:
                 continue
@@ -368,4 +421,4 @@ async def ask(question: str, history: List[Dict[str, str]], client: Any = None) 
         messages.append({"role": "user", "content": [result for result, _ in outcomes]})
         response = await _call(client, messages, forced_text=rounds >= MAX_TOOL_ROUNDS)
 
-    return {"answer": extract_text(response) or NO_ANSWER, "sources": sources}
+    return {"answer": _answer(response), "sources": sources}

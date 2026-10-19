@@ -80,7 +80,8 @@ def load_season(year: int, ergast=None) -> Tuple[pd.DataFrame, pd.DataFrame, pd.
     return races, sprints, schedule
 
 
-def _season(year: int) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+def season_frames(year: int) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """load_season's (races, sprints, schedule), memoised for ten minutes."""
     cached = _season_cache.get(year)
     if cached and time.time() - cached[0] < _CACHE_TTL_SECONDS:
         return cached[1]
@@ -94,7 +95,7 @@ def championship_odds(year: int, after_round: Optional[int]) -> Dict[str, Any]:
     if year < championship_sim.FIRST_YEAR or year > championship_sim._current_year():
         # Let the simulator word the error; no point fetching a season it will refuse.
         return championship_sim.championship_payload(year, None, None, None, after_round)
-    races, sprints, schedule = _season(year)
+    races, sprints, schedule = season_frames(year)
     cut = after_round
     if cut is None and len(races):
         cut = int(races["round"].max())

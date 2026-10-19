@@ -10,7 +10,7 @@ pandas
 numpy
 langgraph
 openai
-anthropic
+anthropic>=0.116
 chromadb
 requests
 bcrypt
