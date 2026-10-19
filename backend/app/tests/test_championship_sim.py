@@ -243,7 +243,7 @@ def test_retirements_score_nothing_and_raise_the_retirement_rate():
     assert 0 < p[0] < 3 / 8 < p[1] < 1
     # a retired car scores nothing, and a clean one beats an equal car that retires
     rng = np.random.default_rng(1)
-    tables = np.array([RACE + [0] * 0])[:, :2]
+    tables = np.array([RACE[:2]], dtype=float)
     pts, wins, _ = sim._simulate(rng, 2000, np.array([5.0, 5.0]), 2.0, np.array([1.0, 1.0]), tables,
                                  np.array([True]))
     assert pts.sum() == 0 and wins.sum() == 0
@@ -310,3 +310,123 @@ def test_a_24_round_season_is_fast():
     print(f"24-round season, after round 17: {elapsed:.2f}s")
     assert len(p["history"]) == 17
     assert elapsed < 1.5
+
+
+def _classified_rows(finishes, retired=()):
+    """Race rows for _form: finishes is {code: [position per round]}; retired is {(code, round)}."""
+    rows = []
+    for code, positions in finishes.items():
+        for rnd, pos in enumerate(positions, 1):
+            dnf = (code, rnd) in retired
+            rows.append({"round": rnd, "code": code, "name": code, "team": code,
+                         "position": np.nan if dnf else pos, "position_text": "R" if dnf else str(pos),
+                         "points": 0.0})
+    return pd.DataFrame(rows, columns=COLUMNS)
+
+
+def test_form_weights_recent_finishes_more():
+    # 12 rounds: A was 1st for six then 2nd for six; B the reverse. Same field of 2.
+    a = [1] * 6 + [2] * 6
+    b = [2] * 6 + [1] * 6
+    races = _classified_rows({"A": a, "B": b})
+    mu, _ = sim._form(races, ["A", "B"], 12)
+    w = 0.5 ** ((12 - np.arange(1, 13)) / sim.HALF_LIFE)
+    expect_a = ((w * np.array(a)).sum() + 1.5) / (w.sum() + 1)
+    assert mu[0] == pytest.approx(expect_a)
+    # equal results in total, but B's good half is the recent one
+    assert mu[1] < mu[0]
+
+
+def test_form_skips_retirements_and_adds_the_prior():
+    races = _classified_rows({"A": [3, 3, 3], "B": [1, 1, 1], "C": [2, 2, 2]}, retired={("A", 3)})
+    mu, _ = sim._form(races, ["A", "B", "C"], 3)
+    w = np.array([0.5 ** (2 / 6), 0.5 ** (1 / 6)])
+    assert mu[0] == pytest.approx((w * 3).sum() / (w.sum() + 1) + 2.0 / (w.sum() + 1))
+    # no finish at all: the field midpoint, (n + 1) / 2
+    races = _classified_rows({"A": [1, 1], "B": [2, 2], "C": [3, 3], "D": [4, 4]},
+                             retired={("D", 1), ("D", 2)})
+    mu, _ = sim._form(races, ["A", "B", "C", "D"], 2)
+    assert mu[3] == pytest.approx(2.5)
+
+
+def test_form_noise_is_floored_and_rises_with_spread():
+    # everyone finishes where their form says, nearly: deviations are well under 2
+    tight = _classified_rows({"A": [1] * 4, "B": [2] * 4})
+    assert sim._form(tight, ["A", "B"], 4)[1] == 2.0
+    # a field that reshuffles every round deviates far more than 2 from its form
+    codes = list("ABCDEFGHIJ")
+    rng = np.random.default_rng(3)
+    wide = _classified_rows({c: [1, 10, 1, 10] if i % 2 == 0 else [10, 1, 10, 1] for i, c in enumerate(codes)})
+    assert sim._form(wide, codes, 4)[1] > 3.0
+
+
+def test_event_tables_follow_the_year_and_sprint_flag():
+    schedule = pd.DataFrame([
+        {"round": 1, "name": "x", "date": "d", "sprint": True},
+        {"round": 2, "name": "y", "date": "d", "sprint": False},
+    ])
+    t, is_race = sim._event_tables(2021, schedule, 0, 5)
+    assert t.tolist() == [[3, 2, 1, 0, 0], [25, 18, 15, 12, 10], [25, 18, 15, 12, 10]]
+    assert is_race.tolist() == [False, True, True]
+    t, _ = sim._event_tables(2024, schedule, 0, 10)
+    assert t[0].tolist() == [8, 7, 6, 5, 4, 3, 2, 1, 0, 0]
+    # before 2021 a sprint flag is ignored
+    t, is_race = sim._event_tables(2020, schedule, 0, 5)
+    assert t.shape[0] == 2 and is_race.all()
+
+
+def test_a_sprint_scores_its_own_table_and_never_counts_as_a_win():
+    tables = np.array([[8, 7, 6, 5, 4, 3, 2, 1, 0, 0]], dtype=float)
+    pts, wins, seconds = sim._simulate(np.random.default_rng(2), 3000, np.arange(10.0), 2.0,
+                                       np.zeros(10), tables, np.array([False]))
+    assert wins.sum() == 0 and seconds.sum() == 0
+    assert pts.max() == 8 and pts.sum() == 3000 * 36
+
+
+def test_a_one_car_field_simulates():
+    pts, wins, seconds = sim._simulate(np.random.default_rng(2), 100, np.array([1.0]), 2.0,
+                                       np.array([0.0]), np.array([[25.0]]), np.array([True]))
+    assert pts.sum() == 2500 and wins.sum() == 100 and seconds.sum() == 0
+
+
+def test_simulated_wins_and_seconds_break_a_points_tie():
+    points = np.array([[100.0, 100.0, 100.0]])
+    wins = np.array([[2.0, 3.0, 3.0]])
+    seconds = np.array([[9.0, 0.0, 1.0]])
+    key = sim._countback_key(points, wins, seconds)
+    assert sim._title_share(key).tolist() == [0.0, 0.0, 1.0]
+    # more points beats any number of wins
+    assert sim._countback_key(np.array([101.0]), np.array([0.0]), np.array([0.0])) >         sim._countback_key(np.array([100.0]), np.array([24.0]), np.array([24.0]))
+
+
+def test_history_is_the_model_as_it_stood_after_each_round():
+    # A wins rounds 1 and 2, B wins round 3 of a six-round season
+    rounds = [["A", "B", "C"], ["A", "C", "B"], ["B", "A", "C"]]
+    races, sprints, schedule = season(rounds, total=6)
+    p = championship_payload(2024, races, sprints, schedule, 3)
+    for r in (1, 2, 3):
+        m = sim._model(2024, races, sprints, schedule, r, sim.HISTORY_SIMS)
+        expected = {c: round(float(o), 4) for c, o in zip(m["drivers"].index, m["driver_odds"])}
+        expected = {c: o for c, o in expected.items() if o > 0}
+        assert p["history"][r - 1]["odds"] == expected
+    # B has the lead only after round 3, A after round 2
+    assert p["history"][1]["odds"]["A"] > p["history"][1]["odds"]["B"]
+    assert p["history"][2]["odds"]["B"] > p["history"][1]["odds"]["B"]
+
+
+def test_the_model_counts_simulated_wins_and_seconds_in_the_countback(monkeypatch):
+    # level on points, wins and seconds so far; the simulated events then hand out the tie-break
+    races, sprints, schedule = season([["A", "B"], ["B", "A"]], total=3)
+
+    def fake(wins, seconds):
+        def simulate(rng, sims, mu, sigma, p, tables, is_race):
+            zeros = np.zeros((sims, 2))
+            return zeros, np.tile(wins, (sims, 1)), np.tile(seconds, (sims, 1))
+        return simulate
+
+    monkeypatch.setattr(sim, "_simulate", fake([1.0, 0.0], [0.0, 5.0]))
+    m = sim._model(2024, races, sprints, schedule, 2, 50)
+    assert m["driver_odds"].tolist() == [1.0, 0.0]
+    monkeypatch.setattr(sim, "_simulate", fake([0.0, 0.0], [0.0, 1.0]))
+    m = sim._model(2024, races, sprints, schedule, 2, 50)
+    assert m["driver_odds"].tolist() == [0.0, 1.0]
