@@ -69,24 +69,32 @@ def simulate_winner(F: np.ndarray, R: int, sigma_lap: float, rng: np.random.Gene
     live = np.isfinite(F)
     projected = np.broadcast_to(np.where(live, F, 0.0), (sims, n))
     retired = np.broadcast_to(~live, (sims, n))
-    if R >= 1:
+    if R < 1:
+        noisy = np.where(retired, np.inf, projected)
+    else:
         retired = retired | (rng.random((sims, n)) < 1.0 - (1.0 - HAZARD) ** R)
         has_sc = rng.random(sims) < 1.0 - (1.0 - SC_RATE) ** R
-        u = rng.integers(1, R + 1, size=sims)
-        # The safety car bunches the projected gaps, so it comes before the pace noise that then
-        # plays out over the laps left: the compression can't reorder the field on its own.
-        racing = np.where(retired, np.inf, projected)
-        lead = racing.min(axis=1, keepdims=True)
-        lead = np.where(np.isfinite(lead), lead, 0.0)
-        behind = np.where(retired, 0.0, racing - lead)
-        rank = np.argsort(np.argsort(racing, axis=1), axis=1)
+        # The safety car falls on lap u of the R left (with none, u = R: the plain draw). The noise
+        # is split there, sharing one offset draw z, so what happens before the safety car is
+        # bunched with the field and only the laps after it are free to reorder it again.
+        u = np.where(has_sc, rng.integers(1, R + 1, size=sims), R)
         frac = (u / R)[:, None]
-        bunched = lead + np.minimum(behind * frac, SC_GAP_S * rank) + behind * (1.0 - frac)
-        projected = np.where(has_sc[:, None], bunched, projected)
-    noisy = (projected
-             + sigma_lap * np.sqrt(R) * rng.standard_normal((sims, n))
-             + OFFSET_SD * R * rng.standard_normal((sims, n)))
-    noisy = np.where(retired, np.inf, noisy)
+        z = rng.standard_normal((sims, n))
+        before = (sigma_lap * np.sqrt(u)[:, None] * rng.standard_normal((sims, n))
+                  + OFFSET_SD * u[:, None] * z)
+        after = (sigma_lap * np.sqrt(R - u)[:, None] * rng.standard_normal((sims, n))
+                 + OFFSET_SD * (R - u)[:, None] * z)
+        lead_F = np.where(retired, np.inf, projected).min(axis=1, keepdims=True)
+        lead_F = np.where(np.isfinite(lead_F), lead_F, 0.0)
+        gap = np.where(retired, 0.0, projected - lead_F)
+        at_sc = np.where(retired, np.inf, gap * frac + before)  # the order when the safety car falls
+        lead_P = at_sc.min(axis=1, keepdims=True)
+        lead_P = np.where(np.isfinite(lead_P), lead_P, 0.0)
+        g = np.where(retired, 0.0, at_sc - lead_P)
+        rank = np.argsort(np.argsort(at_sc, axis=1), axis=1)
+        g = np.where(has_sc[:, None], np.minimum(g, SC_GAP_S * rank), g)
+        noisy = lead_F + lead_P + g + gap * (1.0 - frac) + after
+        noisy = np.where(retired, np.inf, noisy)
     winner = noisy.argmin(axis=1)
     decided = ~retired.all(axis=1)
     return np.bincount(winner[decided], minlength=n) / sims
@@ -104,7 +112,10 @@ def _clean_by_driver(known: pd.DataFrame) -> Dict[str, pd.DataFrame]:
 
 
 def _sigma_lap(clean: Dict[str, pd.DataFrame], model: pit_strategy.TyreModel) -> float:
-    """Pooled spread of the clean laps around what the tyre model predicts for them."""
+    """Pooled spread of the clean laps around what the tyre model predicts for them.
+
+    It deliberately includes the model's misfit (fuel burn, traffic, a fit that is still settling):
+    that is real uncertainty in the forecast, and a detrended spread scored worse in the back-test."""
     residuals: List[np.ndarray] = []
     for frame in clean.values():
         frame = frame[frame["TyreLife"].notna() & frame["Compound"].notna()]
@@ -210,7 +221,7 @@ def _evaluate(session: Any, lap: int, sims: int, seed: int, sprint: bool, detail
                 cost = plan["best"]["cost"] + extra
         costs.append(cost if cost is not None else remaining * m)
         if detail:
-            shown.append(_status(s, plan_state, model, remaining, sprint) if remaining else
+            shown.append(_status(s, model, remaining, sprint) if remaining else
                          {"status": "stay out", "rule_breach": False, "window_open": None})
 
     t = np.array([times[s.code] for s in states])
@@ -220,8 +231,8 @@ def _evaluate(session: Any, lap: int, sims: int, seed: int, sprint: bool, detail
     return out
 
 
-def _status(state: pit_strategy.DriverState, plan_state: pit_strategy.DriverState,
-            model: pit_strategy.TyreModel, remaining: int, sprint: bool) -> Dict[str, Any]:
+def _status(state: pit_strategy.DriverState, model: pit_strategy.TyreModel,
+            remaining: int, sprint: bool) -> Dict[str, Any]:
     plan = pit_strategy.pit_window(state, model, remaining, sprint=sprint)
     return {"status": plan["status"], "rule_breach": bool(plan["rule_breach"]),
             "window_open": plan["window"]["open"] if plan["window"] else None}
@@ -279,6 +290,13 @@ def _at(session: Any, lap: int, year: int, round_number: int, sprint: bool) -> D
     return {"lap": lap, "rows": rows}
 
 
+def _agreeing(laps: List[Dict[str, Any]], at: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """A copy of the lap series whose point for the selected lap is the detail's own probabilities,
+    so the chart and the table agree on it. The memoised series is left as it was."""
+    odds = {r["code"]: r["probability"] for r in at["rows"] if r["probability"] > 0}
+    return [{"lap": e["lap"], "odds": odds} if e["lap"] == at["lap"] else e for e in laps]
+
+
 def _check_lap(lap: Optional[int], total: int) -> int:
     if lap is None:
         return total // 2
@@ -296,9 +314,10 @@ def win_probability_payload(session: Any, lap: Optional[int], year: int = 0, rou
     lap = _check_lap(lap, total)
     if history is None:
         history = odds_history(session, year, round_number, sprint)
+    at = _at(session, lap, year, round_number, sprint)
     return {"year": year, "round": round_number, "session": session_name, "total_laps": total,
-            "sims": N_SIMS, "sc_laps": history["sc_laps"], "laps": history["laps"],
-            "drivers": history["drivers"], "at": _at(session, lap, year, round_number, sprint)}
+            "sims": N_SIMS, "sc_laps": history["sc_laps"], "laps": _agreeing(history["laps"], at),
+            "drivers": history["drivers"], "at": at}
 
 
 def _fresh(key: Tuple) -> Optional[Dict[str, Any]]:
@@ -322,10 +341,12 @@ def _history_for(key: Tuple, session: Any, year: int, round_number: int, sprint:
                 return found
         try:
             history = odds_history(session, year, round_number, sprint)
-        finally:
+        except BaseException:
             with _lock:
                 _computing.pop(key, None)
+            raise
         with _lock:
+            _computing.pop(key, None)  # with the insert, so no request sees neither
             now = time.time()
             for stale in [k for k, (at, _) in _odds.items() if now - at >= _CACHE_TTL_SECONDS]:
                 del _odds[stale]
@@ -353,6 +374,7 @@ def win_probability_replay(year: int, gp: str, session_name: str, round_number: 
     key = (year, round_number or gp, session_name)
     sprint = session_name == "S"
     history = _history_for(key, session, year, number, sprint)
+    at = _at(session, lap, year, number, sprint)
     return {"year": year, "round": number, "session": session_name, "total_laps": total,
-            "sims": N_SIMS, "sc_laps": history["sc_laps"], "laps": history["laps"],
-            "drivers": history["drivers"], "at": _at(session, lap, year, number, sprint)}
+            "sims": N_SIMS, "sc_laps": history["sc_laps"], "laps": _agreeing(history["laps"], at),
+            "drivers": history["drivers"], "at": at}

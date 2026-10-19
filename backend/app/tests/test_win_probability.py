@@ -101,10 +101,20 @@ def test_more_laps_left_means_less_certainty():
 
 def test_safety_car_compression_helps_the_chaser(monkeypatch):
     monkeypatch.setattr(wp, "SC_RATE", 0.0)
-    without = sim([0.0, 15.0], R=30, sims=20000)[1]
+    without = sim([0.0, 15.0], R=30, sigma=1.0, sims=40000)[1]
     monkeypatch.setattr(wp, "SC_RATE", 0.012)
-    with_sc = sim([0.0, 15.0], R=30, sims=20000)[1]
-    assert with_sc > without + 0.01
+    with_sc = sim([0.0, 15.0], R=30, sigma=1.0, sims=40000)[1]
+    assert with_sc > without + 0.005
+
+
+def test_the_safety_car_effect_is_not_overcounted(monkeypatch):
+    # Noise before the safety car is bunched with the field, so it can't all survive it: the
+    # chaser's gain stays modest (about +0.014 here; an un-split model gives about three times that).
+    monkeypatch.setattr(wp, "SC_RATE", 0.0)
+    without = sim([0.0, 15.0], R=30, sigma=1.0, sims=40000)[1]
+    monkeypatch.setattr(wp, "SC_RATE", 0.012)
+    with_sc = sim([0.0, 15.0], R=30, sigma=1.0, sims=40000)[1]
+    assert with_sc < without + 0.03
 
 
 def test_a_driver_who_is_out_has_zero():
@@ -180,6 +190,59 @@ def test_wet_leader_projects_the_whole_field_from_recent_laps():
     low = min(F.values())
     for c in CARS:
         assert r[c]["projected_gap"] == pytest.approx(F[c] - low, abs=0.01)
+
+
+FIELD6 = {f"D{k}": (3.0 * k, [("MEDIUM", 1, 12)]) for k in range(6)}
+
+
+def six_car_laps(wet):
+    """Six cars on one stint each, D<k> a little slower per lap the higher k; `wet` are on intermediates."""
+    laps = make_laps(FIELD6)
+    for k in range(6):
+        mine = laps["Driver"] == f"D{k}"
+        laps.loc[mine, "LapTime"] = laps.loc[mine, "LapTime"] + pd.Timedelta(seconds=0.2 * k)
+    laps.loc[laps["Driver"].isin(wet), "Compound"] = "INTERMEDIATE"
+    return FakeSession(laps)
+
+
+def projected_gaps(p):
+    return {r["code"]: r["projected_gap"] for r in p["at"]["rows"]}
+
+
+def recent_pace_gaps():
+    """Projected gaps if every car were projected as its recent pace times the 8 laps left."""
+    F = {f"D{k}": 360.0 + 3.0 * k + 8 * (90.3 + 0.2 * k) for k in range(6)}
+    return {c: f - min(F.values()) for c, f in F.items()}
+
+
+def test_a_wet_leader_switches_the_field_even_when_few_cars_are_wet():
+    p = payload(six_car_laps(["D0"]), lap=4)  # 1 of 6 wet: under a quarter, but it leads
+    for code, gap in recent_pace_gaps().items():
+        assert projected_gaps(p)[code] == pytest.approx(gap, abs=0.01)
+
+
+def test_a_quarter_of_the_field_on_wets_switches_it_even_with_a_dry_leader():
+    p = payload(six_car_laps(["D4", "D5"]), lap=4)  # 2 of 6 wet, the leader dry
+    for code, gap in recent_pace_gaps().items():
+        assert projected_gaps(p)[code] == pytest.approx(gap, abs=0.01)
+
+
+def test_one_wet_car_in_six_with_a_dry_leader_does_not_switch_the_field():
+    p = payload(six_car_laps(["D5"]), lap=4)
+    # The dry cars share one plan cost, so they differ by their gap on the road (6 s), not by the
+    # 6 s plus eight laps of the 0.4 s per lap a recent-pace projection would add.
+    g = projected_gaps(p)
+    assert g["D3"] - g["D1"] == pytest.approx(6.0, abs=0.01)
+
+
+def test_the_chart_agrees_with_the_table_on_the_selected_lap_and_the_memo_is_left_alone(monkeypatch):
+    monkeypatch.setattr(pit_window, "load_session", lambda *a, **k: FakeSession())
+    p = wp.win_probability_replay(2024, "", "R", 1, 7)
+    point = next(e for e in p["laps"] if e["lap"] == 7)["odds"]
+    assert point == {r["code"]: r["probability"] for r in p["at"]["rows"] if r["probability"] > 0}
+    memo = next(iter(wp._odds.values()))[1]["laps"]
+    assert memo[6]["odds"] != point or memo[6] is not p["laps"][6]
+    assert memo[6] is not p["laps"][6]
 
 
 def test_rows_carry_gap_status_rule_breach_and_window_open():
@@ -286,7 +349,8 @@ def test_a_lap_only_change_reuses_the_odds(monkeypatch):
     a = wp.win_probability_replay(2024, "", "R", 1, 3)
     b = wp.win_probability_replay(2024, "", "R", 1, 9)
     assert calls["history"] == 1
-    assert a["laps"] == b["laps"] and a["at"]["lap"] == 3 and b["at"]["lap"] == 9
+    assert [e for e in a["laps"] if e["lap"] not in (3, 9)] == [e for e in b["laps"] if e["lap"] not in (3, 9)]
+    assert a["at"]["lap"] == 3 and b["at"]["lap"] == 9
     assert a["round"] == 1 and a["session"] == "R"
 
 
