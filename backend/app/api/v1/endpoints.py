@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, field_validator, model_validator
 from typing import List, Optional
 from app.services.f1_data_service import f1_service
-from app.services import championship_data, championship_sim, corner_analysis, duel_telemetry, latest_result, race_battles, race_pace, race_replay
+from app.services import championship_data, championship_sim, corner_analysis, duel_telemetry, latest_result, pit_window, race_battles, race_pace, race_replay
 from app.services import session_info as session_info_service
 from app.services.race_debrief import NoResultsError
 from app.services.session_info import SessionDataError
@@ -297,6 +297,41 @@ async def race_battles_endpoint(req: RaceBattlesRequest):
         )
     except Exception as e:
         raise _analysis_error(e, "the overtake analysis")
+
+
+class PitWindowRequest(BaseModel):
+    year: int
+    gp: str = ""
+    round: Optional[int] = None
+    session: str = "R"
+    lap: int
+
+    @field_validator("session")
+    @classmethod
+    def _race_or_sprint(cls, value: str) -> str:
+        code = value.strip().upper()
+        if code not in {"R", "S"}:
+            raise ValueError("The pit window needs a race or a sprint.")
+        return code
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
+
+
+@router.post("/telemetry/pit-window")
+async def pit_window_endpoint(req: PitWindowRequest):
+    """The best remaining plan, pit window and undercut odds for each driver at the end of a lap."""
+    try:
+        return await asyncio.to_thread(
+            pit_window.pit_window_replay, req.year, req.gp, req.session, req.round, req.lap
+        )
+    except pit_window.PitWindowInputError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise _analysis_error(e, "the pit window")
 
 
 @router.get("/stats/standings")
