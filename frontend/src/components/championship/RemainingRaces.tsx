@@ -1,7 +1,7 @@
 import Pill from "@/components/ui/Pill";
 import { formatPoints, formatRaceDate, type RemainingRound } from "@/lib/championship";
 
-export default function RemainingRaces({ remaining, pointsLeft }: { remaining: RemainingRound[]; pointsLeft: number | null }) {
+export default function RemainingRaces({ remaining, pointsLeft }: { remaining: RemainingRound[]; pointsLeft: number }) {
   if (remaining.length === 0) return <p className="p-4 text-sm text-mute">The season is over.</p>;
   return (
     <div className="p-4">
@@ -13,9 +13,7 @@ export default function RemainingRaces({ remaining, pointsLeft }: { remaining: R
           </li>
         ))}
       </ul>
-      {pointsLeft !== null ? (
-        <p className="mt-3 text-xs text-faint">{`Up to ${formatPoints(pointsLeft)} points still available to each driver`}</p>
-      ) : null}
+      <p className="mt-3 text-xs text-faint">{`Up to ${formatPoints(pointsLeft)} points still available to each driver`}</p>
     </div>
   );
 }

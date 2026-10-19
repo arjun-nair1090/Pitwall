@@ -20,6 +20,15 @@ describe("OddsHistory", () => {
     expect(container.querySelectorAll("path.recharts-line-curve")).toHaveLength(4);
   });
 
+  it("charts a driver whose best round is exactly 1%, and not one at 0.9%", () => {
+    const history = [
+      { round: 1, name: "Australian Grand Prix", odds: { VER: 0.981, NOR: 0.01, PIA: 0.009 } },
+      { round: 2, name: "Chinese Grand Prix", odds: { VER: 0.995, NOR: 0.004, PIA: 0.001 } },
+    ];
+    render(<OddsHistory history={history} drivers={HISTORY_DRIVERS} />);
+    expect(legend().map((li) => li.textContent)).toEqual(["VER", "NOR"]);
+  });
+
   it("colours each swatch by team and dashes the second driver of a team", () => {
     render(<OddsHistory history={SEASON_HISTORY} drivers={HISTORY_DRIVERS} />);
     const items = legend();

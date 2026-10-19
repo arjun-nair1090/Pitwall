@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatChance, formatGap, formatPoints, formatRaceDate, parseChampionshipParams, pointsAvailable } from "./championship";
+import { formatChance, formatGap, formatPoints, formatRaceDate, parseChampionshipParams } from "./championship";
 import { DRIVERS } from "@/components/championship/fixtures";
 
 describe("formatChance", () => {
@@ -49,17 +49,6 @@ describe("formatRaceDate", () => {
     expect(formatRaceDate("2026-03-01")).toBe("1 Mar");
   });
   it("leaves something it can't read alone", () => expect(formatRaceDate("soon")).toBe("soon"));
-});
-
-describe("pointsAvailable", () => {
-  it("reads the max remaining of a driver who is still racing", () => {
-    expect(pointsAvailable(DRIVERS)).toBe(166);
-  });
-  it("skips a driver who is not racing", () => {
-    const gone = { ...DRIVERS[0], status: "not racing" as const, max_points: DRIVERS[0].points };
-    expect(pointsAvailable([gone, ...DRIVERS.slice(1)])).toBe(166);
-  });
-  it("is null when nobody is racing", () => expect(pointsAvailable([])).toBeNull());
 });
 
 describe("parseChampionshipParams", () => {

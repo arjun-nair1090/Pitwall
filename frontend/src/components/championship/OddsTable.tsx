@@ -2,17 +2,27 @@ import DataTable, { type Column } from "@/components/ui/DataTable";
 import { formatChance, formatGap, formatPoints, type ChampionDriver } from "@/lib/championship";
 import { teamColor } from "@/lib/timing";
 
-function statusLabel(d: ChampionDriver, seasonOver: boolean): string {
+// Missing the cut-off round can mean a sacking or a one-off absence, and the results can't tell
+// which, so the label says only what is known.
+function statusLabel(d: ChampionDriver, seasonOver: boolean, afterRound: number): string {
   switch (d.status) {
     case "clinched": return seasonOver ? "Champion" : "Clinched";
     case "eliminated": return "Out of contention";
-    case "not racing": return "Not racing";
+    case "not racing": return `Not in round ${afterRound}`;
     default: return "";
   }
 }
 
 // The server's order: points, then wins. The gap is to the leader, so a dead heat reads as no gap.
-export default function OddsTable({ drivers, seasonOver }: { drivers: ChampionDriver[]; seasonOver: boolean }) {
+export default function OddsTable({
+  drivers,
+  seasonOver,
+  afterRound,
+}: {
+  drivers: ChampionDriver[];
+  seasonOver: boolean;
+  afterRound: number;
+}) {
   const lead = drivers[0]?.points ?? 0;
   const columns: Column<ChampionDriver>[] = [
     { key: "pos", header: "Pos", align: "right", className: "w-12 text-mute", cell: (d) => drivers.indexOf(d) + 1 },
@@ -40,7 +50,7 @@ export default function OddsTable({ drivers, seasonOver }: { drivers: ChampionDr
       key: "range", header: "Range", align: "right", className: "text-mute",
       cell: (d) => `${formatPoints(d.points_p10)}–${formatPoints(d.points_p90)}`,
     },
-    { key: "status", header: "Status", className: "text-mute", cell: (d) => statusLabel(d, seasonOver) },
+    { key: "status", header: "Status", className: "text-mute", cell: (d) => statusLabel(d, seasonOver, afterRound) },
   ];
 
   return (
