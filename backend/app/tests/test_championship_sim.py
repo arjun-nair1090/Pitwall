@@ -1,0 +1,312 @@
+"""Championship odds simulator: DataFrames in, payload out. No network."""
+import time
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from app.services import championship_sim as sim
+from app.services.championship_sim import ChampionshipError, championship_payload
+
+COLUMNS = ["round", "code", "name", "team", "position", "position_text", "points"]
+RACE = sim.RACE_POINTS
+SPRINT = [8, 7, 6, 5, 4, 3, 2, 1]
+
+
+@pytest.fixture(autouse=True)
+def _fixed_year(monkeypatch):
+    monkeypatch.setattr(sim, "_current_year", lambda: 2026)
+
+
+def _rows(rnd, order, table, teams, override):
+    """Result rows of one event. A code starting with "-" retired: no position, no points."""
+    out = []
+    place = 0
+    for code in order:
+        retired = code.startswith("-")
+        code = code.lstrip("-")
+        if not retired:
+            place += 1
+        pts = table[place - 1] if not retired and place <= len(table) else 0.0
+        pts = override.get((rnd, code), pts)
+        out.append({
+            "round": rnd, "code": code, "name": f"Driver {code}",
+            "team": teams.get(code, f"{code} team"),
+            "position": np.nan if retired else place,
+            "position_text": "R" if retired else str(place),
+            "points": float(pts),
+        })
+    return out
+
+
+def season(rounds, total=None, sprint_rounds=(), sprint_results=None, teams=None, override=None):
+    """races, sprints and schedule from compact finishing orders (one list of codes per round)."""
+    teams, override = teams or {}, override or {}
+    total = total or len(rounds)
+    races = [r for i, o in enumerate(rounds, 1) for r in _rows(i, o, RACE, teams, override)]
+    sprints = [r for i, o in (sprint_results or {}).items() for r in _rows(i, o, SPRINT, teams, override)]
+    schedule = pd.DataFrame([
+        {"round": i, "name": f"Race {i}", "date": f"2024-{(i - 1) % 12 + 1:02d}-15", "sprint": i in sprint_rounds}
+        for i in range(1, total + 1)
+    ])
+    return pd.DataFrame(races, columns=COLUMNS), pd.DataFrame(sprints, columns=COLUMNS), schedule
+
+
+def payload(year, rounds, after=None, **kw):
+    races, sprints, schedule = season(rounds, **kw)
+    return championship_payload(year, races, sprints, schedule, after)
+
+
+def driver(p, code):
+    return next(d for d in p["drivers"] if d["code"] == code)
+
+
+def test_points_so_far_add_races_and_sprints():
+    p = payload(2024, [["A", "B"], ["B", "A"], ["A", "B"]], after=2, total=3,
+                sprint_rounds=(1,), sprint_results={1: ["B", "A"]})
+    assert driver(p, "A")["points"] == 25 + 18 + 7
+    assert driver(p, "B")["points"] == 18 + 25 + 8
+
+
+def test_half_points_stay_fractional():
+    p = payload(2021, [["A", "B"]], total=3, override={(1, "A"): 12.5})
+    assert driver(p, "A")["points"] == 12.5
+
+
+def test_default_cut_off_is_the_last_completed_round():
+    p = payload(2024, [["A", "B"]] * 3, total=5)
+    assert p["after_round"] == 3
+    assert p["completed_rounds"] == 3
+    assert p["total_rounds"] == 5
+    assert [r["round"] for r in p["remaining"]] == [4, 5]
+
+
+def test_a_round_not_yet_run_is_a_422():
+    with pytest.raises(ChampionshipError) as e:
+        payload(2024, [["A", "B"]] * 3, after=4, total=5)
+    assert e.value.status == 422
+    assert str(e.value) == "Round 4 of 2024 hasn't been run yet."
+
+
+def test_round_zero_is_a_422():
+    for bad in (0, -2):
+        with pytest.raises(ChampionshipError) as e:
+            payload(2024, [["A", "B"]], after=bad, total=3)
+        assert e.value.status == 422
+        assert str(e.value) == "Pick a round from 1."
+
+
+def test_no_races_yet_is_a_404():
+    empty = pd.DataFrame(columns=COLUMNS)
+    _, _, schedule = season([["A"]], total=3)
+    with pytest.raises(ChampionshipError) as e:
+        championship_payload(2024, empty, empty, schedule, None)
+    assert e.value.status == 404
+    assert str(e.value) == "No races have been run in 2024 yet."
+
+
+def test_years_outside_the_coverage_are_a_422():
+    for year in (2017, 2027):
+        with pytest.raises(ChampionshipError) as e:
+            payload(year, [["A", "B"]], total=3)
+        assert e.value.status == 422
+        assert str(e.value) == "Championship odds cover 2018 to 2026."
+
+
+def test_max_remaining_counts_races_sprints_and_fastest_lap_years():
+    assert sim._max_remaining(2024, 2, 1) == (60, 2 * 44 + 15)
+    assert sim._max_remaining(2025, 2, 1) == (58, 2 * 43 + 15)
+    assert sim._max_remaining(2021, 0, 1) == (3, 5)
+    # and it reaches the payload: a leader's max_points is points plus that
+    p = payload(2024, [["A", "B"]], total=3, sprint_rounds=(3,))
+    assert driver(p, "A")["max_points"] == 25 + 60
+    p = payload(2025, [["A", "B"]], total=3, sprint_rounds=(3,))
+    assert driver(p, "A")["max_points"] == 25 + 58
+
+
+def test_a_leader_out_of_reach_has_clinched():
+    p = payload(2024, [["A", "B", "C"]] * 5, total=6, teams={"A": "X", "B": "X"})
+    assert driver(p, "A")["status"] == "clinched"
+    assert driver(p, "A")["title_probability"] == 1.0
+    assert driver(p, "B")["title_probability"] == 0.0
+    assert driver(p, "C")["title_probability"] == 0.0
+    assert p["constructors"][0]["status"] == "clinched"
+
+
+def test_a_driver_who_cannot_catch_the_leader_is_eliminated():
+    p = payload(2024, [["A", "B", "C"]] * 5, total=6)
+    assert driver(p, "C")["status"] == "eliminated"
+    assert driver(p, "C")["title_probability"] == 0.0
+    # B is on 90, A on 125 with 26 to come: 116 < 125
+    assert driver(p, "B")["status"] == "eliminated"
+
+
+def test_equal_on_max_is_not_eliminated_or_clinched():
+    # 2025: one race left is worth 25. A on 50 can reach 75, B on 25 can reach 50 = A's points.
+    p = payload(2025, [["A", "B"], ["A", "B"]], total=3,
+                override={(1, "B"): 12.0, (2, "B"): 13.0})
+    assert driver(p, "A")["points"] == 50 and driver(p, "B")["points"] == 25
+    assert driver(p, "B")["status"] == "contender"
+    assert driver(p, "A")["status"] == "contender"
+    # one more point for A and B is out: 25 + 25 < 51
+    p = payload(2025, [["A", "B"], ["A", "B"]], total=3,
+                override={(1, "B"): 12.0, (2, "B"): 12.0})
+    assert driver(p, "B")["status"] == "eliminated"
+
+
+def test_a_driver_missing_from_the_cut_off_round_is_not_racing():
+    p = payload(2024, [["A", "B", "C"], ["A", "B", "C"], ["A", "B"]], total=5)
+    c = driver(p, "C")
+    assert c["points"] == 30
+    assert c["status"] == "not racing"
+    assert c["title_probability"] == 0.0
+    assert c["max_points"] == c["points"]
+    assert c["expected_points"] == c["points"]
+    assert c["points_p10"] == c["points_p90"] == c["points"]
+    assert driver(p, "A")["max_points"] > driver(p, "A")["points"]
+
+
+def test_a_dominant_driver_is_the_favourite():
+    p = payload(2024, [["A", "B", "C", "D"]] * 10, total=15)
+    assert driver(p, "A")["title_probability"] > 0.9
+
+
+def test_odds_sum_to_one():
+    rounds = [["A", "B", "-C", "D", "E"], ["B", "A", "C", "D", "E"], ["C", "-A", "B", "E", "D"],
+              ["A", "C", "B", "D", "-E"]]
+    p = payload(2024, rounds, total=8, sprint_rounds=(6,), teams={"A": "X", "B": "X", "C": "Y", "D": "Y"})
+    assert sum(d["title_probability"] for d in p["drivers"]) == pytest.approx(1.0, abs=1e-3)
+    assert sum(c["title_probability"] for c in p["constructors"]) == pytest.approx(1.0, abs=1e-3)
+    # unrounded, via the model itself
+    races, sprints, schedule = season(rounds, total=8, sprint_rounds=(6,))
+    m = sim._model(2024, races, sprints, schedule, 4, 2000)
+    assert m["driver_odds"].sum() == pytest.approx(1.0, abs=1e-9)
+    assert m["team_odds"].sum() == pytest.approx(1.0, abs=1e-9)
+
+
+def test_same_request_same_odds():
+    rounds = [["A", "B", "C"], ["B", "C", "A"], ["C", "A", "B"]]
+    assert payload(2024, rounds, total=6) == payload(2024, rounds, total=6)
+
+
+def test_a_tie_on_points_goes_to_more_wins():
+    # level on 68, A has two wins to B's one
+    p = payload(2024, [["A", "B"], ["A", "B"], ["B", "A"]], override={(1, "B"): 25.0})
+    assert driver(p, "A")["points"] == driver(p, "B")["points"] == 68
+    assert driver(p, "A")["title_probability"] == 1.0
+    assert driver(p, "B")["title_probability"] == 0.0
+
+
+def test_a_tie_on_wins_goes_to_more_seconds():
+    # level on points, one win each, A has the second place B lacks
+    p = payload(2024, [["A", "B", "C"], ["B", "C", "A"]], override={(2, "A"): 18.0})
+    a, b = driver(p, "A"), driver(p, "B")
+    assert a["points"] == b["points"] == 43
+    assert a["wins"] == b["wins"] == 1
+    # A: P1 and P3, B: P2 and P1 -> B has the second
+    assert b["title_probability"] == 1.0 and a["title_probability"] == 0.0
+
+
+def test_an_unbreakable_tie_is_shared():
+    p = payload(2024, [["A", "B"], ["B", "A"]])
+    assert driver(p, "A")["title_probability"] == 0.5
+    assert driver(p, "B")["title_probability"] == 0.5
+
+
+def test_season_over_has_no_remaining_and_crowns_the_leader():
+    p = payload(2024, [["A", "B", "C"]] * 3, total=3)
+    assert p["remaining"] == []
+    assert driver(p, "A")["status"] == "clinched"
+    assert driver(p, "A")["title_probability"] == 1.0
+    assert driver(p, "B")["title_probability"] == 0.0
+    assert driver(p, "A")["max_points"] == driver(p, "A")["points"]
+
+
+def test_history_has_one_entry_per_round_up_to_the_cut_off():
+    rounds = [["A", "B", "C", "D"]] * 3 + [["D", "C", "B", "A"]]
+    p = payload(2024, rounds, after=3, total=4)
+    assert [h["round"] for h in p["history"]] == [1, 2, 3]
+    assert [h["name"] for h in p["history"]] == ["Race 1", "Race 2", "Race 3"]
+    last = p["history"][2]["odds"]
+    # D is on 36 after three rounds with 25 to come: out of reach of A on 75, so dropped
+    assert "D" not in last and "A" in last
+    for h in p["history"]:
+        assert all(v > 0 for v in h["odds"].values())
+
+
+def test_retirements_score_nothing_and_raise_the_retirement_rate():
+    rounds = [["A", "B"], ["A", "-B"], ["A", "-B"], ["A", "-B"]]
+    races, _, _ = season(rounds)
+    p = sim._retirement_chances(races, ["A", "B"])
+    assert p[1] > p[0]
+    # the field rate is 3/8, so the clean driver is pulled up from 0 and the bad one down from 1
+    assert 0 < p[0] < 3 / 8 < p[1] < 1
+    # a retired car scores nothing, and a clean one beats an equal car that retires
+    rng = np.random.default_rng(1)
+    tables = np.array([RACE + [0] * 0])[:, :2]
+    pts, wins, _ = sim._simulate(rng, 2000, np.array([5.0, 5.0]), 2.0, np.array([1.0, 1.0]), tables,
+                                 np.array([True]))
+    assert pts.sum() == 0 and wins.sum() == 0
+    pts, _, _ = sim._simulate(rng, 4000, np.array([5.0, 5.0]), 2.0, np.array([0.8, 0.0]), tables,
+                              np.array([True]))
+    assert pts[:, 1].mean() > pts[:, 0].mean()
+
+
+def test_constructor_points_sum_their_drivers():
+    p = payload(2024, [["A", "C", "B"], ["B", "A", "C"]], total=4, teams={"A": "T1", "B": "T1", "C": "T2"})
+    by = {c["team"]: c for c in p["constructors"]}
+    assert by["T1"]["points"] == (25 + 15) + (25 + 18)
+    assert by["T2"]["points"] == 18 + 15
+    assert [c["team"] for c in p["constructors"]] == ["T1", "T2"]
+
+
+def test_constructor_max_remaining_counts_two_cars():
+    assert sim._max_remaining(2024, 1, 1)[1] == 44 + 15
+    assert sim._max_remaining(2025, 1, 0)[1] == 43
+    # 2024: T2 on 33 cannot reach T1's 83 with 59 to come
+    p = payload(2024, [["A", "C", "B"], ["B", "A", "C"]], total=4, teams={"A": "T1", "B": "T1", "C": "T2"})
+    assert p["constructors"][1]["status"] == "contender"
+    p = payload(2025, [["A", "B", "C"]] * 3, total=4, teams={"A": "T1", "B": "T1", "C": "T2"})
+    assert p["constructors"][1]["status"] == "eliminated"
+
+
+def test_rounds_lists_every_completed_round():
+    p = payload(2024, [["A", "B"]] * 4, after=2, total=6)
+    assert p["rounds"] == [{"round": i, "name": f"Race {i}"} for i in range(1, 5)]
+    assert p["after_round"] == 2
+
+
+def test_empty_sprints_mean_no_sprints():
+    races, _, schedule = season([["A", "B"]] * 2, total=3)
+    p = championship_payload(2024, races, pd.DataFrame(), schedule, None)
+    assert driver(p, "A")["points"] == 50
+
+
+def test_payload_rounding():
+    p = payload(2024, [["A", "B", "C"], ["B", "A", "C"]], total=6, override={(1, "A"): 12.3456})
+    for d in p["drivers"]:
+        for key in ("title_probability",):
+            assert d[key] == round(d[key], 4)
+        for key in ("points", "expected_points", "points_p10", "points_p90", "max_points"):
+            assert d[key] == round(d[key], 1)
+    assert driver(p, "A")["points"] == 30.3
+    for c in p["constructors"]:
+        assert c["title_probability"] == round(c["title_probability"], 4)
+    for h in p["history"]:
+        assert all(v == round(v, 4) for v in h["odds"].values())
+    assert p["simulations"] == sim.N_SIMS
+    assert p["remaining"][0] == {"round": 3, "name": "Race 3", "date": "2024-03-15", "sprint": False}
+
+
+def test_a_24_round_season_is_fast():
+    codes = [f"D{i:02d}" for i in range(20)]
+    rng = np.random.default_rng(7)
+    rounds = [list(rng.permutation(codes)) for _ in range(17)]
+    races, sprints, schedule = season(rounds, total=24, sprint_rounds=(5, 11, 19, 22),
+                                      teams={c: f"T{i // 2}" for i, c in enumerate(codes)})
+    start = time.perf_counter()
+    p = championship_payload(2024, races, sprints, schedule, 17)
+    elapsed = time.perf_counter() - start
+    print(f"24-round season, after round 17: {elapsed:.2f}s")
+    assert len(p["history"]) == 17
+    assert elapsed < 1.5
