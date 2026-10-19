@@ -21,7 +21,7 @@ run of first-stop laps around the best one whose cheapest plan is within WINDOW_
 This module works on plain dataclasses so live timing can call it as well as a replay.
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Optional, Set, Tuple
 
 import numpy as np
 
@@ -138,8 +138,9 @@ class _Solution:
 
     def plan_for(self, k: int) -> Plan:
         """The cheapest plan whose first stop is at lap N + k."""
-        if not self.use_two[k]:
-            return self._one_plan(k)
+        return self._two_plan(k) if self.use_two[k] else self._one_plan(k)
+
+    def _two_plan(self, k: int) -> Plan:
         a = int(self.two_arg[k])
         k2 = int(self.k2[a // 9])
         c1, c2 = divmod(a % 9, 3)
@@ -147,14 +148,20 @@ class _Solution:
                     float(self.two[k]))
 
     def best(self) -> Optional[Tuple[Optional[int], Optional[Plan]]]:
-        """(first-stop offset or None for no stop, plan), or None when no plan is legal."""
-        options = np.concatenate([[self.nostop], self.first[1:]])
-        i = int(np.argmin(options))
-        if not np.isfinite(options[i]):
-            return None
-        if i == 0:
-            return None, Plan((), float(self.nostop))
-        return i, self.plan_for(i)
+        """(first-stop offset or None for no stop, plan), or None when no plan is legal.
+
+        Ties go to fewer stops, then the earlier stop: the groups are compared with a strict `<`, and
+        within a group argmin takes the earliest lap."""
+        best: Optional[Tuple[Optional[int], Plan]] = None
+        if np.isfinite(self.nostop):
+            best = (None, Plan((), float(self.nostop)))
+        for costs, make in ((self.one, self._one_plan), (self.two, self._two_plan)):
+            if len(costs) < 2 or not np.isfinite(costs[1:]).any():
+                continue
+            k = int(np.argmin(costs[1:])) + 1
+            if best is None or costs[k] < best[1].cost:
+                best = (k, make(k))
+        return best
 
     def best_one_stop(self) -> Optional[Plan]:
         if len(self.one) < 2 or not np.isfinite(self.one[1:]).any():
@@ -166,7 +173,7 @@ def _solve(state: DriverState, model: TyreModel, R: int, dry: bool) -> _Solution
     base0, deg0 = model.params(state.compound)
     age = state.tyre_age
     used = _dry_used(state)
-    pit = model.pit_loss
+    pit = float(model.pit_loss)
     pit_first = pit * SC_PIT_LOSS_FACTOR if state.neutralised else pit
 
     nostop = _INF
@@ -243,6 +250,9 @@ def _plan_dict(plan: Plan) -> Dict[str, Any]:
 
 def pit_window(state: DriverState, model: TyreModel, laps_remaining: int) -> Dict[str, Any]:
     """{status, best, window, cheap_stop, rule_breach} for one driver. See the module docstring.
+
+    `cheap_stop` is true only on a neutralised lap with a feasible stop at N + 1; it is false when
+    that stop isn't possible (R < 6, or no legal compound), even on a neutralised lap.
 
     Status: "box now" when the best plan stops next lap; "window open" when next lap is inside the
     window but the best stop is later; "window opens" when the window starts after next lap;
