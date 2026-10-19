@@ -12,7 +12,7 @@ const args = Object.fromEntries(
 const BASE = args.base || "http://localhost:3000";
 const ROUTES = (
   args.routes ||
-  "/,/live,/map,/stats,/compare,/strategy,/archive,/debrief,/predictions,/login,/changelog,/advanced,/pace,/battles,/pitwindow,/championship,/drivers/VER?year=2023"
+  "/,/live,/map,/stats,/compare,/strategy,/archive,/debrief,/predictions,/login,/changelog,/advanced,/pace,/battles,/pitwindow,/winprob,/championship,/drivers/VER?year=2023"
 ).split(",");
 const VIEWPORTS = [["390", 390, 844, true], ["768", 768, 1024, false], ["1280", 1280, 900, false]];
 if (args.shots) mkdirSync(args.shots, { recursive: true });
