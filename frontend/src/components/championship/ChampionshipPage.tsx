@@ -8,7 +8,7 @@ import Panel from "@/components/ui/Panel";
 import Select from "@/components/ui/Select";
 import Skeleton, { Loading } from "@/components/ui/Skeleton";
 import { useAsync } from "@/hooks/useAsync";
-import { FIRST_YEAR, pointsAvailable, type ChampionshipResult } from "@/lib/championship";
+import { FIRST_YEAR, type ChampionshipResult } from "@/lib/championship";
 import ConstructorsTable from "./ConstructorsTable";
 import OddsHistory from "./OddsHistory";
 import OddsTable from "./OddsTable";
@@ -72,7 +72,7 @@ export default function ChampionshipPage({ initial }: { initial: { year: number;
         <div className="flex flex-col gap-4">
           <Panel title="Drivers' title odds" meta={`${odds.data.simulations.toLocaleString("en-US")} simulations`}>
             <div className="p-4">
-              <OddsTable drivers={odds.data.drivers} seasonOver={odds.data.remaining.length === 0} />
+              <OddsTable drivers={odds.data.drivers} seasonOver={odds.data.remaining.length === 0} afterRound={odds.data.after_round} />
               <p className="mt-3 text-xs text-faint">{CAVEAT}</p>
             </div>
           </Panel>
@@ -87,7 +87,7 @@ export default function ChampionshipPage({ initial }: { initial: { year: number;
             </div>
           </Panel>
           <Panel title="Races still to run" meta={`${odds.data.remaining.length} of ${odds.data.total_rounds}`}>
-            <RemainingRaces remaining={odds.data.remaining} pointsLeft={pointsAvailable(odds.data.drivers)} />
+            <RemainingRaces remaining={odds.data.remaining} pointsLeft={odds.data.points_available} />
           </Panel>
         </div>
       ) : (

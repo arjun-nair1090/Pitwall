@@ -1,11 +1,16 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axios from "axios";
+import { cloneElement, type ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ChampionshipPage from "./ChampionshipPage";
-import { CHAMPIONSHIP, SEASON_OVER } from "./fixtures";
+import { CHAMPIONSHIP, DRIVERS, SEASON_OVER } from "./fixtures";
 
 vi.mock("axios");
+vi.mock("recharts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("recharts")>();
+  return { ...actual, ResponsiveContainer: ({ children }: { children: ReactElement }) => cloneElement(children, { width: 800, height: 320 }) };
+});
 const post = vi.mocked(axios.post);
 
 const initial = { year: 2026, afterRound: null };
@@ -95,6 +100,20 @@ describe("ChampionshipPage", () => {
       "Drivers' title odds", "Title odds through the season", "Constructors' title odds", "Races still to run",
     ]);
     expect(screen.getByText("Up to 166 points still available to each driver")).toBeInTheDocument();
+  });
+
+  it("reads the points still available from the payload, not from the first driver", async () => {
+    // 2020 after round 16 in shape: the leader has clinched but missed the round, so their own
+    // max_points is their points; the first driver in the list can add nothing.
+    const leader = { ...DRIVERS[0], status: "clinched" as const, max_points: DRIVERS[0].points };
+    post.mockResolvedValue({ data: { ...CHAMPIONSHIP, points_available: 52, drivers: [leader, ...DRIVERS.slice(1)] } });
+    render(<ChampionshipPage initial={initial} />);
+    expect(await screen.findByText("Up to 52 points still available to each driver")).toBeInTheDocument();
+  });
+
+  it("names the cut-off round for a driver who missed it", async () => {
+    render(<ChampionshipPage initial={initial} />);
+    expect(await screen.findByText("Not in round 17")).toBeInTheDocument();
   });
 
   it("crowns the champion and says the season is over", async () => {

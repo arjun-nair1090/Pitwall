@@ -46,6 +46,7 @@ export const CHAMPIONSHIP: ChampionshipResult = {
   completed_rounds: 17,
   total_rounds: 23,
   simulations: 10000,
+  points_available: 166,
   rounds: [
     { round: 16, name: "Italian Grand Prix" },
     { round: 17, name: "Singapore Grand Prix" },
@@ -64,6 +65,7 @@ export const SEASON_OVER: ChampionshipResult = {
   ...CHAMPIONSHIP,
   after_round: 23,
   completed_rounds: 23,
+  points_available: 0,
   remaining: [],
   drivers: [
     { ...DRIVERS[0], points: 410, max_points: 410, title_probability: 1, status: "clinched" },

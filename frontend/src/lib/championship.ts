@@ -44,6 +44,8 @@ export interface ChampionshipResult {
   completed_rounds: number;
   total_rounds: number;
   simulations: number;
+  // The most one driver still racing can add: what clinched and eliminated are measured against.
+  points_available: number;
   rounds: { round: number; name: string }[];
   remaining: RemainingRound[];
   drivers: ChampionDriver[];
@@ -84,12 +86,6 @@ export function formatRaceDate(iso: string): string {
   const [, month, day] = iso.split("-").map(Number);
   if (!month || !day || month > 12) return iso;
   return `${day} ${MONTHS[month - 1]}`;
-}
-
-// What a driver who is still racing could add: the same for every one of them, so any will do.
-export function pointsAvailable(drivers: readonly ChampionDriver[]): number | null {
-  const racing = drivers.find((d) => d.status !== "not racing");
-  return racing ? Math.round((racing.max_points - racing.points) * 10) / 10 : null;
 }
 
 // A link can name ?year=&round=. A bad or out-of-range year falls back to the current one, a bad
