@@ -153,10 +153,18 @@ def _race_times(known: pd.DataFrame, lap: int, codes: List[str], field_lap: floa
     return out
 
 
-def _stopped(state: pit_strategy.DriverState, laps: pd.DataFrame, lap: int,
-             pit_loss: float) -> Tuple[pit_strategy.DriverState, float]:
+def remaining_stop(pit_loss: float, in_lap_time: float, pace: float) -> float:
+    """What a driver on their in-lap still has to lose to the stop: the pit loss less what the in-lap
+    already cost against their normal pace (never below zero). With no lap time, half the loss."""
+    if not np.isfinite(in_lap_time):
+        return pit_loss / 2.0
+    return max(0.0, pit_loss - (in_lap_time - pace))
+
+
+def _stopped(state: pit_strategy.DriverState, laps: pd.DataFrame, lap: int, pit_loss: float,
+             in_lap_time: float, pace: float) -> Tuple[pit_strategy.DriverState, float]:
     """A driver on their in-lap is treated as already stopped: lap N + 1's compound at age 0, and
-    half the stop's loss still to come on the out-lap. Without a lap N + 1 the state stands."""
+    the rest of the stop still to come (see `remaining_stop`). Without a lap N + 1 the state stands."""
     ahead = laps[(laps["Driver"] == state.code) & (laps["LapNumber"] == lap + 1)]
     if ahead.empty:
         return state, 0.0
@@ -166,7 +174,7 @@ def _stopped(state: pit_strategy.DriverState, laps: pd.DataFrame, lap: int,
     fresh = pit_strategy.DriverState(code=state.code, position=state.position, lap=state.lap,
                                      compound=name, tyre_age=0, used=used,
                                      gap_ahead=state.gap_ahead, neutralised=state.neutralised)
-    return fresh, pit_loss / 2.0
+    return fresh, remaining_stop(pit_loss, in_lap_time, pace)
 
 
 class _Plain:
@@ -211,7 +219,8 @@ def _evaluate(session: Any, lap: int, sims: int, seed: int, sprint: bool, detail
         m = pace.get(s.code, field_pace)
         extra, plan_state = 0.0, s
         if pd.notna(on_lap.loc[s.code, "PitInTime"]):
-            plan_state, extra = _stopped(s, laps, lap, pit_loss)
+            plan_state, extra = _stopped(s, laps, lap, pit_loss,
+                                         _seconds(on_lap.loc[s.code, "LapTime"]), m)
         cost: Optional[float] = None
         if remaining == 0:
             cost = 0.0

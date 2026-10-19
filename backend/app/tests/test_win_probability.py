@@ -155,20 +155,58 @@ def test_projected_finish_uses_best_plan_cost_and_falls_back_to_recent_laps():
     assert r["CCC"]["projected_gap"] - r["BBB"]["projected_gap"] == pytest.approx(F_c - F_b, abs=0.2)
 
 
+def test_the_rest_of_a_stop_is_the_pit_loss_less_what_the_in_lap_already_lost():
+    assert wp.remaining_stop(20.0, 94.0, 90.0) == pytest.approx(16.0)  # 4 s slow in: 16 s to pay, not 10
+    assert wp.remaining_stop(20.0, 112.0, 90.0) == 0.0  # never negative
+    assert wp.remaining_stop(20.0, float("nan"), 90.0) == pytest.approx(10.0)  # no lap time: half
+
+
+def in_lap_laps(slow_in=4.0, slow_out=18.0, cars=None, laps=12):
+    """Cars whose in-laps are `slow_in` s slow and out-laps `slow_out` s slow (4 + 18 = the 22 s default pit loss)."""
+    data = make_laps(cars, laps=laps)
+    for i, row in data.iterrows():
+        seconds = row["LapTime"].total_seconds() - (25.0 if pd.notna(row["PitInTime"]) else 0.0)             - (25.0 if pd.notna(row["PitOutTime"]) else 0.0)
+        seconds += slow_in if pd.notna(row["PitInTime"]) else 0.0
+        seconds += slow_out if pd.notna(row["PitOutTime"]) else 0.0
+        data.at[i, "LapTime"] = pd.Timedelta(seconds=seconds)
+    # Lap-end times that carry the stops, as real ones do: the car's offset plus the laps it has run.
+    for code, (offset, _) in (cars or CARS).items():
+        mine = data["Driver"] == code
+        ordered = data[mine].sort_values("LapNumber")
+        data.loc[ordered.index, "Time"] = pd.to_timedelta(offset + ordered["LapTime"].dt.total_seconds().cumsum(), unit="s")
+    return data
+
+
 def test_in_lap_driver_is_treated_as_already_stopped():
-    # AAA's lap 6 is an in-lap; lap 7 is on HARD at age 1.
-    p = payload(FakeSession(), lap=6)
-    laps = FakeSession().laps
+    # AAA's lap 6 is an in-lap, 4 s slow; lap 7 is on HARD at age 1.
+    laps = in_lap_laps()
+    p = payload(FakeSession(laps), lap=6)
     model, pit_loss = pit_window._tyre_model(laps[laps["LapNumber"] <= 6])
     stopped = DriverState(code="AAA", position=1, lap=6, compound="HARD", tyre_age=0,
                           used={"MEDIUM", "HARD"}, gap_ahead=None, neutralised=False)
-    c_a = pit_strategy.pit_window(stopped, model, 6)["best"]["cost"] + pit_loss / 2
-    plan = pit_window.pit_window_payload(FakeSession(), 6)
+    m = np.median([90.0 + 0.1 * a for a in range(2, 6)])  # laps 2-5: the clean laps before the in-lap
+    in_lap_loss = (90.0 + 0.1 * 6 + 4.0) - m
+    c_a = pit_strategy.pit_window(stopped, model, 6)["best"]["cost"] + pit_loss - in_lap_loss
+    plan = pit_window.pit_window_payload(FakeSession(laps), 6)
     cost = {d["code"]: d["best"]["cost"] for d in plan["drivers"] if d["best"]}
-    F = {"AAA": 540.0 + c_a, "BBB": 542.0 + cost["BBB"], "CCC": 570.0 + cost["CCC"]}
+    t = {c: laps[(laps["Driver"] == c) & (laps["LapNumber"] == 6)]["Time"].iloc[0].total_seconds() for c in CARS}
+    F = {"AAA": t["AAA"] + c_a, "BBB": t["BBB"] + cost["BBB"], "CCC": t["CCC"] + cost["CCC"]}
     low = min(F.values())
     for code in F:
         assert rows(p)[code]["projected_gap"] == pytest.approx(F[code] - low, abs=0.2)
+
+
+def test_two_cars_stopping_on_consecutive_laps_look_alike_on_their_in_laps():
+    # Same pace, same stop; B is 2 s behind and stops a lap later. Whoever is on their in-lap is
+    # charged the rest of the stop, so the gap between them barely moves from one in-lap to the next.
+    cars = {"AAA": (0.0, [("MEDIUM", 1, 6), ("HARD", 7, 14)]),
+            "BBB": (2.0, [("MEDIUM", 1, 7), ("HARD", 8, 14)])}
+    laps = in_lap_laps(cars=cars, laps=14)
+    swing = []
+    for lap in (6, 7):
+        r = rows(wp.win_probability_payload(FakeSession(laps), lap, year=2024, round_number=1))
+        swing.append(r["BBB"]["projected_gap"] - r["AAA"]["projected_gap"])
+    assert abs(swing[0] - swing[1]) < 1.5
 
 
 def test_an_in_lap_with_no_next_lap_uses_the_state_as_is():
