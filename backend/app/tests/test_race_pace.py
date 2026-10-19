@@ -188,6 +188,21 @@ def field():
     ], ignore_index=True)
 
 
+def test_a_lap_one_retirement_does_not_break_the_payload(monkeypatch):
+    # Silverstone 2022: three cars out on lap one, each with a single untimed lap and no Deleted flag
+    retired = pd.DataFrame([{
+        "Driver": "ZZZ", "LapNumber": 1.0, "LapTime": None, "Stint": 1.0, "Compound": "SOFT", "TyreLife": 1.0,
+        "PitInTime": pd.NaT, "PitOutTime": pd.NaT, "TrackStatus": "125", "Deleted": None,
+    }]).assign(LapTime=pd.to_timedelta([None]))
+    patch_session(monkeypatch, pd.concat([field(), retired], ignore_index=True))
+    payload = race_pace.race_pace_payload(2022, "", "R", 10)
+    zzz = next(d for d in payload["drivers"] if d["code"] == "ZZZ")
+    assert zzz["clean_laps"] == 0 and zzz["pace"] is None and zzz["gap"] is None
+    assert [s["stint"] for s in zzz["stints"]] == [1]
+    assert zzz["stints"][0]["laps"] == [] and zzz["stints"][0]["deg_per_lap"] is None
+    assert [d["code"] for d in payload["drivers"]][:2] == ["BBB", "AAA"]
+
+
 def test_drivers_are_ranked_by_median_corrected_pace(monkeypatch):
     patch_session(monkeypatch, field())
     payload = race_pace.race_pace_payload(2024, "Spa", "R", 13)

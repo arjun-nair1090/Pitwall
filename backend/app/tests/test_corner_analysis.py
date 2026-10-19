@@ -329,6 +329,15 @@ def test_clean_laps_treat_a_missing_or_blank_deleted_flag_as_not_deleted():
     assert list(ca.clean_laps(laps)["LapNumber"]) == [2, 3]
 
 
+def test_clean_laps_keep_every_column_when_no_lap_survives():
+    # a lap-one retirement: one untimed lap, and FastF1's Deleted column holds None (object dtype)
+    laps = _laps_frame([(1, None, False, False, None)])
+    laps["Stint"] = [1.0]
+    out = ca.clean_laps(laps)
+    assert out.empty
+    assert list(out.columns) == list(laps.columns)
+
+
 def test_clean_laps_drop_the_standing_start_lap_even_when_fast_enough():
     rows = [(1, 101.0, False, False, False), (2, 100.0, False, False, False), (3, 100.5, False, False, False)]
     assert list(ca.clean_laps(_laps_frame(rows))["LapNumber"]) == [2, 3]
