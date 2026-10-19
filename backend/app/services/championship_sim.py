@@ -153,20 +153,27 @@ def _simulate(rng, sims: int, mu: np.ndarray, sigma: float, p: np.ndarray,
     seconds = np.zeros((sims, n))
     if events == 0:
         return points, wins, seconds
-    draws = mu + sigma * rng.standard_normal((sims, events, n))
-    retired = rng.random((sims, events, n)) < p
-    draws[retired] = np.inf
     rows = np.arange(sims)
+    # Drawn one event at a time, so memory stays at (sims, n) however long the season left is.
     for e in range(events):
-        order = np.argsort(draws[:, e], axis=1)
+        draw = mu + sigma * rng.standard_normal((sims, n))
+        retired = rng.random((sims, n)) < p
+        draw[retired] = np.inf
+        order = np.argsort(draw, axis=1)
         scored = np.zeros((sims, n))
         np.put_along_axis(scored, order, np.broadcast_to(tables[e], (sims, n)), axis=1)
-        alive = ~retired[:, e]
+        alive = ~retired
         points += scored * alive
         if is_race[e]:
             wins[rows, order[:, 0]] += alive[rows, order[:, 0]]
-            seconds[rows, order[:, 1]] += alive[rows, order[:, 1]] if n > 1 else 0
+            if n > 1:
+                seconds[rows, order[:, 1]] += alive[rows, order[:, 1]]
     return points, wins, seconds
+
+
+def _countback_key(points: np.ndarray, wins: np.ndarray, seconds: np.ndarray) -> np.ndarray:
+    """One sortable number per driver: points, then wins, then seconds."""
+    return np.round(points, 3) * 1e6 + wins * 1e3 + seconds
 
 
 def _title_share(key: np.ndarray) -> np.ndarray:
@@ -212,7 +219,7 @@ def _model(year: int, races: pd.DataFrame, sprints: pd.DataFrame, schedule: pd.D
     final[:, col] += gain
     final_wins[:, col] += win_gain
     final_seconds[:, col] += second_gain
-    key = np.round(final, 3) * 1e6 + final_wins * 1e3 + final_seconds
+    key = _countback_key(final, final_wins, final_seconds)
 
     team_names = list(teams.index)
     onehot = np.zeros((n, len(team_names)))
