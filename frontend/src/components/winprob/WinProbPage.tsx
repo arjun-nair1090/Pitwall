@@ -50,7 +50,17 @@ export default function WinProbPage({ initial }: { initial: RaceParams & { lap?:
     `win-${sel.year}-${sel.round}-${sel.session}-${lap ?? "auto"}`,
   );
 
-  const data = analysis.status === "ready" ? analysis.data : null;
+  const ready = analysis.status === "ready" ? analysis.data : null;
+  // The last answer for this race stays on screen while the next lap loads. An answer for another
+  // race or session never does.
+  const [kept, setKept] = useState<WinProbResult | null>(null);
+  const forThisRace = (d: WinProbResult | null) =>
+    d !== null && d.year === sel.year && d.round === sel.round && d.session === sel.session ? d : null;
+  const data = forThisRace(ready) ?? forThisRace(kept);
+  const loadingNext = analysis.status === "loading" && data !== null;
+  useEffect(() => {
+    if (ready) setKept(ready);
+  }, [ready]);
   const errorMessage = analysis.status === "error" ? analysis.message : null;
 
   // The race length arrives with the answer; a chosen lap past the end is pulled back to the last.
@@ -83,6 +93,7 @@ export default function WinProbPage({ initial }: { initial: RaceParams & { lap?:
 
   const choose = (next: RaceSelection) => {
     setSel(next);
+    setKept(null);
     setLap(null);
     setTotal(null);
   };
@@ -116,12 +127,12 @@ export default function WinProbPage({ initial }: { initial: RaceParams & { lap?:
         <div className="flex flex-col gap-4">
           <Panel title="Chance of winning" meta={`${sel.year}, round ${sel.round}, ${SESSION_LABELS[sel.session]}`}>
             <div className="p-4">
-              <WinChart data={data} lap={data.at.lap} onSelect={setLap} />
+              <WinChart data={data} lap={shownLap} onSelect={setLap} />
               <p className="mt-3 text-xs text-faint">{CAVEAT}</p>
             </div>
           </Panel>
           <Panel title="The field at this lap" meta={`As of lap ${data.at.lap}`}>
-            <div className="p-4">
+            <div className="p-4" aria-busy={loadingNext} style={loadingNext ? { opacity: 0.6 } : undefined}>
               <LapOdds rows={data.at.rows} drivers={data.drivers} />
             </div>
           </Panel>
