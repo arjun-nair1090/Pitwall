@@ -80,12 +80,14 @@ export function formatDelta(seconds: number | null | undefined): string {
 
 export const UNKNOWN_TEAM_COLOR = "#8790A0";
 
-// Order matters: the sister-team names are checked before "red bull".
+// Order matters: the sister-team names are checked before "red bull". Ergast calls the sister team
+// "RB F1 Team", which has no other needle.
 const TEAM_COLORS: ReadonlyArray<readonly [string, string]> = [
   ["visa cash app rb", "#6692FF"],
   ["racing bulls", "#6692FF"],
   ["alphatauri", "#6692FF"],
   ["toro rosso", "#6692FF"],
+  ["rb f1 team", "#6692FF"],
   ["red bull", "#3671C6"],
   ["ferrari", "#E8002D"],
   ["mercedes", "#27F4D2"],
@@ -96,6 +98,9 @@ const TEAM_COLORS: ReadonlyArray<readonly [string, string]> = [
   ["alfa romeo", "#52E252"],
   ["sauber", "#52E252"],
   ["haas", "#B6BABD"],
+  ["racing point", "#F596C8"],
+  ["force india", "#F596C8"],
+  ["renault", "#FFF500"],
 ];
 
 export function teamColor(team: string | null | undefined): string {

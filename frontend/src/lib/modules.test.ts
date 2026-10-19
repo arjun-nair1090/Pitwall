@@ -25,6 +25,7 @@ describe("findModuleForPath", () => {
   it("matches exact paths", () => expect(findModuleForPath("/live")?.id).toBe("live"));
   it("matches nested paths by prefix", () => expect(findModuleForPath("/compare/x")?.id).toBe("compare"));
   it("matches the race pace page", () => expect(findModuleForPath("/pace")?.id).toBe("pace"));
+  it("matches the championship odds page", () => expect(findModuleForPath("/championship")?.id).toBe("championship"));
   it("matches the overtakes page", () => expect(findModuleForPath("/battles")?.id).toBe("battles"));
   it("does not match a longer sibling name", () => expect(findModuleForPath("/livestock")).toBeUndefined());
   it("returns undefined for the landing page and unknown routes", () => {
