@@ -78,10 +78,23 @@ def test_state_reads_position_compound_age_and_used():
 
 
 def test_gap_ahead_from_lap_end_times():
-    payload = pit_window.pit_window_payload(FakeSession(), 8)
+    laps = make_laps()
+    # BBB loses a further 0.5 s every lap, so a gap read from lap 7 or 9 would differ from lap 8's
+    mine = laps["Driver"] == "BBB"
+    laps.loc[mine, "Time"] = laps.loc[mine, "Time"] + pd.to_timedelta(0.5 * laps.loc[mine, "LapNumber"], unit="s")
+    payload = pit_window.pit_window_payload(FakeSession(laps), 8)
     assert driver(payload, "AAA")["gap_ahead"] is None
-    assert driver(payload, "BBB")["gap_ahead"] == 2.0
-    assert driver(payload, "CCC")["gap_ahead"] == 28.0
+    assert driver(payload, "BBB")["gap_ahead"] == 6.0  # 2.0 + 0.5 * 8
+    assert driver(payload, "CCC")["gap_ahead"] == 24.0  # 30.0 - (2.0 + 4.0)
+
+
+def test_nan_lap_end_time_gives_no_gap():
+    laps = make_laps()
+    laps.loc[(laps["Driver"] == "BBB") & (laps["LapNumber"] == 8), "Time"] = pd.NaT
+    payload = pit_window.pit_window_payload(FakeSession(laps), 8)
+    assert driver(payload, "BBB")["gap_ahead"] is None
+    assert driver(payload, "CCC")["gap_ahead"] is None  # its car ahead has no time either
+    assert "nan" not in repr(payload).lower()
 
 
 def test_only_known_laps_feed_the_model():
@@ -109,6 +122,10 @@ def test_total_laps_rule():
     # nor is a missing one
     assert pit_window.pit_window_payload(FakeSession(), 8)["total_laps"] == 12
     assert pit_window.pit_window_payload(FakeSession(total_laps=15), 8)["laps_remaining"] == 7
+    # a float distance (FastF1 hands one back) comes out as an int
+    floaty = pit_window.pit_window_payload(FakeSession(total_laps=44.0, laps=make_laps(laps=12)), 8)
+    assert floaty["total_laps"] == 44 and isinstance(floaty["total_laps"], int)
+    assert isinstance(floaty["laps_remaining"], int)
 
 
 def test_bad_lap_is_a_422():
@@ -239,6 +256,80 @@ def test_session_is_memoised_for_a_replay(monkeypatch):
     b = pit_window.pit_window_replay(2024, "", "R", 14, 6)
     assert len(calls) == 1 and a["lap"] == 5 and b["lap"] == 6
     assert (a["year"], a["round"], a["session"]) == (2024, 14, "R")
+
+
+def test_neutralised_laps_stay_out_of_the_tyre_fit():
+    cars = {"AAA": (0.0, [("MEDIUM", 1, 20)]), "BBB": (2.0, [("MEDIUM", 1, 20)])}
+    neutral = range(1, 13)  # most of the known laps run behind the safety car
+    status = {(c, lap): "4" for c in cars for lap in neutral}
+    laps = make_laps(cars, laps=30, status=status)
+    crawl = laps["LapNumber"] <= 12
+    # absurd, and slow enough to drag the median up so the 107% cut-off keeps them
+    laps.loc[crawl, "LapTime"] = pd.to_timedelta(150.0 + 8.0 * laps.loc[crawl, "LapNumber"], unit="s")
+    payload = pit_window.pit_window_payload(FakeSession(laps, total_laps=30), 20)
+    medium = next(m for m in payload["model"] if m["compound"] == "MEDIUM")
+    assert medium["fitted"] and medium["laps"] <= 16  # only the 8 green laps of 2 cars can count
+    assert medium["deg_per_lap"] == pytest.approx(0.1, abs=0.05)
+    assert 89 < medium["base"] < 92
+    assert payload["sc_lap"] is False
+
+
+def test_slow_laps_with_a_green_status_stay_out_of_an_early_fit():
+    # FastF1 can tag a red-flag restart lap "1": lap 3 here is that, 10 to 40 s off the pace
+    cars = {f"{c}{i}": (2.0 * n, [(c, 1, 8)])
+            for n, (c, i) in enumerate((c, i) for c in ("SOFT", "MEDIUM", "HARD") for i in range(6))}
+    laps = make_laps(cars, laps=40)
+    third = laps["LapNumber"] == 3
+    laps.loc[third, "LapTime"] = [pd.Timedelta(seconds=100 + 2 * n) for n in range(len(cars))]
+    laps.loc[laps["LapNumber"] <= 2, ["LapTime", "IsAccurate"]] = [pd.NaT, False]
+    results = pd.DataFrame({"Abbreviation": list(cars)})
+    payload = pit_window.pit_window_payload(FakeSession(laps, total_laps=40, results=results), 3)
+    for m in payload["model"]:
+        assert m["deg_per_lap"] < 1.0
+    bases = [m["base"] for m in payload["model"]]
+    assert max(bases) - min(bases) < 1.0  # no compound is magically quicker than the rest
+    assert all(u["gain"] < 10 for u in payload["undercuts"])
+
+
+def test_a_fit_with_no_spread_of_tyre_ages_is_not_trusted():
+    # every car on lap 3 has a 3-lap-old tyre: wear can't be read off that, however many laps there are
+    cars = {f"{c}{i}": (2.0 * n, [(c, 1, 8)])
+            for n, (c, i) in enumerate((c, i) for c in ("SOFT", "MEDIUM", "HARD") for i in range(6))}
+    laps = make_laps(cars, laps=40)
+    laps.loc[laps["LapNumber"] <= 2, ["LapTime", "IsAccurate"]] = [pd.NaT, False]
+    laps.loc[laps["LapNumber"] == 3, "LapTime"] = [pd.Timedelta(seconds=90 + 0.7 * (n % 5)) for n in range(len(cars))]
+    results = pd.DataFrame({"Abbreviation": list(cars)})
+    payload = pit_window.pit_window_payload(FakeSession(laps, total_laps=40, results=results), 3)
+    assert not any(m["fitted"] for m in payload["model"])
+    assert [m["deg_per_lap"] for m in payload["model"]] == [0.25, 0.14, 0.07]
+
+
+def test_all_neutralised_laps_fall_back_to_the_known_laps():
+    status = {(c, lap): "4" for c in CARS for lap in range(1, 13)}
+    payload = pit_window.pit_window_payload(FakeSession(make_laps(status=status), total_laps=40), 8)
+    assert payload["sc_lap"] is True and len(payload["model"]) == 3
+    assert "nan" not in repr(payload).lower()
+
+
+def test_session_memo_is_bounded(monkeypatch):
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(pit_window, "time", type("T", (), {"time": staticmethod(lambda: clock["now"])}))
+    loads = []
+
+    def fake_load(year, gp, name, round_number=None):
+        loads.append(round_number)
+        return FakeSession()
+
+    monkeypatch.setattr(pit_window, "load_session", fake_load)
+    for n in range(1, 6):
+        clock["now"] += 1
+        pit_window.pit_window_replay(2024, "", "R", n, 5)
+    assert len(pit_window._sessions) == 3
+    assert sorted(k[1] for k in pit_window._sessions) == [3, 4, 5]  # the oldest went first
+    # expired entries are purged on the next insert
+    clock["now"] += pit_window._CACHE_TTL_SECONDS + 1
+    pit_window.pit_window_replay(2024, "", "R", 9, 5)
+    assert [k[1] for k in pit_window._sessions] == [9]
 
 
 # ---- the endpoint ----
