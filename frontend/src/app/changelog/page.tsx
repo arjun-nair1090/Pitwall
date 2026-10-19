@@ -19,6 +19,7 @@ const CHANGELOG: ChangelogEntry[] = [
       "Championship odds: every driver's and team's chance of the title after any round since 2018, from 10,000 simulations of the races still to run, with who has clinched it, who is out of contention, and how the odds moved through the season.",
       "Pit window: pick any lap of a race or sprint since 2018 and see each driver's best strategy from there, when their pit window opens and closes, and which close fights an undercut would win, all worked out from only the laps run so far.",
       "Win probability: every driver's chance of winning, lap by lap through any race or sprint since 2018, worked out from only the laps run so far, with safety-car periods marked and the numbers behind any lap.",
+      "Ask the data: type a question about any race or season and get an answer worked out only from the app's own analyses (race pace, overtakes, championship odds, pit windows, win probability and results), with links to every page it used.",
     ],
   },
   {
