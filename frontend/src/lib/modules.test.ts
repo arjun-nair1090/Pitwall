@@ -16,6 +16,13 @@ describe("module registry", () => {
     expect(primary).toHaveLength(5);
     for (const m of primary) expect(m.shortLabel).toBeTruthy();
   });
+  it("lists the pit window in the Race group straight after overtakes and battles", () => {
+    const ids = MODULES.map((m) => m.id);
+    expect(ids.indexOf("pitwindow")).toBe(ids.indexOf("battles") + 1);
+    const m = MODULES.find((x) => x.id === "pitwindow");
+    expect(m).toMatchObject({ label: "Pit window", href: "/pitwindow", group: "Race" });
+    expect(m?.mobilePrimary).toBeFalsy();
+  });
   it("describes every module", () => {
     for (const m of MODULES) expect(m.description.length).toBeGreaterThan(10);
   });
@@ -27,6 +34,7 @@ describe("findModuleForPath", () => {
   it("matches the race pace page", () => expect(findModuleForPath("/pace")?.id).toBe("pace"));
   it("matches the championship odds page", () => expect(findModuleForPath("/championship")?.id).toBe("championship"));
   it("matches the overtakes page", () => expect(findModuleForPath("/battles")?.id).toBe("battles"));
+  it("matches the pit window page", () => expect(findModuleForPath("/pitwindow")?.id).toBe("pitwindow"));
   it("does not match a longer sibling name", () => expect(findModuleForPath("/livestock")).toBeUndefined());
   it("returns undefined for the landing page and unknown routes", () => {
     expect(findModuleForPath("/")).toBeUndefined();
@@ -46,5 +54,9 @@ describe("searching modules", () => {
     expect(search("tyre")[0].id).toBe("strategy");
   });
   it("finds overtakes and battles by what they show", () => expect(search("overtakes")[0].id).toBe("battles"));
+  it("finds the pit window by what it answers", () => {
+    expect(search("undercut")[0].id).toBe("pitwindow");
+    expect(search("pit stop")[0].id).toBe("pitwindow");
+  });
   it("returns nothing for gibberish", () => expect(search("zzzz")).toEqual([]));
 });
