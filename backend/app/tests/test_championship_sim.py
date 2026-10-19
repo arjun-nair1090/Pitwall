@@ -241,6 +241,9 @@ def test_retirements_score_nothing_and_raise_the_retirement_rate():
     assert p[1] > p[0]
     # the field rate is 3/8, so the clean driver is pulled up from 0 and the bad one down from 1
     assert 0 < p[0] < 3 / 8 < p[1] < 1
+    # by twelve pseudo-starts at that rate
+    assert p[0] == pytest.approx((0 + 12 * 3 / 8) / (4 + 12))
+    assert p[1] == pytest.approx((3 + 12 * 3 / 8) / (4 + 12))
     # a retired car scores nothing, and a clean one beats an equal car that retires
     rng = np.random.default_rng(1)
     tables = np.array([RACE[:2]], dtype=float)
@@ -329,7 +332,7 @@ def test_form_weights_recent_finishes_more():
     a = [1] * 6 + [2] * 6
     b = [2] * 6 + [1] * 6
     races = _classified_rows({"A": a, "B": b})
-    mu, _ = sim._form(races, ["A", "B"], 12)
+    mu, _, _ = sim._form(races, ["A", "B"], 12)
     w = 0.5 ** ((12 - np.arange(1, 13)) / sim.HALF_LIFE)
     expect_a = ((w * np.array(a)).sum() + 1.5) / (w.sum() + 1)
     assert mu[0] == pytest.approx(expect_a)
@@ -339,13 +342,13 @@ def test_form_weights_recent_finishes_more():
 
 def test_form_skips_retirements_and_adds_the_prior():
     races = _classified_rows({"A": [3, 3, 3], "B": [1, 1, 1], "C": [2, 2, 2]}, retired={("A", 3)})
-    mu, _ = sim._form(races, ["A", "B", "C"], 3)
+    mu, _, _ = sim._form(races, ["A", "B", "C"], 3)
     w = np.array([0.5 ** (2 / 6), 0.5 ** (1 / 6)])
     assert mu[0] == pytest.approx((w * 3).sum() / (w.sum() + 1) + 2.0 / (w.sum() + 1))
     # no finish at all: the field midpoint, (n + 1) / 2
     races = _classified_rows({"A": [1, 1], "B": [2, 2], "C": [3, 3], "D": [4, 4]},
                              retired={("D", 1), ("D", 2)})
-    mu, _ = sim._form(races, ["A", "B", "C", "D"], 2)
+    mu, _, _ = sim._form(races, ["A", "B", "C", "D"], 2)
     assert mu[3] == pytest.approx(2.5)
 
 
@@ -465,3 +468,33 @@ def test_the_deduction_feeds_the_constructor_status():
     assert by["McLaren"]["status"] == "contender"
     p = payload(2021, [["A", "B", "C", "D"]] * 3, total=4, teams=teams)
     assert {c["team"]: c for c in p["constructors"]}["Racing Point"]["status"] == "clinched"
+
+
+def test_form_mass_sums_the_weights_of_classified_finishes():
+    races = _classified_rows({"A": [3, 3, 3], "B": [1, 1, 1], "C": [2, 2, 2]}, retired={("A", 3)})
+    _, _, mass = sim._form(races, ["A", "B", "C"], 3)
+    w = 0.5 ** (np.array([2, 1, 0]) / sim.HALF_LIFE)
+    assert mass.tolist() == pytest.approx([w[:2].sum(), w.sum(), w.sum()])
+
+
+def test_each_simulation_shifts_every_drivers_form_once(monkeypatch):
+    # A has three finishes, B none: B's form is the prior alone and moves the most
+    races, sprints, schedule = season([["A", "-B"], ["A", "-B"], ["A", "-B"]], total=5)
+    mu, sigma, mass = sim._form(races, ["A", "B"], 3)
+    seen = {}
+
+    def simulate(rng, sims, form, sigma_, p, tables, is_race):
+        seen["form"] = form
+        zeros = np.zeros((sims, 2))
+        return zeros, zeros, zeros
+
+    monkeypatch.setattr(sim, "_simulate", simulate)
+    sim._model(2024, races, sprints, schedule, 3, 20_000)
+    form = seen["form"]
+    assert form.shape == (20_000, 2)
+    assert form.mean(axis=0) == pytest.approx(mu, abs=0.05)
+    assert form.std(axis=0) == pytest.approx(sigma / np.sqrt(mass + sim.PRIOR_WEIGHT), rel=0.03)
+    assert form.std(axis=0)[1] == pytest.approx(sigma, rel=0.03)
+    # the same request draws the same offsets
+    sim._model(2024, races, sprints, schedule, 3, 20_000)
+    assert np.array_equal(seen["form"], form)

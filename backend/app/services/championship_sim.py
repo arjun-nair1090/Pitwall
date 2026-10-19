@@ -1,10 +1,13 @@
 """Championship title odds from a Monte Carlo of the races and sprints still to run.
 
 Every driver's form is the recency-weighted mean of their classified race finishes, nudged towards
-the middle of the field by one pseudo-race. Each remaining event is then drawn independently:
-every entrant gets form plus noise, may retire, and the finishers score by their rank. Nothing
-here knows about pace, tyres, circuits or car development, and the fastest-lap point is not drawn,
-so the odds are a read of the points table and recent results, not a forecast. The odds are
+the middle of the field by one pseudo-race. Form read from a handful of results is itself uncertain,
+so each simulation first shifts every driver's form once, by noise / sqrt(weight of their finishes +
+the pseudo-race), and keeps that shift for the rest of the season. Each remaining event is then drawn
+independently: every entrant gets form plus noise, may retire, and the finishers score by their rank.
+A retirement chance is the driver's own record pulled towards the field's by twelve pseudo-starts.
+Nothing here knows about pace, tyres, circuits or car development, and the fastest-lap point is not
+drawn, so the odds are a read of the points table and recent results, not a forecast. The odds are
 reproducible: the generator is seeded from the year and the cut-off round.
 
 Takes tidy DataFrames (see the column lists below) so it never touches the network.
@@ -30,8 +33,9 @@ HALF_LIFE = 6.0
 # One pseudo-race at the field midpoint, so a driver with a single result isn't taken at face value.
 PRIOR_WEIGHT = 1.0
 SIGMA_FLOOR = 2.0
-# Pseudo-starts at the field's retirement rate.
-RETIREMENT_K = 4
+# Pseudo-starts at the field's retirement rate: enough that two retirements in three races don't
+# read as a 40% chance every race.
+RETIREMENT_K = 12
 
 # Points taken off a constructor by the stewards: (team, first round it applies from, points). Racing
 # Point lost 15 over the 2020 brake-duct ruling, which Ergast applies to its standings from round 3.
@@ -107,8 +111,9 @@ def _entrants(races: pd.DataFrame, cut: int) -> List[str]:
     return list(dict.fromkeys(last["code"]))
 
 
-def _form(races: pd.DataFrame, codes: List[str], cut: int) -> Tuple[np.ndarray, float]:
-    """Each entrant's expected finishing position, and the noise around it."""
+def _form(races: pd.DataFrame, codes: List[str], cut: int) -> Tuple[np.ndarray, float, np.ndarray]:
+    """Each entrant's expected finishing position, the noise around it, and the total recency weight
+    of each entrant's classified finishes (how much their form rests on)."""
     n = len(codes)
     midpoint = (n + 1) / 2
     upto = races[(races["round"] <= cut) & races["code"].isin(codes)]
@@ -120,9 +125,9 @@ def _form(races: pd.DataFrame, codes: List[str], cut: int) -> Tuple[np.ndarray, 
     mass = np.bincount(idx, weights=weight, minlength=n)
     mu = (total + PRIOR_WEIGHT * midpoint) / (mass + PRIOR_WEIGHT)
     if weight.sum() == 0:
-        return mu, SIGMA_FLOOR
+        return mu, SIGMA_FLOOR, mass
     sigma = float(np.sqrt((weight * (position - mu[idx]) ** 2).sum() / weight.sum()))
-    return mu, max(sigma, SIGMA_FLOOR)
+    return mu, max(sigma, SIGMA_FLOOR), mass
 
 
 def _retirement_chances(races: pd.DataFrame, codes: List[str]) -> np.ndarray:
@@ -154,7 +159,8 @@ def _event_tables(year: int, schedule: pd.DataFrame, cut: int, n: int) -> Tuple[
 
 def _simulate(rng, sims: int, mu: np.ndarray, sigma: float, p: np.ndarray,
               tables: np.ndarray, is_race: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Points, wins and seconds each entrant adds over the events, per simulation: (sims, n) each."""
+    """Points, wins and seconds each entrant adds over the events, per simulation: (sims, n) each.
+    mu is each entrant's form: (n,), shared by every simulation, or (sims, n), a row per simulation."""
     events, n = tables.shape
     points = np.zeros((sims, n))
     wins = np.zeros((sims, n))
@@ -214,10 +220,12 @@ def _model(year: int, races: pd.DataFrame, sprints: pd.DataFrame, schedule: pd.D
     sprints_left = len(is_race) - races_left
     driver_reach, team_reach = _max_remaining(year, races_left, sprints_left)
 
-    mu, sigma = _form(races, entrants, cut)
+    mu, sigma, mass = _form(races, entrants, cut)
     p = _retirement_chances(upto, entrants)
     rng = np.random.default_rng(year * 100 + cut)
-    gain, win_gain, second_gain = _simulate(rng, sims, mu, sigma, p, tables, is_race)
+    # One shift of form per driver per simulation, smaller the more finishes it rests on.
+    form = mu + sigma / np.sqrt(mass + PRIOR_WEIGHT) * rng.standard_normal((sims, n))
+    gain, win_gain, second_gain = _simulate(rng, sims, form, sigma, p, tables, is_race)
 
     codes = list(drivers.index)
     col = pd.Index(codes).get_indexer(entrants)
