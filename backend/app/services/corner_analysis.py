@@ -225,7 +225,9 @@ def clean_laps(laps: pd.DataFrame) -> pd.DataFrame:
     if "TrackStatus" in timed.columns:
         timed = timed[~neutralised_laps(timed["TrackStatus"])]
     if "Deleted" in timed.columns:
-        deleted = timed["Deleted"].map(lambda flag: bool(flag) if pd.notna(flag) else False)
+        # astype(bool): mapping an empty object column gives an object Series, and indexing with an
+        # empty non-boolean Series selects columns, which would drop every one of them
+        deleted = timed["Deleted"].map(lambda flag: bool(flag) if pd.notna(flag) else False).astype(bool)
         timed = timed[~deleted]
     if timed.empty:
         return timed
