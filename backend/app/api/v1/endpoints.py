@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, field_validator, model_validator
 from typing import List, Optional
 from app.services.f1_data_service import f1_service
-from app.services import corner_analysis, duel_telemetry, latest_result, race_battles, race_pace, race_replay
+from app.services import championship_data, championship_sim, corner_analysis, duel_telemetry, latest_result, race_battles, race_pace, race_replay
 from app.services import session_info as session_info_service
 from app.services.race_debrief import NoResultsError
 from app.services.session_info import SessionDataError
@@ -241,6 +241,30 @@ async def race_pace_endpoint(req: RacePaceRequest):
         )
     except Exception as e:
         raise _analysis_error(e, "the race pace analysis")
+
+
+class ChampionshipOddsRequest(BaseModel):
+    year: int
+    after_round: Optional[int] = None
+
+    @field_validator("year")
+    @classmethod
+    def _covered_year(cls, value: int) -> int:
+        current = championship_sim._current_year()
+        if value < championship_sim.FIRST_YEAR or value > current:
+            raise ValueError(f"Championship odds cover {championship_sim.FIRST_YEAR} to {current}.")
+        return value
+
+
+@router.post("/championship/odds")
+async def championship_odds_endpoint(req: ChampionshipOddsRequest):
+    """Title odds for drivers and constructors from a Monte Carlo of the races still to run."""
+    try:
+        return await asyncio.to_thread(championship_data.championship_odds, req.year, req.after_round)
+    except championship_sim.ChampionshipError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+    except Exception as e:
+        raise _analysis_error(e, "the championship odds")
 
 
 class RaceBattlesRequest(BaseModel):

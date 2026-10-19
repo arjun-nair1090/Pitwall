@@ -1,3 +1,4 @@
+import pandas as pd
 import fastf1
 import pytest
 from fastapi.testclient import TestClient
@@ -356,3 +357,78 @@ def test_race_battles_failures_do_not_leak_internals(monkeypatch):
     monkeypatch.setattr(race_battles, "race_battles_payload", boom)
     response = client.post("/api/v1/telemetry/race-battles", json=BATTLES)
     assert response.status_code == 502 and "internal" not in response.json()["detail"]
+
+
+# ---- championship odds ----
+
+from app.services import championship_data, championship_sim  # noqa: E402
+
+
+def test_championship_odds_returns_the_bare_payload(monkeypatch):
+    seen = {}
+
+    def fake(year, after_round):
+        seen["args"] = (year, after_round)
+        return {"year": year, "drivers": []}
+
+    monkeypatch.setattr(championship_data, "championship_odds", fake)
+    response = client.post("/api/v1/championship/odds", json={"year": 2024, "after_round": 19})
+    assert response.status_code == 200
+    assert response.json() == {"year": 2024, "drivers": []}
+    assert seen["args"] == (2024, 19)
+
+
+def test_championship_odds_after_round_is_optional(monkeypatch):
+    monkeypatch.setattr(championship_data, "championship_odds", lambda y, r: {"after_round": r})
+    response = client.post("/api/v1/championship/odds", json={"year": 2024})
+    assert response.status_code == 200
+    assert response.json() == {"after_round": None}
+
+
+def test_championship_error_keeps_its_status_and_message(monkeypatch):
+    def boom(year, after_round):
+        raise championship_sim.ChampionshipError("No races have been run in 2026 yet.", 404)
+
+    monkeypatch.setattr(championship_data, "championship_odds", boom)
+    response = client.post("/api/v1/championship/odds", json={"year": 2026})
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No races have been run in 2026 yet."
+
+
+def test_championship_other_errors_are_a_502(monkeypatch):
+    def boom(year, after_round):
+        raise RuntimeError("mirror down")
+
+    monkeypatch.setattr(championship_data, "championship_odds", boom)
+    response = client.post("/api/v1/championship/odds", json={"year": 2024})
+    assert response.status_code == 502
+    assert "the championship odds" in response.json()["detail"]
+    assert "mirror down" not in response.text
+
+
+def test_championship_year_out_of_range_is_a_422(monkeypatch):
+    monkeypatch.setattr(championship_data, "championship_odds", lambda y, r: {})
+    response = client.post("/api/v1/championship/odds", json={"year": 2017})
+    assert response.status_code == 422
+    assert f"Championship odds cover 2018 to {championship_sim._current_year()}." in response.text
+
+
+def test_championship_odds_memoises_the_season_and_the_result(monkeypatch):
+    championship_data.clear_cache()
+    calls = {"load": 0}
+
+    def fake_load(year, ergast=None):
+        calls["load"] += 1
+        races = pd.DataFrame({"round": [1, 2]})
+        return races, pd.DataFrame(), pd.DataFrame()
+
+    seen = []
+    monkeypatch.setattr(championship_data, "load_season", fake_load)
+    monkeypatch.setattr(championship_data.championship_sim, "championship_payload",
+                        lambda y, r, s, sc, cut: seen.append(cut) or {"after_round": cut})
+    assert championship_data.championship_odds(2024, None) == {"after_round": 2}
+    assert championship_data.championship_odds(2024, 2) == {"after_round": 2}
+    assert championship_data.championship_odds(2024, 1) == {"after_round": 1}
+    assert calls["load"] == 1
+    assert seen == [2, 1]
+    championship_data.clear_cache()
