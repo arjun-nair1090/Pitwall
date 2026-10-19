@@ -18,6 +18,7 @@ const CHANGELOG: ChangelogEntry[] = [
       "Overtakes and battles: a lap chart of every race and sprint since 2018, every on-track pass (not the places that change hands in the pits or behind a safety car), places gained at the start, and every fight that stayed within a second for three laps or more.",
       "Championship odds: every driver's and team's chance of the title after any round since 2018, from 10,000 simulations of the races still to run, with who has clinched it, who is out of contention, and how the odds moved through the season.",
       "Pit window: pick any lap of a race or sprint since 2018 and see each driver's best strategy from there, when their pit window opens and closes, and which close fights an undercut would win, all worked out from only the laps run so far.",
+      "Win probability: every driver's chance of winning, lap by lap through any race or sprint since 2018, worked out from only the laps run so far, with safety-car periods marked and the numbers behind any lap.",
     ],
   },
   {
