@@ -132,7 +132,7 @@ export default function WinProbPage({ initial }: { initial: RaceParams & { lap?:
             </div>
           </Panel>
           <Panel title="The field at this lap" meta={`As of lap ${data.at.lap}`}>
-            <div className="p-4" aria-busy={loadingNext} style={loadingNext ? { opacity: 0.6 } : undefined}>
+            <div className={loadingNext ? "p-4 opacity-60" : "p-4"} aria-busy={loadingNext}>
               <LapOdds rows={data.at.rows} drivers={data.drivers} />
             </div>
           </Panel>

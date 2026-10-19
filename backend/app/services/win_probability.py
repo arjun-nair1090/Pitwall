@@ -161,20 +161,75 @@ def remaining_stop(pit_loss: float, in_lap_time: float, pace: float) -> float:
     return max(0.0, pit_loss - (in_lap_time - pace))
 
 
-def _stopped(state: pit_strategy.DriverState, laps: pd.DataFrame, lap: int, pit_loss: float,
-             in_lap_time: float, pace: float) -> Tuple[pit_strategy.DriverState, float]:
-    """A driver on their in-lap is treated as already stopped: lap N + 1's compound at age 0, and
-    the rest of the stop still to come (see `remaining_stop`). Without a lap N + 1 the state stands."""
+def _stopped(state: pit_strategy.DriverState, laps: pd.DataFrame,
+             lap: int) -> Optional[pit_strategy.DriverState]:
+    """A driver on their in-lap is treated as already stopped: lap N + 1's compound at age 0. The
+    rest of the stop is still to come (see `remaining_stop`). Without a lap N + 1, None."""
     ahead = laps[(laps["Driver"] == state.code) & (laps["LapNumber"] == lap + 1)]
     if ahead.empty:
-        return state, 0.0
+        return None
     compound = ahead.iloc[0]["Compound"]
     name = str(compound).upper() if pd.notna(compound) else "UNKNOWN"
     used = set(state.used) | ({name} - {"UNKNOWN", "NAN", "NONE"})
-    fresh = pit_strategy.DriverState(code=state.code, position=state.position, lap=state.lap,
-                                     compound=name, tyre_age=0, used=used,
-                                     gap_ahead=state.gap_ahead, neutralised=state.neutralised)
-    return fresh, remaining_stop(pit_loss, in_lap_time, pace)
+    return pit_strategy.DriverState(code=state.code, position=state.position, lap=state.lap,
+                                    compound=name, tyre_age=0, used=used,
+                                    gap_ahead=state.gap_ahead, neutralised=state.neutralised)
+
+
+def _group(compound: Any) -> Optional[str]:
+    name = str(compound).upper() if pd.notna(compound) else ""
+    if name in pit_strategy.WET_COMPOUNDS:
+        return "wet"
+    return "dry" if name in pit_strategy.DRY_COMPOUNDS else None
+
+
+def _stint_pace(clean: Dict[str, pd.DataFrame], on_lap: pd.DataFrame) -> Dict[str, Tuple[float, Optional[str]]]:
+    """Each driver's pace for the one-scale projection, and the tyre group it was set on: the median
+    of their clean laps in the stint they are on at lap N, or their last RECENT_LAPS clean laps when
+    that stint has fewer than two."""
+    out: Dict[str, Tuple[float, Optional[str]]] = {}
+    for code, frame in clean.items():
+        frame = frame.sort_values("LapNumber")
+        stint = on_lap.loc[code, "Stint"] if code in on_lap.index and "Stint" in frame.columns else None
+        mine = frame[frame["Stint"] == stint] if stint is not None and pd.notna(stint) else frame.iloc[0:0]
+        if len(mine) < 2:
+            mine = frame.tail(RECENT_LAPS)
+        seconds = mine["LapTime"].dt.total_seconds()
+        groups = mine["Compound"].map(_group).dropna()
+        out[code] = (float(np.median(seconds)), groups.mode().iloc[-1] if len(groups) else None)
+    return out
+
+
+def _one_scale_costs(planned: List[Tuple[Any, Any, Optional[float]]], paces: Dict[str, Tuple[float, Optional[str]]],
+                     field_pace: float, remaining: int, pit_loss: float) -> List[float]:
+    """The one-scale projection: each driver's pace times the laps left (the field's pace for a
+    driver with none), plus the rest of any stop they are making.
+
+    When the dry-tyre and the wet-tyre groups lap at different medians, a driver keeps their pace
+    against the group it was set in, and a driver on the slower group's tyres runs at the faster
+    group's pace after one more stop, if that stop pays for itself over the laps left (a sliver of
+    difference between the groups doesn't send a whole group in)."""
+    pace = {s.code: paces.get(s.code, (field_pace, None)) for s, _, _ in planned}
+    medians: Dict[str, float] = {}
+    for group in ("dry", "wet"):
+        values = [m for m, g in pace.values() if g == group]
+        if values:
+            medians[group] = float(np.median(values))
+    fast = None
+    if len(medians) == 2 and medians["dry"] != medians["wet"]:
+        fast = min(medians, key=medians.get)
+    costs = []
+    for s, plan_state, extra in planned:
+        m, measured = pace[s.code]
+        cost = remaining * m
+        if fast is not None:
+            now = _group(plan_state.compound) or measured or fast
+            relative = m - medians[measured or now]
+            cost = remaining * (relative + medians[fast])
+            if now != fast:
+                cost = min(remaining * (relative + medians[now]), cost + pit_loss)
+        costs.append(cost + (extra or 0.0))
+    return costs
 
 
 class _Plain:
@@ -211,31 +266,54 @@ def _evaluate(session: Any, lap: int, sims: int, seed: int, sprint: bool, detail
     if not states:
         return out
 
-    wet = sum(s.compound in pit_strategy.WET_COMPOUNDS for s in states)
-    one_scale = states[0].compound in pit_strategy.WET_COMPOUNDS or wet >= WET_SHARE * len(states)
-
-    costs, shown = [], []
+    planned: List[Tuple[pit_strategy.DriverState, pit_strategy.DriverState, Optional[float]]] = []
     for s in states:
-        m = pace.get(s.code, field_pace)
-        extra, plan_state = 0.0, s
+        plan_state, in_lap = s, None
         if pd.notna(on_lap.loc[s.code, "PitInTime"]):
-            plan_state, extra = _stopped(s, laps, lap, pit_loss,
-                                         _seconds(on_lap.loc[s.code, "LapTime"]), m)
-        cost: Optional[float] = None
-        if remaining == 0:
-            cost = 0.0
-        elif not one_scale:
+            stopped = _stopped(s, laps, lap)
+            if stopped is not None:
+                plan_state, in_lap = stopped, _seconds(on_lap.loc[s.code, "LapTime"])
+        planned.append((s, plan_state, in_lap))
+    # The field goes on one scale when the road leader or a quarter of it is on wet tyres, counting
+    # an in-lap car on the tyre it is stopping for. With no dry compound fitted yet (lap 1, or just
+    # after a restart) it goes on one scale at one pace, the order on the road: the few laps known
+    # can't yet tell the drivers apart, and a plan would run on the fit's fallback numbers.
+    wet = sum(ps.compound in pit_strategy.WET_COMPOUNDS for _, ps, _ in planned)
+    wet_field = planned[0][1].compound in pit_strategy.WET_COMPOUNDS or wet >= WET_SHARE * len(states)
+    fitted = any(model.compounds.get(c, (0.0, 0.0, False))[2] for c in pit_strategy.DRY_COMPOUNDS)
+    one_scale = wet_field or not fitted
+    paces = _stint_pace(clean, on_lap) if wet_field and remaining else {}
+    mine = {c: v[0] for c, v in paces.items()} if one_scale else pace
+    stops = [(s, ps, None if in_lap is None else
+              remaining_stop(pit_loss, in_lap, mine.get(s.code, field_pace)))
+             for s, ps, in_lap in planned]
+
+    costs: List[float] = []
+    if remaining == 0:
+        costs = [0.0] * len(stops)
+    elif one_scale:
+        costs = _one_scale_costs(stops, paces, field_pace, remaining, pit_loss)
+    else:
+        for s, plan_state, extra in stops:
             plan = pit_strategy.pit_window(plan_state, model, remaining, sprint=sprint)
             if plan["best"] is not None:
-                cost = plan["best"]["cost"] + extra
-        costs.append(cost if cost is not None else remaining * m)
-        if detail:
-            shown.append(_status(s, model, remaining, sprint) if remaining else
-                         {"status": "stay out", "rule_breach": False, "window_open": None})
+                costs.append(plan["best"]["cost"] + (extra or 0.0))
+            else:
+                costs.append(remaining * pace.get(s.code, field_pace) + (extra or 0.0))
+    shown = []
+    if detail:
+        shown = [_status(s, model, remaining, sprint) if remaining else
+                 {"status": "stay out", "rule_breach": False, "window_open": None} for s in states]
 
     t = np.array([times[s.code] for s in states])
     F = project_finish(t, np.array(costs))
-    probs = simulate_winner(F, remaining, sigma, np.random.default_rng(seed), sims)
+    if remaining == 0:
+        # The race is decided: the winner is the leader on the road, not the earliest lap-end time
+        # (a car's final Time can be missing and is then extrapolated).
+        probs = np.zeros(len(states))
+        probs[0] = 1.0
+    else:
+        probs = simulate_winner(F, remaining, sigma, np.random.default_rng(seed), sims)
     out.update(times=t, F=F, probs=probs, shown=shown)
     return out
 
