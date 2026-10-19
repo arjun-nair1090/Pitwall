@@ -4,13 +4,14 @@ import type { PitDriver, PitWindowResult } from "@/lib/pitwindow";
 export const driver = (o: Partial<PitDriver>): PitDriver => ({
   code: "VER", name: "Max Verstappen", team: "Red Bull Racing", color: "#3671C6", position: 1, compound: "MEDIUM",
   tyre_age: 12, used: ["MEDIUM"], gap_ahead: null, status: "stay out", best: null, window: null, cheap_stop: false,
-  rule_breach: false, ...o,
+  rule_breach: false, early: false, ...o,
 });
 
 // Lap 18 of 44, so 26 laps remain and a stop can be on laps 19 to 43. Positions, gaps and undercuts
 // agree: each undercut's gap is its chaser's gap_ahead and margin is gain minus gap. The drivers are
 // in position order and not alphabetical, and the undercuts are in margin order and not alphabetical
-// by chaser, so a page that re-sorts either list is caught.
+// by chaser, so a page that re-sorts either list is caught. ALO runs on SOFT, which isn't fitted, so
+// its plan is an early estimate.
 export const PIT_WINDOW: PitWindowResult = {
   year: 2024, round: 14, session: "R", lap: 18, total_laps: 44, laps_remaining: 26, pit_loss: 21.4, sc_lap: false,
   model: [
@@ -33,7 +34,7 @@ export const PIT_WINDOW: PitWindowResult = {
     }),
     driver({
       code: "ALO", name: "Fernando Alonso", team: "Aston Martin", color: "#229971", position: 4, compound: "SOFT", tyre_age: 6, used: ["SOFT"],
-      gap_ahead: 2.8, status: "window opens",
+      gap_ahead: 2.8, status: "window opens", early: true,
       best: { stops: [{ lap: 22, compound: "MEDIUM" }, { lap: 40, compound: "HARD" }], cost: 2870.4 }, window: { open: 21, close: 24 },
     }),
     driver({

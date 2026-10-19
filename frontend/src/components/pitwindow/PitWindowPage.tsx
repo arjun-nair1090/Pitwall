@@ -51,20 +51,23 @@ export default function PitWindowPage({ initial }: { initial: RaceParams & { lap
   const data = analysis.status === "ready" ? analysis.data : null;
   const errorMessage = analysis.status === "error" ? analysis.message : null;
 
-  // Once the race length is known: remember it, and pick the lap if nobody has.
+  // Once the race length is known: remember it, pick the lap if nobody has, and pull a lap past the
+  // end back to the last one the server takes.
   useEffect(() => {
     if (!data) return;
     setTotal(data.total_laps);
-    setLap((current) => current ?? defaultLap(data.total_laps));
+    const last = Math.max(1, data.total_laps - 1);
+    setLap((current) => (current === null ? defaultLap(data.total_laps) : Math.min(current, last)));
   }, [data]);
 
-  // The server names the last lap it will take when the lap was too far on, and the first request
-  // can be: a very short race has fewer than ten laps.
+  // The server names the last lap it will take when the lap was too far on: a linked lap past the
+  // end, or the first request in a very short race. Its "Pick a lap from 1 to N." wording is a
+  // contract with the backend, which pins it in a test.
   useEffect(() => {
     const last = errorMessage === null ? null : lastLapFromError(errorMessage);
     if (last === null) return;
     setTotal(last + 1);
-    setLap((current) => current ?? Math.min(DEFAULT_LAP, last));
+    setLap((current) => (current === null ? Math.min(DEFAULT_LAP, last) : Math.min(current, last)));
   }, [errorMessage]);
 
   const lastLink = useRef(sel.round === null || initial.lap == null ? null : linkFor(sel, initial.lap));
@@ -83,7 +86,7 @@ export default function PitWindowPage({ initial }: { initial: RaceParams & { lap
   };
 
   // A bad lap stays on screen with its message, and the stepper stays usable to pick another.
-  const hideForPending = sel.round === null;
+  const noRound = sel.round === null;
 
   return (
     <>
@@ -96,7 +99,7 @@ export default function PitWindowPage({ initial }: { initial: RaceParams & { lap
           <SessionPicker value={sel} onChange={choose} allowedSessions={SESSIONS} />
         </div>
       </Panel>
-      {!hideForPending && (
+      {!noRound && (
         <Panel title="Lap" className="mb-4">
           <div className="p-4">
             <LapStepper lap={requestLap} total={total} onChange={setLap} />
@@ -110,7 +113,7 @@ export default function PitWindowPage({ initial }: { initial: RaceParams & { lap
         <div className="flex flex-col gap-4">
           <Panel title="Pit plans" meta={`${sel.year}, round ${sel.round}, ${SESSION_LABELS[sel.session]}, lap ${data.lap}`}>
             <div className="p-4">
-              <PitTable drivers={data.drivers} pitLoss={data.pit_loss} />
+              <PitTable drivers={data.drivers} />
               <p className="mt-3 text-xs text-faint">{IN_LAP_NOTE}</p>
             </div>
           </Panel>
