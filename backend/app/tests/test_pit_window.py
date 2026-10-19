@@ -1,3 +1,6 @@
+import threading
+import time
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -259,18 +262,20 @@ def test_session_is_memoised_for_a_replay(monkeypatch):
 
 
 def test_neutralised_laps_stay_out_of_the_tyre_fit():
-    cars = {"AAA": (0.0, [("MEDIUM", 1, 20)]), "BBB": (2.0, [("MEDIUM", 1, 20)])}
+    cars = {"AAA": (0.0, [("MEDIUM", 1, 30)]), "BBB": (2.0, [("MEDIUM", 1, 30)])}
     neutral = range(1, 13)  # most of the known laps run behind the safety car
     status = {(c, lap): "4" for c in cars for lap in neutral}
     laps = make_laps(cars, laps=30, status=status)
     crawl = laps["LapNumber"] <= 12
-    # absurd, and slow enough to drag the median up so the 107% cut-off keeps them
-    laps.loc[crawl, "LapTime"] = pd.to_timedelta(150.0 + 8.0 * laps.loc[crawl, "LapNumber"], unit="s")
+    # 4% off the green pace: inside both 107% cuts, so only the neutralised-lap filter can drop them
+    laps.loc[crawl, "LapTime"] = laps.loc[crawl, "LapTime"] * 1.04
+    seconds = laps["LapTime"].dt.total_seconds()
+    assert seconds[crawl].max() < 1.07 * seconds[~crawl].min()
     payload = pit_window.pit_window_payload(FakeSession(laps, total_laps=30), 20)
     medium = next(m for m in payload["model"] if m["compound"] == "MEDIUM")
-    assert medium["fitted"] and medium["laps"] <= 16  # only the 8 green laps of 2 cars can count
-    assert medium["deg_per_lap"] == pytest.approx(0.1, abs=0.05)
-    assert 89 < medium["base"] < 92
+    assert medium["fitted"] and medium["laps"] == 16  # only the 8 green laps of 2 cars count
+    assert medium["deg_per_lap"] == pytest.approx(0.1, abs=0.02)
+    assert medium["base"] == pytest.approx(90.0, abs=0.3)
     assert payload["sc_lap"] is False
 
 
@@ -396,3 +401,135 @@ def test_drivers_are_ordered_by_position_not_by_code():
     }
     payload = pit_window.pit_window_payload(FakeSession(make_laps(cars)), 5)
     assert [d["code"] for d in payload["drivers"]] == ["CCC", "AAA", "BBB"]
+
+
+def one_compound_sprint_laps():
+    cars = {"AAA": (0.0, [("MEDIUM", 1, 20)]), "BBB": (2.0, [("MEDIUM", 1, 20)]),
+            "CCC": (4.0, [("SOFT", 1, 8), ("MEDIUM", 9, 20)])}
+    return make_laps(cars, laps=20)
+
+
+def test_a_sprint_never_flags_the_two_compound_rule():
+    session = FakeSession(one_compound_sprint_laps(), total_laps=20)
+    race = pit_window.pit_window_payload(session, 19)
+    assert driver(race, "AAA")["rule_breach"] is True  # one compound and one lap left, in a race
+    sprint = pit_window.pit_window_payload(session, 19, sprint=True)
+    for code in ("AAA", "BBB", "CCC"):
+        d = driver(sprint, code)
+        assert d["rule_breach"] is False and d["status"] == "stay out"
+        assert d["best"]["stops"] == []
+    # Mid-sprint a driver on one compound may simply stay out: no mandatory stop.
+    mid = pit_window.pit_window_payload(session, 12, sprint=True)
+    assert driver(mid, "AAA")["best"]["stops"] == []
+    assert driver(pit_window.pit_window_payload(session, 12), "AAA")["best"]["stops"] != []
+    # BBB, 2 s behind AAA and both only on MEDIUM, would undercut onto another compound in a race
+    # but may take fresh MEDIUM (the quickest fresh tyre here) in a sprint.
+    race_cut = next(u for u in pit_window.pit_window_payload(session, 12)["undercuts"] if u["chaser"] == "BBB")
+    sprint_cut = next(u for u in mid["undercuts"] if u["chaser"] == "BBB")
+    assert race_cut["compound"] != "MEDIUM" and sprint_cut["compound"] == "MEDIUM"
+
+
+def test_the_replay_treats_session_s_as_a_sprint(monkeypatch):
+    monkeypatch.setattr(pit_window, "load_session",
+                        lambda *a, **k: FakeSession(one_compound_sprint_laps(), total_laps=20))
+    sprint = pit_window.pit_window_replay(2024, "", "S", 6, 19)
+    assert not any(d["rule_breach"] for d in sprint["drivers"])
+    race = pit_window.pit_window_replay(2024, "", "R", 6, 19)
+    assert driver(race, "AAA")["rule_breach"] is True
+
+
+def test_pit_loss_is_the_default_until_three_stops_are_measured():
+    # CARS stop on laps 5 (BBB), 6 (AAA) and 7 (CCC); a stop is measured once its out-lap is known.
+    two = pit_window.pit_window_payload(FakeSession(total_laps=40), 7)
+    assert two["pit_loss"] == 22.0
+    three = pit_window.pit_window_payload(FakeSession(total_laps=40), 8)
+    # in-lap and out-lap each carry 25 s over the pace in the fixture, so about 50 s
+    assert three["pit_loss"] == pytest.approx(50.8, abs=0.5)
+
+
+def test_the_bad_lap_wording_is_a_contract_with_the_page():
+    # The page reads the last lap back out of this sentence: change it only with PitWindowPage.tsx.
+    with pytest.raises(PitWindowInputError) as err:
+        pit_window.pit_window_payload(FakeSession(total_laps=44), 44)
+    assert str(err.value) == "Pick a lap from 1 to 43."
+
+
+def test_concurrent_requests_load_a_session_once(monkeypatch):
+    loads = []
+    gate = threading.Event()
+
+    def slow_load(year, gp, name, round_number=None):
+        loads.append(round_number)
+        gate.wait(2)
+        return FakeSession()
+
+    monkeypatch.setattr(pit_window, "load_session", slow_load)
+    results, errors = [], []
+
+    def call(n):
+        try:
+            results.append(pit_window._loaded(2024, "", "R", 14 + n % 2))
+        except Exception as e:  # pragma: no cover - surfaced by the assert below
+            errors.append(e)
+
+    threads = [threading.Thread(target=call, args=(n,)) for n in range(8)]
+    for t in threads:
+        t.start()
+    time.sleep(0.2)
+    gate.set()
+    for t in threads:
+        t.join(5)
+    assert not errors and len(results) == 8
+    assert sorted(loads) == [14, 15]  # one load per key, however many callers raced for it
+    assert len(pit_window._sessions) == 2
+
+
+def _model(payload):
+    return {m["compound"]: m for m in payload["model"]}
+
+
+def test_a_compound_needs_two_drivers_and_ten_laps_to_count_as_fitted():
+    # Every stint runs from lap 1 with no stop, so every known lap is a fit lap.
+    def fitted_at(cars, lap):
+        results = pd.DataFrame({"Abbreviation": list(cars)})
+        payload = pit_window.pit_window_payload(FakeSession(make_laps(cars, laps=40), 40, results), lap)
+        return _model(payload)
+
+    two_cars = {"AAA": (0.0, [("MEDIUM", 1, 40)]), "BBB": (2.0, [("MEDIUM", 1, 40)])}
+    assert fitted_at(two_cars, 4)["MEDIUM"]["fitted"] is False  # 8 laps
+    five = fitted_at(two_cars, 5)["MEDIUM"]  # 10 laps, 2 drivers
+    assert five["fitted"] is True and five["laps"] == 10
+    lone = {"AAA": (0.0, [("MEDIUM", 1, 40)]), "BBB": (2.0, [("HARD", 1, 40)])}
+    alone = fitted_at(lone, 12)["MEDIUM"]  # 12 laps but one driver
+    assert alone["laps"] == 12 and alone["fitted"] is False
+    assert alone["deg_per_lap"] == 0.14  # the fallback wear
+
+
+
+
+def test_early_marks_a_plan_that_leans_on_an_unfitted_compound():
+    cars = {
+        "AAA": (0.0, [("MEDIUM", 1, 30)]),                    # only MEDIUM: must stop onto an unfitted tyre
+        "BBB": (2.0, [("MEDIUM", 1, 30)]),
+        "CCC": (4.0, [("HARD", 1, 6), ("MEDIUM", 7, 30)]),    # on fitted MEDIUM, both used: stays out
+        "DDD": (6.0, [("MEDIUM", 1, 9), ("HARD", 10, 30)]),   # running on the unfitted HARD
+    }
+    results = pd.DataFrame({"Abbreviation": list(cars)})
+    session = FakeSession(make_laps(cars, laps=30), 30, results)
+    payload = pit_window.pit_window_payload(session, 12)
+    by = _model(payload)
+    assert by["MEDIUM"]["fitted"] and not by["HARD"]["fitted"] and not by["SOFT"]["fitted"]
+    aaa, ccc, ddd = driver(payload, "AAA"), driver(payload, "CCC"), driver(payload, "DDD")
+    assert aaa["best"]["stops"][0]["compound"] in ("SOFT", "HARD") and aaa["early"] is True
+    assert ccc["best"]["stops"] == [] and ccc["early"] is False
+    assert ddd["best"]["stops"] == [] and ddd["early"] is True
+    # Nothing is fitted on lap 2, so every plan is an early estimate.
+    assert all(d["early"] for d in pit_window.pit_window_payload(session, 2)["drivers"])
+
+
+def test_early_is_false_without_a_plan_to_qualify():
+    cars = {"AAA": (0.0, [("INTERMEDIATE", 1, 12)]), "BBB": (2.0, [("MEDIUM", 1, 12)])}
+    laps = make_laps(cars)
+    laps.loc[laps["Driver"] == "BBB", "Compound"] = None
+    payload = pit_window.pit_window_payload(FakeSession(laps, 12, pd.DataFrame({"Abbreviation": list(cars)})), 2)
+    assert [d["early"] for d in payload["drivers"]] == [False, False]

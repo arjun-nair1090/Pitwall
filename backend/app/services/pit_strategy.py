@@ -8,9 +8,11 @@ at the end of that lap, so the running tyres do k more laps.
 Rules the search enforces:
 - Dry race: the compounds already used plus the plan's must hold two distinct dry ones (SOFT, MEDIUM,
   HARD). Any other name (UNKNOWN, TEST_UNKNOWN, None) counts for nothing. A driver who has run
-  INTERMEDIATE or WET is exempt.
+  INTERMEDIATE or WET is exempt, and a sprint has no such rule (and no mandatory stop) at all.
 - Every new stint, the final one included, is at least MIN_STINT_LAPS. The stint already running is
-  exempt, so a stop on the very next lap is always allowed.
+  exempt, so a stop on the very next lap is always allowed. When no legal plan meets that (a driver
+  who still needs a second compound with five laps or fewer left), a one-stop on any lap up to the
+  second-last is allowed instead, so only a driver with a single lap left has no legal plan.
 - A driver on INTERMEDIATE or WET is "wet" with no plan: the model has no crossover logic. A driver
   whose compound is unknown is "stay out" with no plan and is never paired for an undercut.
 - Under a neutralised lap the stop at N + 1, and only that stop, costs SC_PIT_LOSS_FACTOR of the loss.
@@ -28,7 +30,7 @@ import numpy as np
 DRY_COMPOUNDS = ("SOFT", "MEDIUM", "HARD")
 WET_COMPOUNDS = frozenset({"INTERMEDIATE", "WET"})
 
-# Shortest new stint, the final one included.
+# Shortest new stint, the final one included, unless no legal plan can meet it.
 MIN_STINT_LAPS = 5
 # A first-stop lap is in the window when its cheapest plan is this close to the best plan.
 WINDOW_S = 2.0
@@ -169,6 +171,25 @@ class _Solution:
         return self._one_plan(int(np.argmin(self.one[1:])) + 1)
 
 
+def _one_stops(base0, deg0, age, used, model, R, dry, pit, pit_first, max_k):
+    """(cost, compound index) of the cheapest one-stop per first-stop offset k in 1..max_k; index 0
+    is unused."""
+    one, one_arg = np.full(1, _INF), np.zeros(1, dtype=int)
+    if max_k < 1:
+        return one, one_arg
+    k = np.arange(1, max_k + 1)
+    old = stint_cost(base0, deg0, age, k)
+    pit_k = np.full(k.shape, pit)
+    pit_k[0] = pit_first
+    grid = np.full((len(DRY_COMPOUNDS), len(k)), _INF)
+    for i, c in enumerate(DRY_COMPOUNDS):
+        if _legal(used, (c,), dry):
+            b, d = model.params(c)
+            grid[i] = old + pit_k + stint_cost(b, d, 0, R - k)
+    grid = _tidy(grid)
+    return np.concatenate([[_INF], grid.min(axis=0)]), np.concatenate([[0], grid.argmin(axis=0)])
+
+
 def _solve(state: DriverState, model: TyreModel, R: int, dry: bool) -> _Solution:
     base0, deg0 = model.params(state.compound)
     age = state.tyre_age
@@ -181,22 +202,12 @@ def _solve(state: DriverState, model: TyreModel, R: int, dry: bool) -> _Solution
         nostop = float(_tidy(stint_cost(base0, deg0, age, R)))
 
     empty = np.zeros(1)
-    one, one_arg = np.full(1, _INF), np.zeros(1, dtype=int)  # index 0 unused
     two, two_arg, k2s = empty, empty, empty
-    max_k = R - MIN_STINT_LAPS
-    if max_k >= 1:
-        k = np.arange(1, max_k + 1)
-        old = stint_cost(base0, deg0, age, k)
-        pit_k = np.full(k.shape, pit)
-        pit_k[0] = pit_first
-        grid = np.full((len(DRY_COMPOUNDS), len(k)), _INF)
-        for i, c in enumerate(DRY_COMPOUNDS):
-            if _legal(used, (c,), dry):
-                b, d = model.params(c)
-                grid[i] = old + pit_k + stint_cost(b, d, 0, R - k)
-        grid = _tidy(grid)
-        one = np.concatenate([[_INF], grid.min(axis=0)])
-        one_arg = np.concatenate([[0], grid.argmin(axis=0)])
+    one, one_arg = _one_stops(base0, deg0, age, used, model, R, dry, pit, pit_first, R - MIN_STINT_LAPS)
+    if not np.isfinite(nostop) and not np.isfinite(one[1:]).any():
+        # No legal plan meets the minimum stint (a two-stop needs even more laps), so a one-stop
+        # with a shorter last stint stands in rather than leaving the driver with no plan.
+        one, one_arg = _one_stops(base0, deg0, age, used, model, R, dry, pit, pit_first, R - 1)
 
     if R >= 2 * MIN_STINT_LAPS + 1:
         k1 = np.arange(1, R - 2 * MIN_STINT_LAPS + 1)
@@ -248,11 +259,14 @@ def _plan_dict(plan: Plan) -> Dict[str, Any]:
             "cost": round(plan.cost, 1)}
 
 
-def pit_window(state: DriverState, model: TyreModel, laps_remaining: int) -> Dict[str, Any]:
+def pit_window(state: DriverState, model: TyreModel, laps_remaining: int,
+               sprint: bool = False) -> Dict[str, Any]:
     """{status, best, window, cheap_stop, rule_breach} for one driver. See the module docstring.
 
-    `cheap_stop` is true only on a neutralised lap with a feasible stop at N + 1; it is false when
-    that stop isn't possible (R < 6, or no legal compound), even on a neutralised lap.
+    `sprint` waives the two-compound rule, so staying out is always legal and `rule_breach` is
+    never true. `cheap_stop` is true only on a neutralised lap with a feasible stop at N + 1; it is
+    false when that stop isn't possible (R < 2, or a legal plan that needs a longer last stint),
+    even on a neutralised lap.
 
     Status: "box now" when the best plan stops next lap; "window open" when next lap is inside the
     window but the best stop is later; "window opens" when the window starts after next lap;
@@ -266,12 +280,12 @@ def pit_window(state: DriverState, model: TyreModel, laps_remaining: int) -> Dic
     if state.compound not in DRY_COMPOUNDS:
         return out
     R = laps_remaining
-    dry = not (set(state.used) & WET_COMPOUNDS)
+    dry = not sprint and not (set(state.used) & WET_COMPOUNDS)
     sol = _solve(state, model, R, dry)
     out["cheap_stop"] = bool(state.neutralised and R >= 2 and np.isfinite(sol.first[1]))
     found = sol.best()
     if found is None:
-        out["rule_breach"] = True
+        out["rule_breach"] = not sprint
         return out
     k_best, plan = found
     out["best"] = _plan_dict(plan)
@@ -295,14 +309,14 @@ def _verdict(margin: float) -> str:
 
 
 def undercut(chaser: DriverState, leader: DriverState, model: TyreModel,
-             laps_remaining: int) -> Optional[Dict[str, Any]]:
+             laps_remaining: int, sprint: bool = False) -> Optional[Dict[str, Any]]:
     """Would the chaser jump the car ahead by stopping first?
 
     The chaser stops at the end of lap N + 1 and the leader at the end of N + 2, both onto the
     chaser's best fresh compound. Pit losses cancel, so the gain is the leader's last old-tyre lap
     (age a_L + 2) against the chaser's first fresh lap; the margin is that less the gap. Traffic and
     out-lap warm-up are not modelled. When the chaser's best plan is to stay out, its cheapest
-    one-stop plan stands in for it.
+    one-stop plan stands in for it. `sprint` waives the two-compound rule for both cars.
     """
     gap = chaser.gap_ahead
     if gap is None or gap > UNDERCUT_RANGE_S:
@@ -312,8 +326,8 @@ def undercut(chaser: DriverState, leader: DriverState, model: TyreModel,
     if chaser.lap == 1 or leader.lap == 1:
         return None
     R = laps_remaining
-    chaser_dry = not (set(chaser.used) & WET_COMPOUNDS)
-    leader_dry = not (set(leader.used) & WET_COMPOUNDS)
+    chaser_dry = not sprint and not (set(chaser.used) & WET_COMPOUNDS)
+    leader_dry = not sprint and not (set(leader.used) & WET_COMPOUNDS)
     sol = _solve(chaser, model, R, chaser_dry)
     if sol.best_one_stop() is None:
         return None

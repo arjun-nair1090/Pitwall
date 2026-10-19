@@ -34,7 +34,15 @@ def state(compound="HARD", age=10, used=None, lap=10, gap=None, neutralised=Fals
 
 
 def brute(st, model, R, dry=True, neutralised_cheap=True):
-    """Lowest (cost, stops) over every legal plan, simulated one lap at a time."""
+    """Lowest (cost, stops) over every legal plan, simulated one lap at a time.
+
+    Plans whose new stints are all MIN_STINT_LAPS long rank first; only when there are none does a
+    one-stop with a shorter last stint count."""
+    found = _brute(st, model, R, dry, ps.MIN_STINT_LAPS, (0, 1, 2))
+    return found if found is not None else _brute(st, model, R, dry, 1, (1,))
+
+
+def _brute(st, model, R, dry, min_stint, stop_counts):
     used_dry = {c for c in st.used | {st.compound} if c in DRY}
 
     def lap_time(c, age):
@@ -42,10 +50,10 @@ def brute(st, model, R, dry=True, neutralised_cheap=True):
         return base + deg * age
 
     best = None
-    for n_stops in (0, 1, 2):
+    for n_stops in stop_counts:
         for ks in itertools.combinations(range(1, R), n_stops):
             stints = [b - a for a, b in zip((0,) + ks, ks + (R,))]
-            if any(length < ps.MIN_STINT_LAPS for length in stints[1:]):
+            if any(length < min_stint for length in stints[1:]):
                 continue
             for comps in itertools.product(DRY, repeat=n_stops):
                 if dry and len(used_dry | set(comps)) < 2:
@@ -158,6 +166,13 @@ def test_min_stint_applies_to_every_new_stint_but_not_the_running_one():
         p = ps.best_plan(state("HARD", age, used), model, 30)
         laps = [10] + [s.lap for s in p.stops] + [40]
         assert all(b - a >= ps.MIN_STINT_LAPS for a, b in zip(laps[1:], laps[2:]))
+    # With 5 laps left and one compound used no plan meets the minimum, so a one-stop with a short
+    # last stint is allowed rather than no plan at all. Old HARD at age 40 wears hard, so at once.
+    late = ps.best_plan(state("HARD", 40, {"HARD"}, lap=50), model, 5)
+    assert late.stops == (Stop(51, "MEDIUM"),)
+    # A driver who wants the stop late can make it on the second-last lap.
+    flat = TyreModel({"SOFT": fit(95, 0.0), "MEDIUM": fit(90.5, 0.0), "HARD": fit(90, 0.0)}, 20.0)
+    assert ps.best_plan(state("HARD", 3, {"HARD"}, lap=50), flat, 5).stops == (Stop(54, "MEDIUM"),)
 
 
 def test_window_is_contiguous_and_within_two_seconds():
@@ -217,10 +232,10 @@ def test_last_lap_has_no_stop_and_flags_a_rule_breach():
     out = ps.pit_window(state("MEDIUM", 30, {"MEDIUM"}, lap=59), model, 1)
     assert out["status"] == "stay out" and out["best"] is None and out["window"] is None
     assert out["rule_breach"] is True
-    # R = 5 can't hold a 5-lap stint after a stop either, but R = 6 can.
-    assert ps.pit_window(state("MEDIUM", 30, {"MEDIUM"}), model, 5)["rule_breach"] is True
-    six = ps.pit_window(state("MEDIUM", 30, {"MEDIUM"}), model, 6)
-    assert six["rule_breach"] is False and six["best"]["stops"][0]["lap"] == 11
+    # From R = 2 a stop is possible, even with a last stint shorter than MIN_STINT_LAPS.
+    for R in (2, 5, 6):
+        out = ps.pit_window(state("MEDIUM", 30, {"MEDIUM"}), model, R)
+        assert out["rule_breach"] is False and out["best"]["stops"][0]["lap"] == 11
     # With a legal no-stop plan the last lap is simply "stay out".
     fine = ps.pit_window(state("MEDIUM", 30, {"MEDIUM", "HARD"}, lap=59), model, 1)
     assert fine["status"] == "stay out" and fine["rule_breach"] is False
@@ -305,7 +320,7 @@ def test_no_undercut_beyond_three_seconds_or_for_wet_cars():
     # lap 1 on either car
     assert ps.undercut(chaser(lap=1), leader, model, 30) is None
     assert ps.undercut(chaser(), state("HARD", 1, {"HARD"}, lap=1), model, 30) is None
-    # no legal one-stop left (R = 5)
+    # too few laps left for the leader's own new stint (R = 5)
     assert ps.undercut(chaser(), leader, model, 5) is None
 
 
@@ -408,3 +423,50 @@ def test_window_does_not_jump_a_gap_to_a_cheap_safety_car_stop():
     assert out["window"] == {"open": 13, "close": 15}
     assert out["status"] == "window opens"
     assert out["cheap_stop"] is True
+
+
+def test_a_sprint_waives_the_two_compound_rule():
+    model = TyreModel({"SOFT": fit(90, 0.001), "MEDIUM": fit(90.5, 0.001), "HARD": fit(91, 0.001)}, 20.0)
+    st = state("MEDIUM", age=3, used={"MEDIUM"})
+    # In a race this driver must stop (see test_no_stop_is_illegal_with_one_dry_compound_used).
+    assert ps.pit_window(st, model, 20)["status"] != "stay out"
+    out = ps.pit_window(st, model, 20, sprint=True)
+    # 20*90.5 + 0.001*(20*3 + 210) = 1810.27
+    assert out["status"] == "stay out" and out["best"] == {"stops": [], "cost": 1810.3}
+    assert out["window"] is None and out["rule_breach"] is False
+    assert brute(st, model, 20, dry=False)[1] == ()
+    # On the last lap a race flags the missing compound; a sprint never does.
+    last = state("MEDIUM", 30, {"MEDIUM"}, lap=19)
+    assert ps.pit_window(last, model, 1)["rule_breach"] is True
+    sprint_last = ps.pit_window(last, model, 1, sprint=True)
+    assert sprint_last["rule_breach"] is False and sprint_last["best"]["stops"] == []
+    # A sprint stop may go back onto the same compound: worn MEDIUM wants fresh MEDIUM.
+    worn = TyreModel({"SOFT": fit(95, 0.3), "MEDIUM": fit(90, 0.3), "HARD": fit(91, 0.3)}, 20.0)
+    plan = ps.pit_window(state("MEDIUM", 40, {"MEDIUM"}), worn, 20, sprint=True)["best"]
+    assert plan["stops"][0]["compound"] == "MEDIUM"
+
+
+def test_a_sprint_undercut_may_stay_on_the_same_compound():
+    # MEDIUM is the quickest fresh tyre. In a race both cars have only run MEDIUM, so the undercut
+    # has to go onto HARD; in a sprint it is fresh MEDIUM.
+    model = TyreModel({"SOFT": fit(95, 0.1), "MEDIUM": fit(90, 0.1), "HARD": fit(91, 0.1)}, 20.0)
+    chaser = state("MEDIUM", 40, {"MEDIUM"}, code="CHA", position=2, gap=1.0)
+    leader = state("MEDIUM", 20, {"MEDIUM"}, code="LDR")
+    race = ps.undercut(chaser, leader, model, 30)
+    sprint = ps.undercut(chaser, leader, model, 30, sprint=True)
+    assert race["compound"] == "HARD"
+    # leader lap at age 22 on MEDIUM = 92.2; fresh MEDIUM lap 1 = 90.1; gain 2.1
+    assert sprint["compound"] == "MEDIUM" and sprint["gain"] == 2.1
+
+
+def test_late_one_stops_match_the_brute_loop():
+    model = TyreModel({"SOFT": fit(91, 0.2), "MEDIUM": fit(90.4, 0.1), "HARD": fit(90, 0.05)}, 20.0)
+    for R in range(1, 9):
+        for comp, age in (("HARD", 30), ("MEDIUM", 2), ("SOFT", 15)):
+            st = state(comp, age, {comp}, lap=40)
+            want = brute(st, model, R)
+            got = ps.best_plan(st, model, R)
+            if want is None:
+                assert R == 1 and got is None
+                continue
+            assert got.stops == want[1] and got.cost == pytest.approx(want[0][0], abs=1e-5)
