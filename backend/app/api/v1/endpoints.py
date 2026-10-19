@@ -1,10 +1,11 @@
 import asyncio
 
 from fastapi import APIRouter, HTTPException, Query, Response
-from pydantic import BaseModel, field_validator, model_validator
-from typing import List, Optional
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import List, Literal, Optional
 from app.services.f1_data_service import f1_service
-from app.services import championship_data, championship_sim, corner_analysis, duel_telemetry, latest_result, pit_window, race_battles, race_pace, race_replay, win_probability
+import anthropic
+from app.services import championship_data, championship_sim, corner_analysis, data_assistant, duel_telemetry, latest_result, pit_window, race_battles, race_pace, race_replay, win_probability
 from app.services import session_info as session_info_service
 from app.services.race_debrief import NoResultsError
 from app.services.session_info import SessionDataError
@@ -367,6 +368,39 @@ async def win_probability_endpoint(req: WinProbabilityRequest):
         raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         raise _analysis_error(e, "the win probability")
+
+
+class AskTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str = Field(max_length=2000)
+
+
+class AskRequest(BaseModel):
+    question: str = Field(max_length=500)
+    history: List[AskTurn] = Field(default_factory=list, max_length=6)
+
+    @field_validator("question")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Ask a question.")
+        return value
+
+
+@router.post("/ask")
+async def ask_the_data(req: AskRequest):
+    """Answer a question by calling the app's own analyses as tools; every call made is listed."""
+    client = data_assistant.make_client()
+    if client is None:
+        raise HTTPException(status_code=503, detail="The assistant isn't set up on this server (no Anthropic API key).")
+    try:
+        return await data_assistant.ask(req.question, [t.model_dump() for t in req.history], client=client)
+    except anthropic.RateLimitError:
+        raise HTTPException(status_code=429, detail="The assistant is busy. Try again in a minute.")
+    except Exception as e:
+        print(f"The assistant failed: {e!r}")
+        raise HTTPException(status_code=502, detail="The assistant couldn't be reached. Try again shortly.")
 
 
 @router.get("/stats/standings")
