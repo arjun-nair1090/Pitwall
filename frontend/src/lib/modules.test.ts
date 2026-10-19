@@ -30,6 +30,11 @@ describe("module registry", () => {
     expect(m).toMatchObject({ label: "Win probability", href: "/winprob", group: "Race" });
     expect(m?.mobilePrimary).toBeFalsy();
   });
+  it("lists Ask the data first in the Analysis group", () => {
+    const analysis = MODULES.filter((m) => m.group === "Analysis");
+    expect(analysis[0]).toMatchObject({ id: "ask", label: "Ask the data", href: "/ask", group: "Analysis" });
+    expect(analysis[0].mobilePrimary).toBeFalsy();
+  });
   it("describes every module", () => {
     for (const m of MODULES) expect(m.description.length).toBeGreaterThan(10);
   });
@@ -42,6 +47,7 @@ describe("findModuleForPath", () => {
   it("matches the championship odds page", () => expect(findModuleForPath("/championship")?.id).toBe("championship"));
   it("matches the overtakes page", () => expect(findModuleForPath("/battles")?.id).toBe("battles"));
   it("matches the pit window page", () => expect(findModuleForPath("/pitwindow")?.id).toBe("pitwindow"));
+  it("matches the ask page", () => expect(findModuleForPath("/ask")?.id).toBe("ask"));
   it("matches the win probability page", () => expect(findModuleForPath("/winprob")?.id).toBe("winprob"));
   it("does not match a longer sibling name", () => expect(findModuleForPath("/livestock")).toBeUndefined());
   it("returns undefined for the landing page and unknown routes", () => {

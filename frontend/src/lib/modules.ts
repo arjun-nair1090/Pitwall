@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, Crown, FlaskConical, Gauge, GitCommit, Map as MapIcon, Newspaper, Radio, Swords, Target, Timer, TrendingUp, Trophy, Zap,
+  Activity, Archive, Crown, FlaskConical, Gauge, GitCommit, Map as MapIcon, MessageSquareText, Newspaper, Radio, Swords, Target, Timer, TrendingUp, Trophy, Zap,
   type LucideIcon,
 } from "lucide-react";
 import type { Searchable } from "./search";
@@ -28,6 +28,9 @@ export const MODULES: AppModule[] = [
   { id: "map", label: "Track map", shortLabel: "Map", mobilePrimary: true, href: "/map", group: "Live", icon: MapIcon,
     description: "Every car on the circuit in real time, or replay a full race lap by lap.",
     keywords: ["circuit", "cars", "replay"] },
+  { id: "ask", label: "Ask the data", href: "/ask", group: "Analysis", icon: MessageSquareText,
+    description: "Ask a question in plain English and get an answer drawn only from this app's own analyses, with its sources.",
+    keywords: ["ask", "question", "assistant", "chat", "answer", "who", "why"] },
   { id: "compare", label: "Head to head", shortLabel: "Compare", mobilePrimary: true, href: "/compare", group: "Analysis", icon: Activity,
     description: "Overlay two drivers' fastest laps and see exactly where the time was won.",
     keywords: ["h2h", "compare", "telemetry", "laps", "delta"] },
