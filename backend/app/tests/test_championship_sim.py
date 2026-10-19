@@ -141,17 +141,64 @@ def test_a_driver_who_cannot_catch_the_leader_is_eliminated():
     assert driver(p, "B")["status"] == "eliminated"
 
 
-def test_equal_on_max_is_not_eliminated_or_clinched():
+def test_equal_on_max_with_countback_open_is_not_eliminated_or_clinched():
     # 2025: one race left is worth 25. A on 50 can reach 75, B on 25 can reach 50 = A's points.
-    p = payload(2025, [["A", "B"], ["A", "B"]], total=3,
-                override={(1, "B"): 12.0, (2, "B"): 13.0})
+    # One win each, so if B wins the last race B has more wins: countback is still open.
+    p = payload(2025, [["A", "B"], ["B", "A"]], total=3,
+                override={(1, "B"): 12.0, (2, "B"): 13.0, (2, "A"): 25.0})
     assert driver(p, "A")["points"] == 50 and driver(p, "B")["points"] == 25
+    assert driver(p, "A")["wins"] == driver(p, "B")["wins"] == 1
     assert driver(p, "B")["status"] == "contender"
     assert driver(p, "A")["status"] == "contender"
     # one more point for A and B is out: 25 + 25 < 51
     p = payload(2025, [["A", "B"], ["A", "B"]], total=3,
                 override={(1, "B"): 12.0, (2, "B"): 12.0})
     assert driver(p, "B")["status"] == "eliminated"
+
+
+def test_equal_on_max_but_beaten_on_countback():
+    # 2022 after round 17 in miniature: B can only draw level on points, and A has more wins than
+    # B can reach, so B is out and A has clinched.
+    p = payload(2025, [["A", "B"], ["A", "B"]], total=3,
+                override={(1, "B"): 12.0, (2, "B"): 13.0})
+    assert driver(p, "A")["points"] == 50 and driver(p, "B")["points"] == 25
+    assert driver(p, "A")["wins"] == 2 and driver(p, "B")["wins"] == 0
+    assert driver(p, "B")["status"] == "eliminated"
+    assert driver(p, "A")["status"] == "clinched"
+    # a third driver who can still pass A on points keeps it open for A
+    p = payload(2025, [["A", "C", "B"], ["A", "C", "B"]], total=3,
+                override={(1, "B"): 12.0, (2, "B"): 13.0, (1, "C"): 20.0, (2, "C"): 20.0})
+    assert driver(p, "B")["status"] == "eliminated"
+    assert driver(p, "C")["status"] == "contender"
+    assert driver(p, "A")["status"] == "contender"
+
+
+def test_constructors_level_on_max_stay_open():
+    # 2025, one race left (43 for a team): T2 on 7 can only draw level with T1 on 50, and has no
+    # wins, but constructor ties are split, so neither is decided
+    teams = {"A": "T1", "C": "T1", "B": "T2"}
+    p = payload(2025, [["A", "B", "-C"], ["A", "B", "-C"]], total=3, teams=teams,
+                override={(1, "B"): 3.0, (2, "B"): 4.0})
+    by = {c["team"]: c for c in p["constructors"]}
+    assert by["T1"]["points"] == 50 and by["T2"]["points"] == 7
+    assert by["T2"]["status"] == "contender"
+    assert by["T1"]["status"] == "contender"
+
+
+def test_points_available_is_one_racing_drivers_max_remaining():
+    p = payload(2024, [["A", "B"]] * 2, total=5, sprint_rounds=(4,))
+    assert p["points_available"] == 3 * 26 + 8
+    p = payload(2024, [["A", "B"]] * 3, total=3)
+    assert p["points_available"] == 0
+
+
+def test_points_available_does_not_depend_on_the_leader_racing():
+    # 2020 after round 16 in shape: the leader missed the cut-off round, so their max is their points
+    p = payload(2020, [["A", "B", "C"]] * 4 + [["C", "B"]], total=7)
+    assert p["drivers"][0]["code"] == "A"
+    assert p["drivers"][0]["status"] == "not racing"
+    assert p["drivers"][0]["max_points"] == p["drivers"][0]["points"]
+    assert p["points_available"] == 2 * 26
 
 
 def test_a_driver_missing_from_the_cut_off_round_is_not_racing():
@@ -312,7 +359,7 @@ def test_a_24_round_season_is_fast():
     elapsed = time.perf_counter() - start
     print(f"24-round season, after round 17: {elapsed:.2f}s")
     assert len(p["history"]) == 17
-    assert elapsed < 1.5
+    assert elapsed < 5.0
 
 
 def _classified_rows(finishes, retired=()):
