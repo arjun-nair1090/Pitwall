@@ -1,5 +1,5 @@
 import {
-  Activity, Archive, Crown, FlaskConical, Gauge, GitCommit, Map as MapIcon, Newspaper, Radio, Swords, Target, Trophy, Zap,
+  Activity, Archive, Crown, FlaskConical, Gauge, GitCommit, Map as MapIcon, Newspaper, Radio, Swords, Target, Timer, Trophy, Zap,
   type LucideIcon,
 } from "lucide-react";
 import type { Searchable } from "./search";
@@ -52,6 +52,9 @@ export const MODULES: AppModule[] = [
   { id: "battles", label: "Overtakes and battles", href: "/battles", group: "Race", icon: Swords,
     description: "Every on-track pass, places gained at the start, and every fight within a second, for any race since 2018.",
     keywords: ["overtakes", "passes", "battles", "lap chart", "positions", "drs"] },
+  { id: "pitwindow", label: "Pit window", href: "/pitwindow", group: "Race", icon: Timer,
+    description: "Replay any lap of a past race: each driver's best pit plan, when their window opens, and who could undercut.",
+    keywords: ["pit stop", "undercut", "box", "window", "strategy", "overcut"] },
   { id: "archive", label: "Archive", href: "/archive", group: "Race", icon: Archive,
     description: "Browse past seasons, calendars and race results.",
     keywords: ["history", "past", "seasons", "calendar"] },
