@@ -1,5 +1,6 @@
 import os
 import asyncio
+import json
 import requests
 import fastf1
 import pandas as pd
@@ -10,6 +11,8 @@ from typing import List, Dict, Any, Optional, Tuple
 from urllib.parse import quote
 from app.core.config import settings
 from app.services.redis_service import redis_service
+from app.services.live_timing import live_timing_feed
+from app.websocket.manager import manager
 from app.services.live_session import (
     apply_classification, build_leaderboard, driver_entry, fastf1_driver_entries, fastf1_leaderboard, fastf1_race_control,
     pick_session, session_metadata,
@@ -36,6 +39,8 @@ TELEMETRY_WINDOW_SECONDS = 5
 # The startup streamer polls this often during a live session, and checks this often otherwise.
 LIVE_POLL_SECONDS = 4
 IDLE_POLL_SECONDS = 30
+# F1's live feed holds the cars' latest frames in memory, so they can go out twice a second.
+FEED_POLL_SECONDS = 0.5
 
 # The predictions form's last-resort driver codes, for when no standings load.
 FALLBACK_2024_DRIVERS = [
@@ -120,6 +125,9 @@ class F1DataService:
 
     async def current_session(self) -> Optional[Dict[str, Any]]:
         """The running session, else the most recent one to have started (never one still to come)."""
+        live = live_timing_feed.active_session()
+        if live:  # F1's own feed: OpenF1 is closed to keyless requests while a session runs
+            return live
         now = datetime.now(timezone.utc)
         for year in (now.year, now.year - 1):  # before the season's first session, last season's finale
             sessions = await self.fetch_openf1_async("sessions", {"year": year}, SESSIONS_TTL)
@@ -188,6 +196,8 @@ class F1DataService:
         return fallback["session"] if fallback else None
 
     async def get_drivers(self, session_key: int) -> List[Dict[str, Any]]:
+        if live_timing_feed.serves(session_key):
+            return live_timing_feed.drivers()
         if session_key == FASTF1_SESSION_KEY:
             session = await self._fallback_session()
             return fastf1_driver_entries(session.results) if session is not None else []
@@ -195,6 +205,8 @@ class F1DataService:
         return [driver_entry(d) for d in drivers or [] if isinstance(d, dict) and d.get("driver_number") is not None]
 
     async def get_live_timing(self, session_key: int) -> Dict[str, Any]:
+        if live_timing_feed.serves(session_key):
+            return live_timing_feed.timing()
         if session_key == FASTF1_SESSION_KEY:
             session = await self._fallback_session()
             return fastf1_leaderboard(session.results, session.laps) if session is not None else {}
@@ -215,6 +227,8 @@ class F1DataService:
 
     async def get_live_weather(self, session_key: int) -> Optional[Dict[str, Any]]:
         """The latest weather reading, or a live_signal:False sentinel (never fabricated values)."""
+        if live_timing_feed.serves(session_key) and live_timing_feed.weather():
+            return live_timing_feed.weather()
         if session_key == FASTF1_SESSION_KEY:
             session = await self._fallback_session()
             weather = getattr(session, "weather_data", None) if session is not None else None
@@ -244,6 +258,8 @@ class F1DataService:
 
     async def get_live_race_control(self, session_key: int) -> List[Dict[str, Any]]:
         """Race control messages, newest first (empty when there are none, never fabricated)."""
+        if live_timing_feed.serves(session_key):
+            return live_timing_feed.race_control()
         if session_key == FASTF1_SESSION_KEY:
             session = await self._fallback_session()
             return fastf1_race_control(getattr(session, "race_control_messages", None)) if session is not None else []
@@ -253,7 +269,15 @@ class F1DataService:
             for item in sorted(rc_data or [], key=lambda x: x.get("date", ""), reverse=True)[:20]
         ]
 
+    async def get_session_status(self, session_key: int) -> Dict[str, Any]:
+        """Whether the session is stopped and when it restarts. Only F1's feed carries this."""
+        if live_timing_feed.serves(session_key):
+            return live_timing_feed.session_status()
+        return {"stopped": False, "red_flag": False, "announcement": None, "resumes_at": None}
+
     async def get_live_radios(self, session_key: int) -> List[Dict[str, Any]]:
+        if live_timing_feed.serves(session_key):
+            return live_timing_feed.radios()
         if session_key == FASTF1_SESSION_KEY:
             return []  # FastF1 has no team radio
         radio_data = await self.fetch_openf1_async("team_radio", {"session_key": session_key}, self._ttl(session_key))
@@ -263,21 +287,27 @@ class F1DataService:
         ]
 
     def get_circuit_layout(self, year: int, gp: str, session_type: str) -> Dict[str, Any]:
-        """Fetch 2D circuit layout coordinates using FastF1."""
-        try:
-            session = fastf1.get_session(year, gp, session_type)
-            session.load(telemetry=True, laps=True, weather=False)
-            fastest_lap = session.laps.pick_fastest()
-            telemetry = fastest_lap.get_telemetry()
-            return {
-                "circuit_name": session.event["OfficialEventName"],
-                "location": session.event["Location"],
-                "x": telemetry['X'].tolist(),
-                "y": telemetry['Y'].tolist(),
-            }
-        except Exception as e:
-            print(f"Error loading circuit layout: {e}")
-            return {"error": str(e)}
+        """Fetch 2D circuit layout coordinates using FastF1.
+
+        During a live weekend this year's race has no data yet, so the outline comes from the most
+        recent earlier year that raced at the same venue (the coordinates are in the same frame)."""
+        error = None
+        for attempt_year in (year, year - 1, year - 2):
+            try:
+                session = fastf1.get_session(attempt_year, gp, session_type)
+                session.load(telemetry=True, laps=True, weather=False)
+                fastest_lap = session.laps.pick_fastest()
+                telemetry = fastest_lap.get_telemetry()
+                return {
+                    "circuit_name": session.event["OfficialEventName"],
+                    "location": session.event["Location"],
+                    "x": telemetry['X'].tolist(),
+                    "y": telemetry['Y'].tolist(),
+                }
+            except Exception as e:
+                print(f"No circuit layout from {attempt_year} {gp}: {e}")
+                error = e
+        return {"error": str(error)}
 
     async def stream_live_telemetry(self, session_key: int):
         """Publishes each car's latest position and telemetry for a live session.
@@ -329,6 +359,12 @@ class F1DataService:
         Car data is only polled while a session is live (a few seconds of it at a time), so the
         30-a-minute OpenF1 allowance is left for the timing board.
         """
+        if live_timing_feed.active_session():
+            # F1's feed: each car's latest frame straight to the browsers (no Redis needed). Frames
+            # only arrive with an F1 TV token; without one the map and telemetry panels stay empty.
+            for frame in live_timing_feed.car_frames():
+                await manager.broadcast(json.dumps(frame))
+            return FEED_POLL_SECONDS
         current = await self.current_session()
         if current and current.get("live") and current.get("source") == "openf1":
             await self.stream_live_telemetry(current["session_key"])

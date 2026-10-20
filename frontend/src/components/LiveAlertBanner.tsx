@@ -46,9 +46,13 @@ export default function LiveAlertBanner() {
 
   if (alerts.length === 0) return null;
 
-  // top-16 sits below the 48px top bar, so toasts never cover Search, Log in or page actions.
+  // 4rem sits below the 48px top bar, so toasts never cover Search, Log in or page actions, plus the
+  // stopped-session banner's height when one is showing.
   return (
-    <div className="pointer-events-none fixed left-4 right-4 top-16 z-50 flex flex-col gap-2 sm:left-auto sm:w-full sm:max-w-sm">
+    <div
+      className="pointer-events-none fixed left-4 right-4 z-50 flex flex-col gap-2 sm:left-auto sm:w-full sm:max-w-sm"
+      style={{ top: "calc(4rem + var(--stop-banner-h, 0px))" }}
+    >
       {alerts.map((alert) => (
         <AlertCard key={alert.id} {...alert} />
       ))}

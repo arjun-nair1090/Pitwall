@@ -94,7 +94,8 @@ export default function TrackMap() {
   return (
     <div className="relative flex h-full flex-col items-center justify-center overflow-hidden p-4 pt-14 md:pt-4">
       {layout && (
-        <p className="absolute left-3 top-3 z-20 text-xs text-mute">{year} {layout.circuit_name}, {layout.location}</p>
+        <p className="absolute left-3 top-3 z-20 text-xs text-mute">{/* Name the live session, not the layout's source race: the outline can come from an earlier year. */}
+          {year} {activeSession?.meeting_name ?? layout.circuit_name}, {layout.location}</p>
       )}
 
       {loadingLayout ? (

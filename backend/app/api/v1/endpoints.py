@@ -121,6 +121,14 @@ async def get_session_race_control(session_key: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/sessions/{session_key}/status")
+async def get_session_status(session_key: int):
+    """Whether the session is stopped (red flag or delayed) and when race control says it restarts."""
+    try:
+        return await f1_service.get_session_status(session_key)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/sessions/{session_key}/radios")
 async def get_session_radios(session_key: int):
     """Get driver team radio recordings."""

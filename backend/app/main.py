@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.websocket.manager import manager
 from app.services.f1_data_service import f1_service
 from app.services.redis_service import redis_service
+from app.services.live_timing import live_timing_feed
 from app.api.v1.endpoints import router as api_router
 from app.api.v1.auth_endpoints import router as auth_router
 from app.api.v1.insights_endpoints import router as insights_router
@@ -24,7 +25,10 @@ async def lifespan(app: FastAPI):
     # Connect to Redis
     await redis_service.connect()
 
-    # Task 1: Telemetry Streamer - Fetches real OpenF1 telemetry during a live session and broadcasts to Redis
+    # F1's own live timing feed: the live source, since OpenF1 is closed to keyless requests during a session
+    live_timing_feed.start()
+
+    # Task 1: Telemetry Streamer - live car frames from F1's feed (or OpenF1) out to the browsers
     async def telemetry_streamer():
         print("Starting real F1 live telemetry streamer task...")
         while True:
@@ -56,6 +60,7 @@ async def lifespan(app: FastAPI):
 
     streamer_task.cancel()
     subscriber_task.cancel()
+    live_timing_feed.stop()
 
 
 app = FastAPI(title="F1 Pit Wall API", lifespan=lifespan)

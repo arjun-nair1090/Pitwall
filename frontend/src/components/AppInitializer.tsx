@@ -23,9 +23,13 @@ axios.interceptors.request.use((config) => {
   return config;
 });
 
-// How often to look for a new session, and how often to refresh the board while one is live.
+// How often to look for a new session; while one is live, how often to refresh the board (and whether
+// it is stopped) and the weather and race control; and the first wait before reconnecting the socket.
 export const SESSION_REFRESH_MS = 60_000;
-export const LIVE_REFRESH_MS = 15_000;
+export const LIVE_REFRESH_MS = 3_000;
+export const CONDITIONS_REFRESH_MS = 15_000;
+export const RECONNECT_MS = 2_000;
+const MAX_RECONNECT_MS = 30_000;
 
 export default function AppInitializer({ children }: { children: React.ReactNode }) {
   const {
@@ -41,6 +45,7 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     setIsConnected,
     setApiStatus,
     setCurrentUser,
+    setSessionStatus,
   } = useF1Store();
 
   const FLAG_SEVERITY: Record<string, "info" | "warning" | "critical"> = {
@@ -53,7 +58,7 @@ export default function AppInitializer({ children }: { children: React.ReactNode
   };
 
   // Session sync: the running session, else the latest one. Checked again every so often so a
-  // session that starts while the page is open goes live, and while live the board is refreshed.
+  // session that starts while the page is open goes live (and one that ends stops being live).
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -97,8 +102,6 @@ export default function AppInitializer({ children }: { children: React.ReactNode
             if (!cancelled) setDrivers(resD.data);
           }).catch(() => {});
           loadBoard(sess.session_key);
-        } else if (live) {
-          loadBoard(sess.session_key);
         }
       } catch (err: any) {
         if (cancelled) return;
@@ -110,7 +113,7 @@ export default function AppInitializer({ children }: { children: React.ReactNode
         }
         if (!err?.response) console.error("Session sync failed", err);
       }
-      if (!cancelled) timer = setTimeout(sync, live ? LIVE_REFRESH_MS : SESSION_REFRESH_MS);
+      if (!cancelled) timer = setTimeout(sync, SESSION_REFRESH_MS);
     };
 
     sync();
@@ -126,6 +129,34 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     };
   }, []);
 
+  // A live session's timing changes every few seconds; the sync above only loads it once.
+  const liveKey = activeSession?.live === true ? activeSession.session_key : null;
+  useEffect(() => {
+    setSessionStatus(null);
+    if (liveKey == null) return;
+    const base = `/api/v1/sessions/${liveKey}`;
+    const refreshStatus = () => {
+      axios.get(`${base}/status`).then((res) => setSessionStatus(res.data)).catch(() => {});
+    };
+    const refreshTiming = () => {
+      axios.get(`${base}/timing`).then((res) => updateLeaderboard(res.data)).catch(() => {});
+      refreshStatus();
+    };
+    const refreshConditions = () => {
+      axios.get(`${base}/weather`).then((res) => {
+        if (res.data?.live_signal !== false && res.data?.air_temperature !== undefined) setWeather(res.data);
+      }).catch(() => {});
+      axios.get(`${base}/race-control`).then((res) => setRaceControlMessages(res.data)).catch(() => {});
+    };
+    refreshStatus();
+    const timing = setInterval(refreshTiming, LIVE_REFRESH_MS);
+    const conditions = setInterval(refreshConditions, CONDITIONS_REFRESH_MS);
+    return () => {
+      clearInterval(timing);
+      clearInterval(conditions);
+    };
+  }, [liveKey]);
+
   // Connect WebSockets
   useEffect(() => {
     if (!activeSession?.session_key) return;
@@ -136,50 +167,67 @@ export default function AppInitializer({ children }: { children: React.ReactNode
       : (window.location.hostname === "localhost" ? "localhost:8000" : window.location.host);
     const wsUrl = `ws://${apiHost}/ws/pitwall-client-${Math.random().toString(36).substring(2, 6)}`;
     
-    console.log(`Connecting to F1 WebSocket gateway: ${wsUrl}`);
-    const socket = new WebSocket(wsUrl);
+    // The socket drops whenever the backend restarts or the network blips; keep reconnecting
+    // (2 s, doubling to 30 s) until the page unmounts, so the feed never stays on standby.
+    let socket: WebSocket;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    let disposed = false;
 
-    socket.onopen = () => {
-      console.log("WebSocket connection established");
-      setIsConnected(true);
-    };
+    const connect = () => {
+      console.log(`Connecting to F1 WebSocket gateway: ${wsUrl}`);
+      socket = new WebSocket(wsUrl);
 
-    socket.onmessage = (event) => {
-      try {
-        const frame = JSON.parse(event.data);
-        // Ignore live_signal:false sentinel frames
-        if (frame.live_signal === false) return;
-        // Dispatch live packets
-        if (frame.driver_number !== undefined) {
-          // Telemetry packet containing speed, throttle, x, y, z
-          updateTelemetryPoint(frame);
-        } else if (frame.air_temperature !== undefined) {
-          // Weather packet (check before message to avoid collision)
-          setWeather(frame);
-        } else if (frame.message !== undefined && frame.category !== undefined) {
-          // Race Control / Flags packet (must have category to distinguish from sentinels)
-          addRaceControlMessage(frame);
-          if (frame.flag) {
-            pushAlert({
-              id: `flag-${frame.timestamp}-${frame.flag}`,
-              severity: FLAG_SEVERITY[frame.flag] || "info",
-              message: `${frame.flag} FLAG: ${frame.message}`,
-              timestamp: Date.now(),
-            });
+      socket.onopen = () => {
+        console.log("WebSocket connection established");
+        attempts = 0;
+        setIsConnected(true);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const frame = JSON.parse(event.data);
+          // Ignore live_signal:false sentinel frames
+          if (frame.live_signal === false) return;
+          // Dispatch live packets
+          if (frame.driver_number !== undefined) {
+            // Telemetry packet containing speed, throttle, x, y, z
+            updateTelemetryPoint(frame);
+          } else if (frame.air_temperature !== undefined) {
+            // Weather packet (check before message to avoid collision)
+            setWeather(frame);
+          } else if (frame.message !== undefined && frame.category !== undefined) {
+            // Race Control / Flags packet (must have category to distinguish from sentinels)
+            addRaceControlMessage(frame);
+            if (frame.flag) {
+              pushAlert({
+                id: `flag-${frame.timestamp}-${frame.flag}`,
+                severity: FLAG_SEVERITY[frame.flag] || "info",
+                message: `${frame.flag} FLAG: ${frame.message}`,
+                timestamp: Date.now(),
+              });
+            }
           }
+        } catch (err) {
+          // Echo logs
+          console.log("WebSocket frame message", event.data);
         }
-      } catch (err) {
-        // Echo logs
-        console.log("WebSocket frame message", event.data);
-      }
+      };
+
+      socket.onclose = () => {
+        console.log("WebSocket connection lost");
+        setIsConnected(false);
+        if (disposed) return;
+        retryTimer = setTimeout(connect, Math.min(MAX_RECONNECT_MS, RECONNECT_MS * 2 ** attempts));
+        attempts += 1;
+      };
     };
 
-    socket.onclose = () => {
-      console.log("WebSocket connection lost");
-      setIsConnected(false);
-    };
+    connect();
 
     return () => {
+      disposed = true;
+      clearTimeout(retryTimer);
       socket.close();
     };
   }, [activeSession?.session_key]);
