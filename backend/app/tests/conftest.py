@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -29,3 +30,12 @@ def _override_get_db():
 
 
 app.dependency_overrides[get_db] = _override_get_db
+
+
+@pytest.fixture(autouse=True)
+def _offline_archive_check(monkeypatch):
+    """Tests never ask F1's timing archive whether it is locked; a test that cares patches it."""
+    from app.services import session_info
+
+    monkeypatch.setattr(session_info, "_probe_archive", lambda year: None)
+    session_info._ARCHIVE_STATUS.clear()
