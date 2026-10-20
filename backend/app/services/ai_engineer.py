@@ -67,14 +67,14 @@ class AIEngineer:
         
         sorted_leaderboard = sorted(
             timing.items(),
-            key=lambda x: x[1].get("position", 99)
+            key=lambda x: x[1].get("position") or 99  # unclassified cars have no position
         )
         
         for num_str, t in sorted_leaderboard:
             num = int(num_str)
             d = drivers_map.get(num, {"code": "UNK", "team_name": "Unknown"})
             status = "PIT" if t.get("is_pit") else "TRACK"
-            md += f"| {t.get('position', '-')} | {d['code']} | {num} | {t.get('lap_number', '-')} | {t.get('gap_to_leader', '-')} | {t.get('gap_to_next', '-')} | {t.get('lap_time', '-')} | {t.get('s1', '-')} | {t.get('s2', '-')} | {t.get('s3', '-')} | {status} |\n"
+            md += f"| {t.get('position', '-')} | {d['code']} | {num} | {t.get('lap_number', '-')} | {t.get('gap_to_leader', '-')} | {t.get('gap_to_next', '-')} | {t.get('last_lap_time', '-')} | {t.get('s1', '-')} | {t.get('s2', '-')} | {t.get('s3', '-')} | {status} |\n"
         
         # Race Control
         rc = context.get("race_control", [])
