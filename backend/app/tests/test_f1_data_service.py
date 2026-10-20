@@ -1,3 +1,4 @@
+import json
 import asyncio
 from types import SimpleNamespace
 
@@ -22,6 +23,16 @@ class FakeResponse:
         return self._data
 
 
+class NoFeed:
+    """F1's live timing feed with no live session."""
+
+    def active_session(self):
+        return None
+
+    def serves(self, session_key):
+        return False
+
+
 @pytest.fixture
 def svc(monkeypatch):
     """A fresh service whose OpenF1 requests are answered from `routes` and recorded in `calls`."""
@@ -37,6 +48,7 @@ def svc(monkeypatch):
 
     monkeypatch.setattr(m.requests, "get", fake_get)
     monkeypatch.setattr(service, "_fastf1_fallback", lambda: None)
+    monkeypatch.setattr(m, "live_timing_feed", NoFeed())
     return service
 
 
@@ -155,3 +167,75 @@ def test_a_live_sessions_board_does_not_ask_for_a_result(svc):
     svc.routes = {"laps": LAPS, "stints": [], "intervals": [], "position": [], "session_result": RESULTS}
     run(svc.get_live_timing(11396))
     assert not any("session_result" in url for url in svc.calls)
+
+
+class FakeFeed:
+    """F1's live timing feed covering one live session."""
+
+    def __init__(self, session_key=11396):
+        self.session = {"session_key": session_key, "meeting_name": "United States Grand Prix", "live": True,
+                        "source": "f1-live"}
+
+    def active_session(self):
+        return self.session
+
+    def serves(self, session_key):
+        return session_key == self.session["session_key"]
+
+    def drivers(self):
+        return [{"driver_number": 1, "code": "NOR"}]
+
+    def timing(self):
+        return {"1": {"position": 1}}
+
+    def weather(self):
+        return {"air_temperature": 25.0, "live_signal": True}
+
+    def race_control(self):
+        return [{"message": "GREEN LIGHT - PIT EXIT OPEN"}]
+
+    def radios(self):
+        return [{"driver_number": 1}]
+
+    def session_status(self):
+        return {"stopped": True, "red_flag": True, "announcement": None, "resumes_at": None}
+
+    def car_frames(self):
+        return [{"driver_number": 1, "x": 1.0, "live_signal": True}]
+
+
+def test_a_session_on_f1s_live_feed_is_the_current_session(svc, monkeypatch):
+    monkeypatch.setattr(m, "live_timing_feed", FakeFeed())
+    assert run(svc.current_session())["meeting_name"] == "United States Grand Prix"
+    assert svc.calls == []  # OpenF1 is closed during a live session, so it isn't asked
+
+
+def test_the_live_feed_answers_for_its_own_session(svc, monkeypatch):
+    monkeypatch.setattr(m, "live_timing_feed", FakeFeed())
+    assert run(svc.get_drivers(11396))[0]["code"] == "NOR"
+    assert run(svc.get_live_timing(11396)) == {"1": {"position": 1}}
+    assert run(svc.get_live_weather(11396))["air_temperature"] == 25.0
+    assert run(svc.get_live_race_control(11396))[0]["message"] == "GREEN LIGHT - PIT EXIT OPEN"
+    assert run(svc.get_live_radios(11396)) == [{"driver_number": 1}]
+    assert run(svc.get_session_status(11396))["red_flag"] is True
+    assert svc.calls == []
+
+
+def test_other_sessions_still_come_from_openf1(svc, monkeypatch):
+    monkeypatch.setattr(m, "live_timing_feed", FakeFeed())
+    svc.routes = {"drivers": [{"driver_number": 16, "name_acronym": "LEC"}]}
+    assert run(svc.get_drivers(11388))[0]["code"] == "LEC"
+    assert run(svc.get_session_status(11388)) == {"stopped": False, "red_flag": False, "announcement": None, "resumes_at": None}
+
+
+def test_telemetry_tick_sends_the_live_feeds_car_frames_to_the_browsers(svc, monkeypatch):
+    sent = []
+
+    async def broadcast(message):
+        sent.append(message)
+
+    monkeypatch.setattr(m, "live_timing_feed", FakeFeed())
+    monkeypatch.setattr(m.manager, "broadcast", broadcast)
+    assert run(svc.telemetry_tick()) == m.FEED_POLL_SECONDS
+    assert [json.loads(s)["driver_number"] for s in sent] == [1]
+    assert not any("/car_data" in url for url in svc.calls)
