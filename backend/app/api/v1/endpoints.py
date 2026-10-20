@@ -1,10 +1,11 @@
 import asyncio
 
 from fastapi import APIRouter, HTTPException, Query, Response
-from pydantic import BaseModel, field_validator, model_validator
-from typing import List, Optional
+from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import List, Literal, Optional
 from app.services.f1_data_service import f1_service
-from app.services import duel_telemetry, latest_result, race_replay
+import anthropic
+from app.services import championship_data, championship_sim, corner_analysis, data_assistant, duel_telemetry, latest_result, pit_window, race_battles, race_pace, race_replay, win_probability
 from app.services import session_info as session_info_service
 from app.services.race_debrief import NoResultsError
 from app.services.session_info import SessionDataError
@@ -69,10 +70,9 @@ class TelemetryCompareRequest(BaseModel):
 
 @router.get("/sessions/active")
 async def get_active_session():
-    """Get active session key and metadata."""
+    """The running session, else the latest one to have started; `live` says which."""
     try:
-        session_key = await f1_service.get_latest_session_key()
-        metadata = await f1_service.sync_session_metadata(session_key)
+        metadata = await f1_service.current_session()
         if not metadata:
             raise HTTPException(status_code=404, detail="Active session not found")
         return metadata
@@ -118,6 +118,23 @@ async def get_session_race_control(session_key: int):
     try:
         messages = await f1_service.get_live_race_control(session_key)
         return messages
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/sessions/{session_key}/status")
+async def get_session_status(session_key: int):
+    """Whether the session is stopped (red flag or delayed) and when race control says it restarts."""
+    try:
+        return await f1_service.get_session_status(session_key)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/sessions/{session_key}/race-strategy")
+async def get_session_race_strategy(session_key: int):
+    """While a race runs: battles about to start, where each car would rejoin from a stop now, and
+    undercut/overcut odds. {"live": false} for a session F1's live feed isn't covering."""
+    try:
+        return await f1_service.get_race_strategy(session_key)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -176,6 +193,239 @@ async def pedal_behavior(req: PedalBehaviorRequest):
         )
     except Exception as e:
         raise _analysis_error(e, "the pedal analysis")
+
+
+class CornerConsistencyRequest(BaseModel):
+    year: int
+    gp: str = ""
+    round: Optional[int] = None
+    session: str = "R"
+    driver: str
+
+    @field_validator("driver")
+    @classmethod
+    def _normalise_code(cls, value: str) -> str:
+        code = value.strip().upper()
+        if not code:
+            raise ValueError("Choose a driver.")
+        return code
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
+
+
+@router.post("/telemetry/corner-consistency")
+async def corner_consistency(req: CornerConsistencyRequest):
+    """How repeatable a driver is through each corner, over their clean laps."""
+    try:
+        return await asyncio.to_thread(
+            corner_analysis.corner_consistency_payload, req.year, req.gp, req.session, req.driver, req.round
+        )
+    except Exception as e:
+        raise _analysis_error(e, "the corner consistency analysis")
+
+
+class RacePaceRequest(BaseModel):
+    year: int
+    gp: str = ""
+    round: Optional[int] = None
+    session: str = "R"
+
+    @field_validator("session")
+    @classmethod
+    def _race_or_sprint(cls, value: str) -> str:
+        code = value.strip().upper()
+        if code not in {"R", "S"}:
+            raise ValueError("Race pace needs a race or a sprint.")
+        return code
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
+
+
+@router.post("/telemetry/race-pace")
+async def race_pace_endpoint(req: RacePaceRequest):
+    """Fuel-corrected race pace and tyre degradation for a race or sprint."""
+    try:
+        return await asyncio.to_thread(
+            race_pace.race_pace_payload, req.year, req.gp, req.session, req.round
+        )
+    except Exception as e:
+        raise _analysis_error(e, "the race pace analysis")
+
+
+class ChampionshipOddsRequest(BaseModel):
+    year: int
+    after_round: Optional[int] = None
+
+    @field_validator("year")
+    @classmethod
+    def _covered_year(cls, value: int) -> int:
+        current = championship_sim._current_year()
+        if value < championship_sim.FIRST_YEAR or value > current:
+            raise ValueError(f"Championship odds cover {championship_sim.FIRST_YEAR} to {current}.")
+        return value
+
+
+@router.post("/championship/odds")
+async def championship_odds_endpoint(req: ChampionshipOddsRequest):
+    """Title odds for drivers and constructors from a Monte Carlo of the races still to run."""
+    try:
+        return await asyncio.to_thread(championship_data.championship_odds, req.year, req.after_round)
+    except championship_sim.ChampionshipError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+    except Exception as e:
+        raise _analysis_error(e, "the championship odds")
+
+
+class RaceBattlesRequest(BaseModel):
+    year: int
+    gp: str = ""
+    round: Optional[int] = None
+    session: str = "R"
+
+    @field_validator("session")
+    @classmethod
+    def _race_or_sprint(cls, value: str) -> str:
+        code = value.strip().upper()
+        if code not in {"R", "S"}:
+            raise ValueError("Overtakes need a race or a sprint.")
+        return code
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
+
+
+@router.post("/telemetry/race-battles")
+async def race_battles_endpoint(req: RaceBattlesRequest):
+    """Overtakes and battles for a race or sprint, read from the lap-by-lap positions."""
+    try:
+        return await asyncio.to_thread(
+            race_battles.race_battles_payload, req.year, req.gp, req.session, req.round
+        )
+    except Exception as e:
+        raise _analysis_error(e, "the overtake analysis")
+
+
+class PitWindowRequest(BaseModel):
+    year: int
+    gp: str = ""
+    round: Optional[int] = None
+    session: str = "R"
+    lap: int
+
+    @field_validator("session")
+    @classmethod
+    def _race_or_sprint(cls, value: str) -> str:
+        code = value.strip().upper()
+        if code not in {"R", "S"}:
+            raise ValueError("The pit window needs a race or a sprint.")
+        return code
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
+
+
+@router.post("/telemetry/pit-window")
+async def pit_window_endpoint(req: PitWindowRequest):
+    """The best remaining plan, pit window and undercut odds for each driver at the end of a lap."""
+    try:
+        return await asyncio.to_thread(
+            pit_window.pit_window_replay, req.year, req.gp, req.session, req.round, req.lap
+        )
+    except pit_window.PitWindowInputError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise _analysis_error(e, "the pit window")
+
+
+class WinProbabilityRequest(BaseModel):
+    year: int
+    gp: str = ""
+    round: Optional[int] = None
+    session: str = "R"
+    lap: Optional[int] = None
+
+    @field_validator("session")
+    @classmethod
+    def _race_or_sprint(cls, value: str) -> str:
+        code = value.strip().upper()
+        if code not in {"R", "S"}:
+            raise ValueError("Win probability needs a race or a sprint.")
+        return code
+
+    @model_validator(mode="after")
+    def _needs_a_race(self):
+        if not self.gp and not self.round:
+            raise ValueError("Give a race name or a round number.")
+        return self
+
+
+@router.post("/telemetry/win-probability")
+async def win_probability_endpoint(req: WinProbabilityRequest):
+    """Each driver's chance of winning, lap by lap, from only the laps run so far."""
+    try:
+        return await asyncio.to_thread(
+            win_probability.win_probability_replay, req.year, req.gp, req.session, req.round, req.lap
+        )
+    except pit_window.PitWindowInputError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        raise _analysis_error(e, "the win probability")
+
+
+ASK_TURN_CHARS = 2000
+
+
+class AskTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    text: str = Field(min_length=1)
+
+    @field_validator("text")
+    @classmethod
+    def _trimmed(cls, value: str) -> str:
+        # an earlier answer can run long; keep its start rather than refuse every follow-up
+        return value[:ASK_TURN_CHARS]
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=500)
+    history: List[AskTurn] = Field(default_factory=list, max_length=6)
+
+    @field_validator("question", mode="before")
+    @classmethod
+    def _stripped(cls, value):
+        # strip first, so the length limits judge what will be asked
+        return value.strip() if isinstance(value, str) else value
+
+
+@router.post("/ask")
+async def ask_the_data(req: AskRequest):
+    """Answer a question by calling the app's own analyses as tools; every call made is listed."""
+    client = data_assistant.make_client()
+    if client is None:
+        raise HTTPException(status_code=503, detail="The assistant isn't set up on this server (no Anthropic API key).")
+    try:
+        return await data_assistant.ask(req.question, [t.model_dump() for t in req.history], client=client)
+    except anthropic.RateLimitError:
+        raise HTTPException(status_code=429, detail="The assistant is busy. Try again in a minute.")
+    except Exception as e:
+        print(f"The assistant failed: {e!r}")
+        raise HTTPException(status_code=502, detail="The assistant couldn't be reached. Try again shortly.")
+    finally:
+        await client.close()
 
 
 @router.get("/stats/standings")
@@ -381,7 +631,6 @@ async def get_result_card(
     try:
         from app.services.card_generator import render_result_card
         from app.services.history_summarizer import build_driver_session_summary
-        from app.services.f1_data_service import FALLBACK_2024_DRIVERS
 
         driver_code = driver.upper()
 
@@ -422,10 +671,14 @@ async def get_result_card(
             position_val = driver_laps["Position"].iloc[-1] if pd.notna(driver_laps["Position"].iloc[-1]) else None
             position = int(position_val) if position_val is not None else None
 
-            team_color = next(
-                (d["team_color"] for d in FALLBACK_2024_DRIVERS if d["code"] == driver_code),
-                "#E10600",
-            )
+            # the team colour from this session's own results, so a driver who changed teams is right
+            team_color = "#E10600"
+            results = fastf1_session.results
+            if results is not None and not results.empty:
+                row = results[results["Abbreviation"] == driver_code]
+                colour = row["TeamColor"].iloc[0] if not row.empty else None
+                if isinstance(colour, str) and colour:
+                    team_color = f"#{colour.lstrip('#')}"
 
             return render_result_card(
                 driver_code=driver_code,

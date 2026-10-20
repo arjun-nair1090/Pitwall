@@ -7,7 +7,7 @@ export type AsyncState<T> =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "ready"; data: T }
-  | { status: "error"; message: string; notFound: boolean };
+  | { status: "error"; message: string; notFound: boolean; httpStatus: number | null };
 
 // Runs `load` whenever `key` changes (or retry is called) and reports where it got to. A response
 // that arrives after the key has moved on is dropped, so a slow request never overwrites a newer
@@ -35,6 +35,7 @@ export function useAsync<T>(load: (() => Promise<T>) | null, key: string): Async
           status: "error",
           message: getApiErrorMessage(err, "Something went wrong. Please try again."),
           notFound: err?.response?.status === 404,
+          httpStatus: typeof err?.response?.status === "number" ? err.response.status : null,
         });
       });
     return () => { current = false; };

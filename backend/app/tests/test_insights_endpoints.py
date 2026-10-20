@@ -195,3 +195,12 @@ def test_whatif_validates_its_request(overrides, whatif_frames, whatif_engineer)
 def test_whatif_needs_no_authentication_or_csrf(whatif_frames, whatif_engineer):
     # Stateless and read-only (it computes a hypothetical, changes nothing), like /strategy/simulate.
     assert client.post("/api/v1/whatif", json=_whatif_body()).status_code == 200
+
+
+def test_debrief_passes_on_a_session_data_message_as_a_404(engineer):
+    from app.services.session_info import SessionDataError
+    message = "Formula 1's timing archive needs an F1 TV sign-in to download Singapore Grand Prix 2026."
+    with patch("app.api.v1.insights_endpoints.load_session_frames", side_effect=SessionDataError(message)):
+        response = client.get("/api/v1/debrief", params={"year": 2026, "gp": "Singapore Grand Prix"})
+    assert response.status_code == 404
+    assert response.json()["detail"] == message

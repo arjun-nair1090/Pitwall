@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, model_validator
 from app.services import race_debrief, whatif, whatif_graph
 from app.services.ai_engineer import ai_engineer
 from app.services.session_frames import LruCache, SessionFrames, load_session_frames
+from app.services.session_info import SessionDataError
 
 router = APIRouter()
 
@@ -24,6 +25,8 @@ _SUMMARY_CACHE = LruCache(maxsize=32)
 async def _load_frames(year: int, gp: str, session: str) -> SessionFrames:
     try:
         return await asyncio.to_thread(load_session_frames, year, gp, session)
+    except SessionDataError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         # Log the cause server-side; the client only needs to know what to try next.
         print(f"Failed to load session {year} {gp!r} {session}: {e}")

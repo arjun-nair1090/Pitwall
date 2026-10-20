@@ -49,7 +49,8 @@ export default function LiveTiming() {
     const list = Object.entries(leaderboard)
       .map(([numStr, timing]) => ({ number: parseInt(numStr), timing, driver: driversMap.get(parseInt(numStr)) }))
       .filter((r) => r.driver)
-      .sort((a, b) => (a.timing.position || 99) - (b.timing.position || 99));
+      // unclassified cars (DNF, DSQ) go last, the one that ran longest first
+      .sort((a, b) => (a.timing.position || 99) - (b.timing.position || 99) || (b.timing.lap_number || 0) - (a.timing.lap_number || 0));
 
     // Count a snapshot once per leaderboard object (memo can run twice per render in StrictMode).
     if (lastBoardRef.current !== leaderboard) {
@@ -137,7 +138,11 @@ export default function LiveTiming() {
                   </button>
                 </span>
                 <span role="cell" className="px-1 text-right text-chalk">
-                  {timing.gap_to_leader === 0 ? "Leader" : timing.gap_to_leader ? formatGap(timing.gap_to_leader) : "–"}
+                  {timing.gap_to_leader === 0
+                    ? "Leader"
+                    : typeof timing.gap_to_leader === "string"
+                      ? timing.gap_to_leader
+                      : formatGap(timing.gap_to_leader)}
                 </span>
                 <span role="cell" className="px-1 text-right text-mute">
                   {timing.gap_to_next ? formatGap(timing.gap_to_next) : "–"}

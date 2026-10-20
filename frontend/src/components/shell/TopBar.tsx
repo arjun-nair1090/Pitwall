@@ -14,7 +14,7 @@ import Wordmark, { Mark } from "./Wordmark";
 // The strip across the top of a broadcast feed: where we are, what the weather is doing, and
 // whether the session is on air. The red rule under it is the frame the whole product sits in.
 export default function TopBar() {
-  const { activeSession, isConnected, apiStatus, weather } = useF1Store();
+  const { activeSession, apiStatus, weather } = useF1Store();
   const setOpen = usePaletteStore((s) => s.setOpen);
   const [modKey, setModKey] = useState("Ctrl");
   useEffect(() => {
@@ -22,6 +22,8 @@ export default function TopBar() {
   }, []);
 
   const offline = apiStatus === "unreachable";
+  // On air only while the session itself is running; a connected feed alone isn't a live session.
+  const live = activeSession?.live === true;
 
   return (
     <header className="sticky top-0 z-20 flex min-h-12 items-center gap-3 border-b-2 border-live bg-tarmac/95 px-4 backdrop-blur md:px-6">
@@ -33,7 +35,8 @@ export default function TopBar() {
       <p className="hidden min-w-0 truncate text-sm md:block">
         {activeSession ? (
           <>
-            <span className="font-display font-bold uppercase tracking-[0.06em] text-chalk">{activeSession.circuit_short_name}</span>
+            {!live && <span className="mr-2 font-display text-[11px] font-semibold uppercase tracking-[0.1em] text-faint">Latest</span>}
+            <span className="font-display font-bold uppercase tracking-[0.06em] text-chalk">{activeSession.meeting_name || activeSession.circuit_short_name}</span>
             <span aria-hidden className="mx-2 text-gantry">/</span>
             <span className="font-display uppercase tracking-[0.04em] text-mute">{activeSession.session_name}, {activeSession.year}</span>
           </>
@@ -54,7 +57,7 @@ export default function TopBar() {
         )}
 
         {/* On air: a solid red block, the way a live feed marks itself. Everything else is quiet. */}
-        {isConnected ? (
+        {live ? (
           <span className="flex items-center gap-1.5 rounded-control bg-live px-2 py-1 font-display text-[11px] font-bold uppercase tracking-[0.12em] text-white">
             <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
             Live

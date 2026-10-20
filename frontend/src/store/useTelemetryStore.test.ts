@@ -31,3 +31,15 @@ describe("alerts", () => {
     expect(useF1Store.getState().alerts[0].id).toBe("x11");
   });
 });
+
+describe("gap history", () => {
+  beforeEach(() => useF1Store.setState({ gapHistory: [], leaderboard: {} }));
+
+  it("records a lapped car's text gap as no number rather than charting a string", () => {
+    useF1Store.getState().updateLeaderboard({
+      "1": { lap_number: 62, gap_to_leader: 0 },
+      "43": { lap_number: 61, gap_to_leader: "+1 LAP" },
+    } as any);
+    expect(useF1Store.getState().gapHistory).toEqual([{ lap: 62, gaps: { "1": 0, "43": null } }]);
+  });
+});

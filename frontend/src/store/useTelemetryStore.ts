@@ -16,10 +16,11 @@ export interface DriverTelemetry {
 }
 
 export interface TimingDriver {
-  position?: number;
+  position?: number | null;
   lap_number?: number;
-  gap_to_leader?: number;
-  gap_to_next?: number;
+  // seconds, or the feed's text for a lapped car ("+1 LAP")
+  gap_to_leader?: number | string | null;
+  gap_to_next?: number | null;
   last_lap_time?: number;
   s1?: number;
   s2?: number;
@@ -57,6 +58,15 @@ export interface LiveAlert {
   timestamp: number;
 }
 
+// Whether the live session is stopped (red flag or a delayed restart) and when race control says it
+// restarts. resumes_at is UTC; the page shows it in the viewer's own time.
+export interface SessionStatus {
+  stopped: boolean;
+  red_flag: boolean;
+  announcement: string | null;
+  resumes_at: string | null;
+}
+
 export interface CurrentUser {
   id: number;
   email: string;
@@ -78,6 +88,7 @@ interface F1StoreState {
   apiStatus: "unknown" | "ok" | "unreachable";
   selectedDriverNum: number | null;
   currentUser: CurrentUser | null;
+  sessionStatus: SessionStatus | null;
 
   setActiveSession: (session: any) => void;
   setDrivers: (drivers: any[]) => void;
@@ -92,6 +103,7 @@ interface F1StoreState {
   setApiStatus: (status: "unknown" | "ok" | "unreachable") => void;
   setSelectedDriverNum: (num: number | null) => void;
   setCurrentUser: (user: CurrentUser | null) => void;
+  setSessionStatus: (status: SessionStatus | null) => void;
 }
 
 export const useF1Store = create<F1StoreState>((set) => ({
@@ -107,6 +119,7 @@ export const useF1Store = create<F1StoreState>((set) => ({
   apiStatus: "unknown",
   selectedDriverNum: null,
   currentUser: null,
+  sessionStatus: null,
   setActiveSession: (session) => set({ activeSession: session }),
   setDrivers: (drivers) => set({ drivers }),
   updateLeaderboard: (leaderboard) => set((state) => {
@@ -117,7 +130,7 @@ export const useF1Store = create<F1StoreState>((set) => ({
     if (maxLap > 0 && maxLap !== lastPoint?.lap) {
       const gaps: Record<string, number | null> = {};
       Object.entries(leaderboard).forEach(([num, t]) => {
-        gaps[num] = t.gap_to_leader ?? null;
+        gaps[num] = typeof t.gap_to_leader === "number" ? t.gap_to_leader : null;
       });
       const gapHistory = [...state.gapHistory, { lap: maxLap, gaps }].slice(-100);
       return { leaderboard, gapHistory };
@@ -143,4 +156,5 @@ export const useF1Store = create<F1StoreState>((set) => ({
   setApiStatus: (status) => set({ apiStatus: status }),
   setSelectedDriverNum: (num) => set({ selectedDriverNum: num }),
   setCurrentUser: (user) => set({ currentUser: user }),
+  setSessionStatus: (sessionStatus) => set({ sessionStatus }),
 }));

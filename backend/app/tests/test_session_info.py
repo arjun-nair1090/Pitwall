@@ -191,3 +191,45 @@ def test_driver_colour_uses_the_session_results():
 
 def test_driver_colour_falls_back_for_an_unknown_driver():
     assert si.driver_profile(FakeSession(), "XXX")["color"] == si.FALLBACK_COLOR
+
+
+def test_neutralised_laps_are_those_under_a_safety_car_red_flag_or_vsc():
+    statuses = pd.Series(["1", "2", "4", "5", "6", "7", "124", "671", "", None, float("nan"), 1])
+    assert si.neutralised_laps(statuses).tolist() == [
+        False, False, True, True, True, True, True, True, False, False, False, False,
+    ]
+
+
+def test_a_locked_archive_says_to_sign_in_to_f1_tv(monkeypatch):
+    _patch(monkeypatch, FakeSession(loaded=False))
+    monkeypatch.setattr(si, "_probe_archive", lambda year: 401)
+    with pytest.raises(si.SessionDataError, match="F1 TV sign-in") as err:
+        si.load_session(2026, "Singapore", "R", round_number=17)
+    assert "python -m fastf1 auth f1tv --authenticate" in str(err.value)
+
+
+def test_a_locked_archive_explains_empty_laps_too(monkeypatch):
+    _patch(monkeypatch, FakeSession(laps=pd.DataFrame(columns=["Driver", "LapNumber"])))
+    monkeypatch.setattr(si, "_probe_archive", lambda year: 401)
+    with pytest.raises(si.SessionDataError, match="F1 TV sign-in"):
+        si.load_session(2026, "Singapore", "R", round_number=17)
+
+
+def test_an_open_archive_keeps_the_no_data_message(monkeypatch):
+    _patch(monkeypatch, FakeSession(loaded=False))
+    monkeypatch.setattr(si, "_probe_archive", lambda year: 200)
+    with pytest.raises(si.SessionDataError, match="no data"):
+        si.load_session(2026, "Abu Dhabi", "R")
+
+
+def test_the_archive_check_is_cached(monkeypatch):
+    calls = []
+    monkeypatch.setattr(si, "_probe_archive", lambda year: calls.append(year) or 401)
+    assert si.archive_locked(2026) is True
+    assert si.archive_locked(2026) is True
+    assert calls == [2026]
+
+
+def test_an_unreachable_archive_is_not_reported_as_locked(monkeypatch):
+    monkeypatch.setattr(si, "_probe_archive", lambda year: None)
+    assert si.archive_locked(2026) is False

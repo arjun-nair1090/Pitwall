@@ -173,3 +173,16 @@ async def test_call_llm_returns_the_offline_notice_when_no_provider_is_available
     result = await _engine().call_llm("q", "some context")
     assert "some context" in result
     assert "API_KEY" in result
+
+
+def test_the_context_table_lists_a_finished_race_with_its_retirements():
+    md = ai_engineer.ai_engineer.format_context_as_markdown({
+        "drivers": [{"driver_number": 3, "code": "VER"}, {"driver_number": 18, "code": "STR"}],
+        "timing": {
+            "18": {"position": None, "lap_number": 36, "gap_to_leader": "DNF", "last_lap_time": 101.2},
+            "3": {"position": 1, "lap_number": 62, "gap_to_leader": 0, "last_lap_time": 97.84},
+        },
+    })
+    rows = [line for line in md.splitlines() if line.startswith("| ") and ("VER" in line or "STR" in line)]
+    assert [r.split("|")[2].strip() for r in rows] == ["VER", "STR"]  # the leader first, retirements last
+    assert "97.84" in rows[0] and "DNF" in rows[1]

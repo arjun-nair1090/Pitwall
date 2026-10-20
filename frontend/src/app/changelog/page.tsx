@@ -8,6 +8,21 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-18",
+    title: "Deeper analysis",
+    items: [
+      "Head to head: while the ghost cars play, a live readout says who is ahead and by how much. It is measured where the trailing car is, against when the leader passed that point, and it lands exactly on the gap at the flag.",
+      "Head to head: a Corner by corner table shows, for every turn, who gained and by how much, plus minimum speed, the braking verdict and exit speed, with turn numbers on the dominance map. The per-corner gains add up to the lap-time gap.",
+      "Advanced analytics: Corner consistency shows each clean lap against the driver's best at every corner, the ideal lap you would get from those best corners, and a table ranking corners by how much the driver varies from lap to lap.",
+      "Race pace: a new page ranks every driver by fuel-corrected race pace over their clean laps, charts each stint lap by lap with how fast the tyres wore, and shows a degradation curve for each compound measured across the whole field.",
+      "Overtakes and battles: a lap chart of every race and sprint since 2018, every on-track pass (not the places that change hands in the pits or behind a safety car), places gained at the start, and every fight that stayed within a second for three laps or more.",
+      "Championship odds: every driver's and team's chance of the title after any round since 2018, from 10,000 simulations of the races still to run, with who has clinched it, who is out of contention, and how the odds moved through the season.",
+      "Pit window: pick any lap of a race or sprint since 2018 and see each driver's best strategy from there, when their pit window opens and closes, and which close fights an undercut would win, all worked out from only the laps run so far.",
+      "Win probability: every driver's chance of winning, lap by lap through any race or sprint since 2018, worked out from only the laps run so far, with safety-car periods marked and the numbers behind any lap.",
+      "Ask the data: type a question about any race or season and get an answer worked out only from the app's own analyses (race pace, overtakes, championship odds, pit windows, win probability and results), with links to every page it used.",
+    ],
+  },
+  {
     date: "2026-09-21",
     title: "The official look",
     items: [

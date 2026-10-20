@@ -1,9 +1,10 @@
+import pandas as pd
 import fastf1
 import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import duel_telemetry
+from app.services import corner_analysis, duel_telemetry, race_battles, race_pace
 from app.services import session_info as si
 from app.tests.test_session_info import FakeSession
 
@@ -151,11 +152,20 @@ def _async_returning(value):
 def test_no_live_session_is_a_404_not_a_500(monkeypatch):
     from app.services.f1_data_service import f1_service
 
-    monkeypatch.setattr(f1_service, "get_latest_session_key", _async_returning(9999))
-    monkeypatch.setattr(f1_service, "sync_session_metadata", _async_returning(None))
+    monkeypatch.setattr(f1_service, "current_session", _async_returning(None))
     response = client.get("/api/v1/sessions/active")
     assert response.status_code == 404
     assert response.json()["detail"] == "Active session not found"
+
+
+def test_active_session_returns_the_current_session(monkeypatch):
+    from app.services.f1_data_service import f1_service
+
+    current = {"session_key": 11388, "meeting_name": "Singapore Grand Prix", "session_name": "Race", "live": False}
+    monkeypatch.setattr(f1_service, "current_session", _async_returning(current))
+    response = client.get("/api/v1/sessions/active")
+    assert response.status_code == 200
+    assert response.json() == current
 
 
 def test_missing_weather_is_a_404_not_a_500(monkeypatch):
@@ -230,3 +240,353 @@ def test_replay_failures_do_not_leak_internals(monkeypatch):
     response = client.get("/api/v1/telemetry/replay", params={"year": 2024, "round": 14})
     assert response.status_code == 502 and "internal" not in response.json()["detail"]
 
+
+
+# ---- corner consistency ----
+
+CONSISTENCY = {"year": 2024, "gp": "Belgium", "session": "R", "driver": "ver"}
+
+
+def test_corner_consistency_reports_missing_data_as_404(monkeypatch):
+    monkeypatch.setattr(corner_analysis, "corner_consistency_payload", _raise("VER has only 2 clean laps in this session; at least 3 are needed to judge consistency."))
+    response = client.post("/api/v1/telemetry/corner-consistency", json=CONSISTENCY)
+    assert response.status_code == 404
+    assert "at least 3" in response.json()["detail"]
+
+
+def test_corner_consistency_upper_cases_the_driver(monkeypatch):
+    seen = {}
+
+    def fake(year, gp, session, driver, round_number=None):
+        seen.update(driver=driver, session=session, round=round_number)
+        return {"driver": {"code": driver}}
+
+    monkeypatch.setattr(corner_analysis, "corner_consistency_payload", fake)
+    response = client.post("/api/v1/telemetry/corner-consistency", json={**CONSISTENCY, "round": 14})
+    assert response.status_code == 200
+    assert seen == {"driver": "VER", "session": "R", "round": 14}
+
+
+def test_corner_consistency_needs_a_race():
+    response = client.post("/api/v1/telemetry/corner-consistency", json={"year": 2024, "driver": "VER"})
+    assert response.status_code == 422
+
+
+# ---- race pace ----
+
+PACE = {"year": 2024, "gp": "Belgium", "session": "R"}
+
+
+def test_race_pace_passes_the_round_and_session_through(monkeypatch):
+    seen = {}
+
+    def fake(year, gp, session, round_number=None):
+        seen["args"] = (year, gp, session, round_number)
+        return {"drivers": []}
+
+    monkeypatch.setattr(race_pace, "race_pace_payload", fake)
+    response = client.post("/api/v1/telemetry/race-pace", json={"year": 2024, "round": 14, "session": "s"})
+    assert response.status_code == 200
+    assert seen["args"] == (2024, "", "S", 14)
+    assert response.json() == {"drivers": []}
+
+
+def test_race_pace_rejects_qualifying():
+    response = client.post("/api/v1/telemetry/race-pace", json={**PACE, "session": "Q"})
+    assert response.status_code == 422
+    assert "Race pace needs a race or a sprint." in response.text
+
+
+def test_race_pace_needs_a_race_or_a_round():
+    response = client.post("/api/v1/telemetry/race-pace", json={"year": 2024, "session": "R"})
+    assert response.status_code == 422
+
+
+def test_race_pace_reports_missing_data_as_404(monkeypatch):
+    monkeypatch.setattr(race_pace, "race_pace_payload", _raise("nope"))
+    response = client.post("/api/v1/telemetry/race-pace", json=PACE)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "nope"
+
+
+# ---- overtakes and battles ----
+
+BATTLES = {"year": 2024, "gp": "Belgium", "session": "R"}
+
+
+def test_race_battles_passes_the_round_and_session_through(monkeypatch):
+    seen = {}
+
+    def fake(year, gp, session, round_number=None):
+        seen["args"] = (year, gp, session, round_number)
+        return {"total_laps": 0, "drivers": [], "overtakes": [], "battles": []}
+
+    monkeypatch.setattr(race_battles, "race_battles_payload", fake)
+    response = client.post("/api/v1/telemetry/race-battles", json={"year": 2024, "round": 14, "session": "s"})
+    assert response.status_code == 200
+    assert seen["args"] == (2024, "", "S", 14)
+    assert response.json() == {"total_laps": 0, "drivers": [], "overtakes": [], "battles": []}
+
+
+def test_race_battles_defaults_to_the_race(monkeypatch):
+    seen = {}
+
+    def fake(year, gp, session, round_number=None):
+        seen["session"] = session
+        return {"total_laps": 0, "drivers": [], "overtakes": [], "battles": []}
+
+    monkeypatch.setattr(race_battles, "race_battles_payload", fake)
+    response = client.post("/api/v1/telemetry/race-battles", json={"year": 2024, "gp": "Belgium"})
+    assert response.status_code == 200
+    assert seen["session"] == "R"
+
+
+def test_race_battles_rejects_qualifying():
+    response = client.post("/api/v1/telemetry/race-battles", json={**BATTLES, "session": "Q"})
+    assert response.status_code == 422
+    assert "Overtakes need a race or a sprint." in response.text
+
+
+def test_race_battles_needs_a_race_or_a_round():
+    response = client.post("/api/v1/telemetry/race-battles", json={"year": 2024, "session": "R"})
+    assert response.status_code == 422
+
+
+def test_race_battles_reports_missing_data_as_404(monkeypatch):
+    monkeypatch.setattr(race_battles, "race_battles_payload", _raise("nope"))
+    response = client.post("/api/v1/telemetry/race-battles", json=BATTLES)
+    assert response.status_code == 404
+    assert response.json()["detail"] == "nope"
+
+
+def test_race_battles_failures_do_not_leak_internals(monkeypatch):
+    def boom(*args, **kwargs):
+        raise RuntimeError("KeyError: 'internal'")
+
+    monkeypatch.setattr(race_battles, "race_battles_payload", boom)
+    response = client.post("/api/v1/telemetry/race-battles", json=BATTLES)
+    assert response.status_code == 502 and "internal" not in response.json()["detail"]
+
+
+# ---- championship odds ----
+
+from app.services import championship_data, championship_sim  # noqa: E402
+
+
+def test_championship_odds_returns_the_bare_payload(monkeypatch):
+    seen = {}
+
+    def fake(year, after_round):
+        seen["args"] = (year, after_round)
+        return {"year": year, "drivers": []}
+
+    monkeypatch.setattr(championship_data, "championship_odds", fake)
+    response = client.post("/api/v1/championship/odds", json={"year": 2024, "after_round": 19})
+    assert response.status_code == 200
+    assert response.json() == {"year": 2024, "drivers": []}
+    assert seen["args"] == (2024, 19)
+
+
+def test_championship_odds_after_round_is_optional(monkeypatch):
+    monkeypatch.setattr(championship_data, "championship_odds", lambda y, r: {"after_round": r})
+    response = client.post("/api/v1/championship/odds", json={"year": 2024})
+    assert response.status_code == 200
+    assert response.json() == {"after_round": None}
+
+
+def test_championship_error_keeps_its_status_and_message(monkeypatch):
+    def boom(year, after_round):
+        raise championship_sim.ChampionshipError("No races have been run in 2026 yet.", 404)
+
+    monkeypatch.setattr(championship_data, "championship_odds", boom)
+    response = client.post("/api/v1/championship/odds", json={"year": 2026})
+    assert response.status_code == 404
+    assert response.json()["detail"] == "No races have been run in 2026 yet."
+
+
+def test_championship_other_errors_are_a_502(monkeypatch):
+    def boom(year, after_round):
+        raise RuntimeError("mirror down")
+
+    monkeypatch.setattr(championship_data, "championship_odds", boom)
+    response = client.post("/api/v1/championship/odds", json={"year": 2024})
+    assert response.status_code == 502
+    assert "the championship odds" in response.json()["detail"]
+    assert "mirror down" not in response.text
+
+
+def test_championship_year_out_of_range_is_a_422(monkeypatch):
+    monkeypatch.setattr(championship_data, "championship_odds", lambda y, r: {})
+    response = client.post("/api/v1/championship/odds", json={"year": 2017})
+    assert response.status_code == 422
+    assert f"Championship odds cover 2018 to {championship_sim._current_year()}." in response.text
+
+
+def test_championship_odds_memoises_the_season_and_the_result(monkeypatch):
+    championship_data.clear_cache()
+    calls = {"load": 0}
+
+    def fake_load(year, ergast=None):
+        calls["load"] += 1
+        races = pd.DataFrame({"round": [1, 2]})
+        return races, pd.DataFrame(), pd.DataFrame()
+
+    seen = []
+    monkeypatch.setattr(championship_data, "load_season", fake_load)
+    monkeypatch.setattr(championship_data.championship_sim, "championship_payload",
+                        lambda y, r, s, sc, cut: seen.append(cut) or {"after_round": cut})
+    assert championship_data.championship_odds(2024, None) == {"after_round": 2}
+    assert championship_data.championship_odds(2024, 2) == {"after_round": 2}
+    assert championship_data.championship_odds(2024, 1) == {"after_round": 1}
+    assert calls["load"] == 1
+    assert seen == [2, 1]
+    championship_data.clear_cache()
+
+
+# ---- POST /ask ----
+
+def _ask_client(monkeypatch, *scripted):
+    from app.services import data_assistant
+    from app.tests.test_data_assistant import FakeClient
+    fake = FakeClient(*scripted)
+    monkeypatch.setattr(data_assistant, "make_client", lambda: fake)
+    return fake
+
+
+def _says(value):
+    from app.tests.test_data_assistant import reply, text
+    return reply(text(value))
+
+
+def test_ask_without_a_key_is_a_503(monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "")
+    response = client.post("/api/v1/ask", json={"question": "Who won?"})
+    assert response.status_code == 503
+    assert response.json()["detail"] == "The assistant isn't set up on this server (no Anthropic API key)."
+
+
+def test_ask_treats_the_placeholder_key_as_unset(monkeypatch):
+    from app.core.config import settings
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "your_anthropic_api_key_here")
+    assert client.post("/api/v1/ask", json={"question": "Who won?"}).status_code == 503
+
+
+@pytest.mark.parametrize("body", [
+    {"question": ""}, {"question": "   "}, {"question": "x" * 501}, {},
+    {"question": "ok", "history": [{"role": "user", "text": "a"}] * 7},
+    {"question": "ok", "history": [{"role": "system", "text": "a"}]},
+    {"question": "ok", "history": [{"role": "user", "text": ""}]},
+])
+def test_ask_rejects_bad_requests_with_a_422(monkeypatch, body):
+    fake = _ask_client(monkeypatch, _says("never reached"))
+    assert client.post("/api/v1/ask", json=body).status_code == 422
+    assert fake.calls == []
+
+
+def test_ask_answers_with_sources(monkeypatch):
+    from app.services import data_assistant
+    from app.tests.test_data_assistant import reply, text, tool_use
+    monkeypatch.setitem(data_assistant._IMPLEMENTATIONS, "race_pace", lambda **k: {"drivers": []})
+    fake = _ask_client(
+        monkeypatch,
+        reply(tool_use("t1", "race_pace", {"year": 2024, "round": 14}), stop="tool_use"),
+        reply(text("Norris.")),
+    )
+    response = client.post("/api/v1/ask", json={
+        "question": "  Who had the best pace?  ",
+        "history": [{"role": "user", "text": "Hi"}, {"role": "assistant", "text": "Hello."}],
+    })
+    assert response.status_code == 200
+    assert response.json() == {
+        "answer": "Norris.",
+        "sources": [{"tool": "race_pace", "input": {"year": 2024, "round": 14, "session": "R"}, "ok": True}],
+    }
+    assert fake.calls[0]["messages"][-1] == {"role": "user", "content": "Who had the best pace?"}
+
+
+def test_ask_trims_a_long_history_turn_instead_of_refusing(monkeypatch):
+    fake = _ask_client(monkeypatch, _says("ok"))
+    response = client.post("/api/v1/ask", json={
+        "question": "And then?",
+        "history": [{"role": "user", "text": "Tell me all"}, {"role": "assistant", "text": "x" * 2500}],
+    })
+    assert response.status_code == 200
+    assert fake.calls[0]["messages"][1] == {"role": "assistant", "content": "x" * 2000}
+
+
+def test_ask_strips_the_question_before_measuring_it(monkeypatch):
+    fake = _ask_client(monkeypatch, _says("ok"))
+    response = client.post("/api/v1/ask", json={"question": "   " + "q" * 500 + "   "})
+    assert response.status_code == 200
+    assert fake.calls[0]["messages"][-1]["content"] == "q" * 500
+
+
+def test_ask_closes_the_client_after_answering(monkeypatch):
+    fake = _ask_client(monkeypatch, _says("ok"))
+    assert client.post("/api/v1/ask", json={"question": "Who won?"}).status_code == 200
+    assert fake.closed is True
+
+
+def test_ask_closes_the_client_after_a_failure(monkeypatch):
+    boom = _raising(monkeypatch, RuntimeError("down"))
+    assert client.post("/api/v1/ask", json={"question": "Who won?"}).status_code == 502
+    assert boom.closed is True
+
+
+def _status_error(cls, status):
+    import httpx
+    request = httpx.Request("POST", "https://api.example.invalid/v1/messages")
+    return cls("secret upstream detail: key sk-123", response=httpx.Response(status, request=request), body=None)
+
+
+def _raising(monkeypatch, error):
+    from app.services import data_assistant
+
+    class Boom:
+        messages = None
+        closed = False
+
+        async def create(self, **kwargs):
+            raise error
+
+        async def close(self):
+            self.closed = True
+
+    boom = Boom()
+    boom.messages = boom
+    monkeypatch.setattr(data_assistant, "make_client", lambda: boom)
+    return boom
+
+
+def test_ask_maps_a_rate_limit_to_429(monkeypatch):
+    import anthropic
+    _raising(monkeypatch, _status_error(anthropic.RateLimitError, 429))
+    response = client.post("/api/v1/ask", json={"question": "Who won?"})
+    assert response.status_code == 429
+    assert response.json()["detail"] == "The assistant is busy. Try again in a minute."
+    assert "secret" not in response.text and "sk-123" not in response.text
+
+
+def test_ask_maps_an_api_error_to_502(monkeypatch):
+    import anthropic
+    import httpx
+    _raising(monkeypatch, anthropic.APIError(
+        "secret upstream detail: key sk-123", httpx.Request("POST", "https://api.example.invalid"), body=None))
+    response = client.post("/api/v1/ask", json={"question": "Who won?"})
+    assert response.status_code == 502
+    assert response.json()["detail"] == "The assistant couldn't be reached. Try again shortly."
+    assert "secret" not in response.text
+
+
+def test_ask_maps_a_server_error_to_502(monkeypatch):
+    import anthropic
+    _raising(monkeypatch, _status_error(anthropic.InternalServerError, 500))
+    assert client.post("/api/v1/ask", json={"question": "Who won?"}).status_code == 502
+
+
+def test_ask_does_not_leak_an_unexpected_failure(monkeypatch):
+    _raising(monkeypatch, RuntimeError("secret traceback /srv/app"))
+    response = client.post("/api/v1/ask", json={"question": "Who won?"})
+    assert response.status_code == 502
+    assert "secret" not in response.text

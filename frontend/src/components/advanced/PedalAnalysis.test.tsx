@@ -14,6 +14,9 @@ const races: Race[] = [
 ];
 vi.mock("@/hooks/useRaceData", () => ({ useSeasonRaces: () => ({ status: "ready", data: races, retry: vi.fn() }) }));
 vi.mock("./PedalChart", () => ({ default: ({ rows }: { rows: unknown[] }) => <div data-testid="chart">{rows.length} drivers</div> }));
+vi.mock("./CornerConsistency", () => ({
+  default: ({ sel }: { sel: { year: number; round: number | null; session: string } }) => <div data-testid="consistency">{`${sel.year} ${sel.round} ${sel.session}`}</div>,
+}));
 
 const ROWS = [
   { driver_code: "VER", name: "Max Verstappen", team: "Red Bull Racing", color: "#3671C6", lap_time: 106.1, throttle_pct: 80, brake_pct: 12, both_pct: 1, coast_pct: 7 },
@@ -66,6 +69,14 @@ describe("PedalAnalysis", () => {
     render(<PedalAnalysis initial={initial} />);
     await userEvent.click(await screen.findByRole("button", { name: /try again/i }));
     expect(await screen.findByTestId("chart")).toBeInTheDocument();
+  });
+
+  it("shows corner consistency for the chosen session under the pedal panel", async () => {
+    render(<PedalAnalysis initial={initial} />);
+    await screen.findByTestId("chart");
+    expect(screen.getByTestId("consistency")).toHaveTextContent("2024 14 R");
+    await userEvent.selectOptions(screen.getByLabelText("Session"), "Q");
+    expect(screen.getByTestId("consistency")).toHaveTextContent("2024 14 Q");
   });
 
   it("doesn't ask for anything until a race is chosen", () => {

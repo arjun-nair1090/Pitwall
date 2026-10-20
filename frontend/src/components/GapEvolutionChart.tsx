@@ -23,6 +23,7 @@ export default function GapEvolutionChart() {
   const gapHistory = useF1Store((s) => s.gapHistory);
   const drivers = useF1Store((s) => s.drivers);
   const leaderboard = useF1Store((s) => s.leaderboard);
+  const live = useF1Store((s) => s.activeSession?.live === true);
   const [hiddenCodes, setHiddenCodes] = useState<Set<string> | null>(null);
 
   const driversMap = useMemo(() => new Map(drivers.map((d) => [d.driver_number, d])), [drivers]);
@@ -72,8 +73,12 @@ export default function GapEvolutionChart() {
     return (
       <EmptyState
         icon={TrendingUp}
-        title="No gap history yet"
-        description="The chart appears once the first lap is complete."
+        title={live ? "No gap history yet" : "No session is live"}
+        description={
+          live
+            ? "The chart appears once the first lap is complete."
+            : "The chart builds up lap by lap while a session is running."
+        }
         className="h-full"
       />
     );

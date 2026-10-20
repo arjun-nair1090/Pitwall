@@ -32,10 +32,32 @@ describe("TopBar connection status", () => {
     expect(screen.getByRole("button", { name: "Retry connection" })).toBeInTheDocument();
   });
 
-  it("shows Live when the live feed is connected", () => {
-    useF1Store.setState({ apiStatus: "ok", isConnected: true, activeSession: { circuit_short_name: "Monza", session_name: "Race", year: 2026 } } as any);
+  it("shows Live while the session is running", () => {
+    useF1Store.setState({
+      apiStatus: "ok", isConnected: true,
+      activeSession: { meeting_name: "Italian Grand Prix", circuit_short_name: "Monza", session_name: "Race", year: 2026, live: true },
+    } as any);
     render(<TopBar />);
     expect(screen.getByText("Live")).toBeInTheDocument();
+    expect(screen.getByText("Italian Grand Prix")).toBeInTheDocument();
+    expect(screen.queryByText("Latest")).not.toBeInTheDocument();
+  });
+
+  it("labels a finished session as the latest one, never Live, even with the feed connected", () => {
+    useF1Store.setState({
+      apiStatus: "ok", isConnected: true,
+      activeSession: { meeting_name: "Singapore Grand Prix", circuit_short_name: "Singapore", session_name: "Race", year: 2026, live: false },
+    } as any);
+    render(<TopBar />);
+    expect(screen.queryByText("Live")).not.toBeInTheDocument();
+    expect(screen.getByText("Latest")).toBeInTheDocument();
+    expect(screen.getByText("Singapore Grand Prix")).toBeInTheDocument();
+    expect(screen.getByText("Standby")).toBeInTheDocument();
+  });
+
+  it("falls back to the circuit name when the meeting name is missing", () => {
+    useF1Store.setState({ apiStatus: "ok", activeSession: { circuit_short_name: "Monza", session_name: "Race", year: 2026, live: true } } as any);
+    render(<TopBar />);
     expect(screen.getByText("Monza")).toBeInTheDocument();
   });
 });
