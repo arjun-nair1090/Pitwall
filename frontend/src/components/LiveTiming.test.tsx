@@ -43,6 +43,33 @@ describe("LiveTiming", () => {
     expect(within(rows[2]).getByText("+1.234", { selector: "[role=cell].text-chalk" })).toBeInTheDocument();
   });
 
+  it("shows a lapped car's gap as the feed reports it", () => {
+    useF1Store.setState({
+      leaderboard: {
+        ...board(89.0, 90.0),
+        "4": { position: 2, gap_to_leader: "+1 LAP", gap_to_next: 2.1, last_lap_time: 90.0, compound: "HARD", tyre_age: 6 },
+      } as any,
+    });
+    render(<LiveTiming />);
+    const rows = screen.getAllByRole("row");
+    expect(within(rows[2]).getByText("+1 LAP")).toBeInTheDocument();
+    expect(within(rows[2]).getByText("+2.100")).toBeInTheDocument();
+  });
+
+  it("lists unclassified cars last, the longest-running first", () => {
+    useF1Store.setState({
+      drivers: [...drivers, { driver_number: 16, code: "LEC", full_name: "Charles Leclerc", team_name: "Ferrari", team_color: "#E8002D" }],
+      leaderboard: {
+        "1": { position: null, gap_to_leader: "DNF", lap_number: 8 },
+        "4": { position: 1, gap_to_leader: 0, lap_number: 62 },
+        "16": { position: null, gap_to_leader: "DNF", lap_number: 37 },
+      } as any,
+    });
+    render(<LiveTiming />);
+    const order = screen.getAllByRole("row").slice(1).map((r) => within(r).getByRole("button").textContent);
+    expect(order).toEqual(["NOR", "LEC", "VER"]);
+  });
+
   it("claims only the overall best on a first snapshot: no personal best without history", () => {
     useF1Store.setState({ leaderboard: board(89.0, 90.0) });
     render(<LiveTiming />);

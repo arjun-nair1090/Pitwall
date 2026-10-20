@@ -152,11 +152,20 @@ def _async_returning(value):
 def test_no_live_session_is_a_404_not_a_500(monkeypatch):
     from app.services.f1_data_service import f1_service
 
-    monkeypatch.setattr(f1_service, "get_latest_session_key", _async_returning(9999))
-    monkeypatch.setattr(f1_service, "sync_session_metadata", _async_returning(None))
+    monkeypatch.setattr(f1_service, "current_session", _async_returning(None))
     response = client.get("/api/v1/sessions/active")
     assert response.status_code == 404
     assert response.json()["detail"] == "Active session not found"
+
+
+def test_active_session_returns_the_current_session(monkeypatch):
+    from app.services.f1_data_service import f1_service
+
+    current = {"session_key": 11388, "meeting_name": "Singapore Grand Prix", "session_name": "Race", "live": False}
+    monkeypatch.setattr(f1_service, "current_session", _async_returning(current))
+    response = client.get("/api/v1/sessions/active")
+    assert response.status_code == 200
+    assert response.json() == current
 
 
 def test_missing_weather_is_a_404_not_a_500(monkeypatch):

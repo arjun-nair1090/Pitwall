@@ -16,10 +16,11 @@ export interface DriverTelemetry {
 }
 
 export interface TimingDriver {
-  position?: number;
+  position?: number | null;
   lap_number?: number;
-  gap_to_leader?: number;
-  gap_to_next?: number;
+  // seconds, or the feed's text for a lapped car ("+1 LAP")
+  gap_to_leader?: number | string | null;
+  gap_to_next?: number | null;
   last_lap_time?: number;
   s1?: number;
   s2?: number;
@@ -117,7 +118,7 @@ export const useF1Store = create<F1StoreState>((set) => ({
     if (maxLap > 0 && maxLap !== lastPoint?.lap) {
       const gaps: Record<string, number | null> = {};
       Object.entries(leaderboard).forEach(([num, t]) => {
-        gaps[num] = t.gap_to_leader ?? null;
+        gaps[num] = typeof t.gap_to_leader === "number" ? t.gap_to_leader : null;
       });
       const gapHistory = [...state.gapHistory, { lap: maxLap, gaps }].slice(-100);
       return { leaderboard, gapHistory };

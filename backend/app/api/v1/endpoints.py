@@ -70,10 +70,9 @@ class TelemetryCompareRequest(BaseModel):
 
 @router.get("/sessions/active")
 async def get_active_session():
-    """Get active session key and metadata."""
+    """The running session, else the latest one to have started; `live` says which."""
     try:
-        session_key = await f1_service.get_latest_session_key()
-        metadata = await f1_service.sync_session_metadata(session_key)
+        metadata = await f1_service.current_session()
         if not metadata:
             raise HTTPException(status_code=404, detail="Active session not found")
         return metadata
@@ -615,7 +614,6 @@ async def get_result_card(
     try:
         from app.services.card_generator import render_result_card
         from app.services.history_summarizer import build_driver_session_summary
-        from app.services.f1_data_service import FALLBACK_2024_DRIVERS
 
         driver_code = driver.upper()
 
@@ -656,10 +654,14 @@ async def get_result_card(
             position_val = driver_laps["Position"].iloc[-1] if pd.notna(driver_laps["Position"].iloc[-1]) else None
             position = int(position_val) if position_val is not None else None
 
-            team_color = next(
-                (d["team_color"] for d in FALLBACK_2024_DRIVERS if d["code"] == driver_code),
-                "#E10600",
-            )
+            # the team colour from this session's own results, so a driver who changed teams is right
+            team_color = "#E10600"
+            results = fastf1_session.results
+            if results is not None and not results.empty:
+                row = results[results["Abbreviation"] == driver_code]
+                colour = row["TeamColor"].iloc[0] if not row.empty else None
+                if isinstance(colour, str) and colour:
+                    team_color = f"#{colour.lstrip('#')}"
 
             return render_result_card(
                 driver_code=driver_code,
