@@ -5,7 +5,7 @@ psycopg2-binary
 redis
 pydantic
 python-dotenv
-fastf1
+fastf1==3.9.0a0
 pandas
 numpy
 langgraph

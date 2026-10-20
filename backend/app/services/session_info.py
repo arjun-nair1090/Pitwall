@@ -20,8 +20,44 @@ class SessionDataError(Exception):
     hasn't happened. The message is written for the person using the app."""
 
 
+# Since October 2026 F1's timing archive only serves signed-in F1 TV subscribers. FastF1 sends the
+# token itself once someone has signed in on this machine.
+ARCHIVE_INDEX_URL = "https://livetiming.formula1.com/static/{year}/Index.json"
+ARCHIVE_SIGN_IN = "python -m fastf1 auth f1tv --authenticate"
+_ARCHIVE_TTL_SECONDS = 120
+_ARCHIVE_STATUS: Dict[int, Tuple[float, bool]] = {}
+
+
 def clear_cache() -> None:
     _cache.clear()
+    _ARCHIVE_STATUS.clear()
+
+
+def _probe_archive(year: int) -> Optional[int]:
+    """The archive's HTTP status for that season's index, or None if it can't be reached."""
+    try:
+        return fastf1.req.Cache.requests_get(ARCHIVE_INDEX_URL.format(year=year), timeout=10).status_code
+    except Exception:
+        return None
+
+
+def archive_locked(year: int) -> bool:
+    """Whether F1's timing archive is refusing this machine (no F1 TV sign-in), cached briefly."""
+    cached = _ARCHIVE_STATUS.get(year)
+    if cached and cached[0] > time.monotonic():
+        return cached[1]
+    locked = _probe_archive(year) in (401, 403)
+    _ARCHIVE_STATUS[year] = (time.monotonic() + _ARCHIVE_TTL_SECONDS, locked)
+    return locked
+
+
+def _no_data_error(message: str, year: int, label: str) -> SessionDataError:
+    if archive_locked(year):
+        return SessionDataError(
+            f"Formula 1's timing archive needs an F1 TV sign-in to download {label} {year}. "
+            f"Sign in once on the machine running the backend with: {ARCHIVE_SIGN_IN}"
+        )
+    return SessionDataError(message)
 
 
 def load_session(
@@ -44,12 +80,12 @@ def load_session(
         session.load(laps=True, telemetry=telemetry, weather=False, messages=False)
         laps = session.laps  # raises if the load silently failed
     except Exception as e:
-        raise SessionDataError(
-            f"There's no data for {label} {year} yet. The session may not have taken place."
+        raise _no_data_error(
+            f"There's no data for {label} {year} yet. The session may not have taken place.", year, label
         ) from e
 
     if laps is None or laps.empty:
-        raise SessionDataError(f"There's no lap data for {label} {year} ({session_name}) yet.")
+        raise _no_data_error(f"There's no lap data for {label} {year} ({session_name}) yet.", year, label)
     return session
 
 
