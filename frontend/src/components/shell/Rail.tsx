@@ -23,7 +23,7 @@ const TOOLTIP =
 
 // What is happening right now: the running session, or else the next race on the calendar.
 function StatusCard() {
-  const live = useF1Store((s) => s.isConnected);
+  const live = useF1Store((s) => s.activeSession?.live === true);
   const session = useF1Store((s) => s.activeSession);
   const calendar = useSeasonCalendar(new Date().getFullYear());
   const upcoming = calendar.status === "ready" ? nextRace(calendar.data) : null;
@@ -32,7 +32,7 @@ function StatusCard() {
   const href = live ? "/live" : "/predictions";
   const heading = live ? "Live now" : "Next race";
   const title = live
-    ? `${session?.circuit_short_name || session?.location || session?.country || "Session"} ${session?.session_name ?? ""}`.trim()
+    ? `${session?.meeting_name || session?.circuit_short_name || session?.location || session?.country || "Session"} ${session?.session_name ?? ""}`.trim()
     : upcoming!.event_name;
   const note = live ? "Open live timing" : formatRaceDate(upcoming!.race_start_utc);
   const Icon = live ? Radio : CalendarClock;
@@ -61,7 +61,7 @@ function StatusCard() {
 
 export default function Rail() {
   const current = findModuleForPath(usePathname());
-  const live = useF1Store((s) => s.isConnected);
+  const live = useF1Store((s) => s.activeSession?.live === true);
   const openSearch = usePaletteStore((s) => s.setOpen);
   const [collapsed, setCollapsed] = useRailCollapsed();
 

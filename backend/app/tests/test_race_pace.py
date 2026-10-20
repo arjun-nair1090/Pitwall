@@ -1,0 +1,357 @@
+import warnings
+
+import numpy as np
+import pandas as pd
+import pytest
+
+from app.services import race_pace
+from app.services.session_info import SessionDataError
+
+
+@pytest.fixture(autouse=True)
+def _fresh_cache():
+    race_pace.clear_cache()
+    yield
+    race_pace.clear_cache()
+
+
+def make_laps(driver, first_lap, last_lap, *, stint=1, compound="MEDIUM", base=100.0, slope=0.1,
+              spl=0.075, total=44, first_life=None, tyre_life=None, pit_in=()):
+    """A stint of laps whose corrected time is base + slope * tyre life."""
+    rows = []
+    for lap in range(first_lap, last_lap + 1):
+        life = tyre_life if tyre_life is not None else (first_life or 1) + lap - first_lap
+        raw = base + slope * life + spl * (total - lap)
+        rows.append({
+            "Driver": driver, "LapNumber": float(lap), "LapTime": pd.Timedelta(seconds=raw),
+            "Stint": float(stint), "Compound": compound, "TyreLife": float(life),
+            "PitInTime": pd.Timedelta(seconds=1) if lap in pit_in else pd.NaT,
+            "PitOutTime": pd.NaT, "TrackStatus": "1", "Deleted": False,
+        })
+    return pd.DataFrame(rows)
+
+
+def test_fuel_model_for_a_2024_race():
+    fuel = race_pace.fuel_model(2024, "R", 44)
+    assert fuel["kg_per_lap"] == pytest.approx(2.5)
+    assert fuel["seconds_per_lap"] == pytest.approx(0.075)
+
+
+def test_fuel_model_uses_105_kg_before_2019():
+    assert race_pace.fuel_model(2018, "R", 50)["start_kg"] == 105.0
+
+
+def test_a_sprint_burns_at_the_race_rate():
+    fuel = race_pace.fuel_model(2024, "S", 15)
+    assert fuel["seconds_per_lap"] == pytest.approx(0.03 * 110 / (15 * 3.05))
+
+
+def test_corrected_time_leaves_the_last_lap_alone():
+    laps = pd.DataFrame({
+        "LapNumber": [44.0, 4.0],
+        "LapTime": [pd.Timedelta(seconds=100.0), pd.Timedelta(seconds=100.0)],
+    })
+    corrected = race_pace.corrected_times(laps, 0.075, 44)
+    assert corrected.iloc[0] == pytest.approx(100.0)
+    assert corrected.iloc[1] == pytest.approx(100.0 - 0.075 * 40)
+
+
+def summarise(laps, total=44):
+    from app.services.corner_analysis import clean_laps
+    return race_pace.stint_summary(laps, clean_laps(laps), 0.075, total)
+
+
+def test_stint_degradation_is_the_slope_against_tyre_life():
+    stints = summarise(make_laps("HAM", 2, 11, first_life=2))
+    assert len(stints) == 1
+    assert stints[0]["deg_per_lap"] == pytest.approx(0.1)
+    assert stints[0]["fit"]["from"]["lap"] == 2
+    assert stints[0]["fit"]["to"]["lap"] == 11
+    assert stints[0]["fit"]["to"]["time"] - stints[0]["fit"]["from"]["time"] == pytest.approx(0.9)
+
+
+def test_a_short_stint_has_no_slope():
+    stint = summarise(make_laps("HAM", 2, 5))[0]
+    assert stint["deg_per_lap"] is None
+    assert stint["fit"] is None
+    assert len(stint["laps"]) == 4
+
+
+def test_constant_tyre_life_has_no_slope():
+    laps = make_laps("HAM", 2, 7, tyre_life=5)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        # pandas 2.3 on numpy 2.5 raises DeprecationWarnings from its own internals
+        warnings.simplefilter("ignore", DeprecationWarning)
+        stint = summarise(laps)[0]
+    assert stint["deg_per_lap"] is None
+    assert stint["fit"] is None
+
+
+def test_stint_bounds_include_pit_laps():
+    stint = summarise(make_laps("HAM", 2, 12, pit_in=(12,)))[0]
+    assert stint["start_lap"] == 2
+    assert stint["end_lap"] == 12
+    assert all(lap["lap"] != 12 for lap in stint["laps"])
+
+
+def test_stints_are_sorted_and_python_typed():
+    laps = pd.concat([make_laps("HAM", 12, 22, stint=2, compound="HARD"), make_laps("HAM", 2, 11)])
+    stints = summarise(laps)
+    assert [s["stint"] for s in stints] == [1, 2]
+    assert [s["compound"] for s in stints] == ["MEDIUM", "HARD"]
+    first = stints[0]["laps"][0]
+    assert type(first["lap"]) is int and type(first["tyre_life"]) is int and type(first["time"]) is float
+
+
+def line_stint(slope, offset, lives=range(1, 8)):
+    frame = pd.DataFrame({"TyreLife": np.array(list(lives), dtype=float)})
+    frame["Corrected"] = 100.0 + offset + slope * frame["TyreLife"]
+    return frame
+
+
+def test_compound_wear_is_the_median_of_the_stints_own_slopes():
+    out = race_pace.compound_degradation({"MEDIUM": [line_stint(0.02, 0.0), line_stint(0.10, 1.0), line_stint(0.09, 2.0)]})
+    assert len(out) == 1
+    assert out[0]["deg_per_lap"] == pytest.approx(0.09)
+    assert out[0]["stints"] == 3 and out[0]["laps"] == 21
+
+
+def test_a_stint_too_short_for_a_slope_does_not_count_towards_the_compound():
+    out = race_pace.compound_degradation({"MEDIUM": [line_stint(0.05, 0.0), line_stint(0.5, 0.0, range(1, 4))]})
+    assert out[0]["deg_per_lap"] == pytest.approx(0.05)
+    assert out[0]["stints"] == 1 and out[0]["laps"] == 7
+
+
+def test_curve_points_are_measured_against_each_stints_own_intercept():
+    # Each stint's loss at tyre life n is its own slope times n, whatever its offset; the median of
+    # 0.02n, 0.09n and 0.10n is 0.09n. One slope shared by every stint would put lap 1 near 0.02.
+    out = race_pace.compound_degradation({"MEDIUM": [line_stint(0.02, 0.0), line_stint(0.10, 1.0), line_stint(0.09, 2.0)]})
+    curve = {point["tyre_life"]: point for point in out[0]["curve"]}
+    assert sorted(curve) == list(range(1, 8))
+    for life, point in curve.items():
+        assert point["loss"] == pytest.approx(0.09 * life)
+        assert point["laps"] == 3
+
+
+def test_curve_is_the_median_loss_per_tyre_life():
+    def stint(offset, extra):
+        frame = pd.DataFrame({"TyreLife": np.arange(1, 7.0)})
+        frame["Corrected"] = 100.0 + offset + 0.1 * frame["TyreLife"] + extra
+        return frame
+    # the middle stint has a bad lap at tyre life 3; the median shrugs it off
+    bad = stint(0.5, 0.0)
+    bad.loc[bad["TyreLife"] == 3, "Corrected"] += 5.0
+    out = race_pace.compound_degradation({"SOFT": [stint(0.0, 0.0), bad, stint(1.0, 0.0)]})
+    curve = {point["tyre_life"]: point for point in out[0]["curve"]}
+    assert sorted(curve) == [1, 2, 3, 4, 5, 6]
+    assert all(point["laps"] == 3 for point in curve.values())
+    assert curve[1]["loss"] < curve[6]["loss"]
+    # a mean would put the bad lap about 1.7 s above its neighbours
+    assert abs(curve[3]["loss"] - (curve[2]["loss"] + curve[4]["loss"]) / 2) < 0.3
+    assert [p["tyre_life"] for p in out[0]["curve"]] == sorted(curve)
+
+
+def test_compounds_come_in_tyre_order():
+    def stint(offset):
+        frame = pd.DataFrame({"TyreLife": np.arange(1, 8.0)})
+        frame["Corrected"] = 100.0 + 0.1 * frame["TyreLife"] + offset
+        return frame
+    out = race_pace.compound_degradation({
+        "HARD": [stint(0)], "SOFT": [stint(0)], "INTERMEDIATE": [stint(0)], "ZZZ": [stint(0)], "WET": [stint(0)],
+    })
+    assert [c["compound"] for c in out] == ["SOFT", "HARD", "INTERMEDIATE", "WET", "ZZZ"]
+
+
+def patch_session(monkeypatch, laps, counter=None, **attrs):
+    class FakeSession:
+        pass
+    session = FakeSession()
+    session.laps = laps
+    for name, value in attrs.items():
+        setattr(session, name, value)
+
+    def load(*args, **kwargs):
+        if counter is not None:
+            counter.append(args)
+        return session
+
+    monkeypatch.setattr(race_pace, "load_session", load)
+    monkeypatch.setattr(race_pace, "driver_profile",
+                        lambda s, code: {"name": f"Name {code}", "team": "T", "color": "#112233"})
+
+
+def field():
+    return pd.concat([
+        make_laps("AAA", 2, 20, base=101.0),
+        make_laps("BBB", 2, 20, base=100.0),
+        make_laps("CCC", 2, 4, base=90.0),
+        make_laps("AAA", 44, 44, stint=2, base=101.0, first_life=1),
+        make_laps("BBB", 44, 44, stint=2, base=100.0, first_life=1),
+    ], ignore_index=True)
+
+
+def test_a_lap_one_retirement_does_not_break_the_payload(monkeypatch):
+    # Silverstone 2022: three cars out on lap one, each with a single untimed lap and no Deleted flag
+    retired = pd.DataFrame([{
+        "Driver": "ZZZ", "LapNumber": 1.0, "LapTime": None, "Stint": 1.0, "Compound": "SOFT", "TyreLife": 1.0,
+        "PitInTime": pd.NaT, "PitOutTime": pd.NaT, "TrackStatus": "125", "Deleted": None,
+    }]).assign(LapTime=pd.to_timedelta([None]))
+    patch_session(monkeypatch, pd.concat([field(), retired], ignore_index=True))
+    payload = race_pace.race_pace_payload(2022, "", "R", 10)
+    zzz = next(d for d in payload["drivers"] if d["code"] == "ZZZ")
+    assert zzz["clean_laps"] == 0 and zzz["pace"] is None and zzz["gap"] is None
+    assert [s["stint"] for s in zzz["stints"]] == [1]
+    assert zzz["stints"][0]["laps"] == [] and zzz["stints"][0]["deg_per_lap"] is None
+    assert [d["code"] for d in payload["drivers"]][:2] == ["BBB", "AAA"]
+
+
+def test_drivers_are_ranked_by_median_corrected_pace(monkeypatch):
+    patch_session(monkeypatch, field())
+    payload = race_pace.race_pace_payload(2024, "Spa", "R", 13)
+    codes = [d["code"] for d in payload["drivers"]]
+    assert codes == ["BBB", "AAA", "CCC"]
+    assert payload["drivers"][0]["gap"] == 0.0
+    assert payload["drivers"][1]["gap"] == pytest.approx(1.0)
+    assert payload["drivers"][2]["pace"] is None and payload["drivers"][2]["gap"] is None
+    assert payload["fuel"]["total_laps"] == 44
+    assert payload["compounds"][0]["compound"] == "MEDIUM"
+
+
+def test_a_driver_who_ran_half_the_race_or_less_is_not_ranked(monkeypatch):
+    # Silverstone 2024: a retirement with 22 clean laps, all quick and early, against a typical 45
+    # came out first on pace.
+    laps = pd.concat([
+        make_laps("AAA", 2, 46, base=100.0, total=46),
+        make_laps("BBB", 2, 46, base=100.2, total=46),
+        make_laps("CCC", 2, 46, base=100.4, total=46),
+        make_laps("RET", 2, 23, base=99.0, total=46),
+    ], ignore_index=True)
+    patch_session(monkeypatch, laps)
+    payload = race_pace.race_pace_payload(2024, "Silverstone", "R", 12)
+    drivers = {d["code"]: d for d in payload["drivers"]}
+    assert drivers["RET"]["clean_laps"] == 22
+    assert drivers["RET"]["pace"] is None and drivers["RET"]["gap"] is None
+    assert [d["code"] for d in payload["drivers"]] == ["AAA", "BBB", "CCC", "RET"]
+    assert drivers["AAA"]["gap"] == 0.0
+    # their laps still count towards the compound's wear
+    assert payload["compounds"][0]["stints"] == 4
+
+
+def full_distance(driver, clean_to, base, total=46):
+    """A driver who runs every lap to the flag, with only laps 2 to `clean_to` within 107%."""
+    spl = 0.03 * 110 / total
+    return pd.concat([
+        make_laps(driver, 2, clean_to, base=base, total=total, spl=spl),
+        make_laps(driver, clean_to + 1, total, stint=2, base=base + 20.0, total=total, spl=spl, first_life=1),
+    ], ignore_index=True)
+
+
+@pytest.mark.parametrize("clean_to, ranked", [(23, False), (24, True)])
+def test_a_driver_needs_half_the_typical_clean_laps(monkeypatch, clean_to, ranked):
+    laps = pd.concat([
+        make_laps("AAA", 2, 46, base=100.0, total=46, spl=0.03 * 110 / 46),
+        make_laps("BBB", 2, 46, base=100.2, total=46, spl=0.03 * 110 / 46),
+        full_distance("SLO", clean_to, base=99.0),
+    ], ignore_index=True)
+    patch_session(monkeypatch, laps)
+    payload = race_pace.race_pace_payload(2024, "Silverstone", "R", 12)
+    slo = next(d for d in payload["drivers"] if d["code"] == "SLO")
+    # 22 or 23 clean laps against a typical 45: half is 22.5
+    assert slo["clean_laps"] == clean_to - 1
+    assert (slo["pace"] is not None) is ranked
+    assert (payload["drivers"][0]["code"] == "SLO") is ranked
+
+
+def test_a_driver_who_retired_before_the_flag_is_not_ranked(monkeypatch):
+    # The real Silverstone 2024: rain left the field about 34 clean laps of 52. Russell retired on
+    # lap 33 with 22, all from the dry first half, which is more than half of 34.
+    total, spl = 52, 0.03 * 110 / 52
+
+    def driver(code, base, last_lap):
+        return pd.concat([
+            make_laps(code, 2, 25, base=base, total=total, spl=spl),
+            make_laps(code, 26, min(last_lap, 42), stint=2, compound="INTERMEDIATE", base=base + 20.0,
+                      total=total, spl=spl, first_life=1),
+            make_laps(code, 43, last_lap, stint=3, compound="SOFT", base=base, total=total, spl=spl, first_life=1),
+        ], ignore_index=True)
+
+    laps = pd.concat([driver("AAA", 100.0, 52), driver("BBB", 100.2, 52), driver("LAP", 100.4, 47),
+                      driver("RUS", 99.0, 33)], ignore_index=True)
+    patch_session(monkeypatch, laps)
+    payload = race_pace.race_pace_payload(2024, "Silverstone", "R", 12)
+    drivers = {d["code"]: d for d in payload["drivers"]}
+    assert drivers["AAA"]["clean_laps"] == 34 and drivers["RUS"]["clean_laps"] == 24
+    assert drivers["RUS"]["pace"] is None and drivers["RUS"]["gap"] is None
+    # a driver lapped five times still covered 90% of the distance
+    assert drivers["LAP"]["pace"] is not None
+    assert [d["code"] for d in payload["drivers"]] == ["AAA", "BBB", "LAP", "RUS"]
+
+
+def test_no_driver_with_enough_laps_is_a_session_data_error(monkeypatch):
+    patch_session(monkeypatch, make_laps("AAA", 2, 4))
+    with pytest.raises(SessionDataError):
+        race_pace.race_pace_payload(2024, "Spa", "R", 13)
+
+
+def test_only_races_and_sprints_are_analysed(monkeypatch):
+    patch_session(monkeypatch, field())
+    with pytest.raises(SessionDataError, match="race or a sprint"):
+        race_pace.race_pace_payload(2024, "Spa", "Q", 13)
+
+
+def test_the_payload_is_memoised(monkeypatch):
+    calls = []
+    patch_session(monkeypatch, field(), calls)
+    first = race_pace.race_pace_payload(2024, "Spa", "R", 13)
+    second = race_pace.race_pace_payload(2024, "Spa", "R", 13)
+    assert first is second
+    assert len(calls) == 1
+
+
+def test_a_sprint_payload_uses_the_sprint_rate(monkeypatch):
+    patch_session(monkeypatch, field())
+    payload = race_pace.race_pace_payload(2024, "Spa", "S", 13)
+    assert payload["fuel"]["seconds_per_lap"] == pytest.approx(0.03 * 110 / (44 * 3.05))
+
+
+def test_a_race_stopped_early_spreads_the_fuel_over_the_scheduled_distance(monkeypatch):
+    # Scheduled for 50 laps, red-flagged after 30: the cars carried fuel for 50.
+    laps = pd.concat([
+        make_laps("AAA", 2, 30, base=101.0, spl=0.066, total=30),
+        make_laps("BBB", 2, 30, base=100.0, spl=0.066, total=30),
+    ], ignore_index=True)
+    patch_session(monkeypatch, laps, total_laps=50)
+    payload = race_pace.race_pace_payload(2024, "Spa", "R", 13)
+    assert payload["fuel"]["total_laps"] == 50
+    assert payload["fuel"]["seconds_per_lap"] == pytest.approx(0.03 * 110 / 50)
+    # the last lap run keeps its own time
+    last = payload["drivers"][0]["stints"][0]["laps"][-1]
+    assert last["lap"] == 30
+    assert last["corrected"] == pytest.approx(last["time"])
+    assert payload["compounds"][0]["deg_per_lap"] == pytest.approx(0.1)
+
+
+@pytest.mark.parametrize("scheduled", [None, 0, 20, float("nan"), "50"])
+def test_the_laps_run_divide_the_fuel_when_the_schedule_is_unusable(monkeypatch, scheduled):
+    patch_session(monkeypatch, field(), total_laps=scheduled)
+    payload = race_pace.race_pace_payload(2024, "Spa", "R", 13)
+    assert payload["fuel"]["total_laps"] == 44
+
+
+def test_a_schedule_that_was_never_loaded_falls_back_to_the_laps_run():
+    class Unloaded:
+        @property
+        def total_laps(self):
+            raise RuntimeError("not loaded")  # FastF1's DataNotLoadedError isn't an AttributeError
+    assert race_pace.fuel_distance(Unloaded(), 44) == 44
+    assert race_pace.fuel_distance(object(), 44) == 44
+
+
+def test_a_repeated_index_does_not_misalign_the_laps(monkeypatch):
+    laps = pd.concat([make_laps("AAA", 2, 20, base=101.0, total=20, spl=0.165), make_laps("BBB", 2, 20, base=100.0, total=20, spl=0.165)])
+    assert laps.index.is_unique is False
+    patch_session(monkeypatch, laps)
+    payload = race_pace.race_pace_payload(2024, "Spa", "R", 13)
+    assert payload["compounds"][0]["stints"] == 2
+    assert payload["compounds"][0]["deg_per_lap"] == pytest.approx(0.1)

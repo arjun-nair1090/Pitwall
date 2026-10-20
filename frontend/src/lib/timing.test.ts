@@ -71,6 +71,16 @@ describe("teamColor", () => {
     expect(teamColor("Visa Cash App RB")).toBe("#6692FF");
     expect(teamColor("Racing Bulls")).toBe("#6692FF");
   });
+  it("knows the names Ergast uses for the sister team and the old teams", () => {
+    expect(teamColor("RB F1 Team")).toBe("#6692FF");
+    expect(teamColor("Racing Point")).toBe("#F596C8");
+    expect(teamColor("Force India")).toBe("#F596C8");
+    expect(teamColor("Renault")).toBe("#FFF500");
+  });
+  it("leaves Audi and Cadillac neutral", () => {
+    expect(teamColor("Audi")).toBe(UNKNOWN_TEAM_COLOR);
+    expect(teamColor("Cadillac F1 Team")).toBe(UNKNOWN_TEAM_COLOR);
+  });
   it("falls back for unknown or missing teams", () => {
     expect(teamColor("Some New Team")).toBe(UNKNOWN_TEAM_COLOR);
     expect(teamColor(null)).toBe(UNKNOWN_TEAM_COLOR);

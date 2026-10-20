@@ -16,6 +16,25 @@ describe("module registry", () => {
     expect(primary).toHaveLength(5);
     for (const m of primary) expect(m.shortLabel).toBeTruthy();
   });
+  it("lists the pit window in the Race group straight after overtakes and battles", () => {
+    const ids = MODULES.map((m) => m.id);
+    expect(ids.indexOf("pitwindow")).toBe(ids.indexOf("battles") + 1);
+    const m = MODULES.find((x) => x.id === "pitwindow");
+    expect(m).toMatchObject({ label: "Pit window", href: "/pitwindow", group: "Race" });
+    expect(m?.mobilePrimary).toBeFalsy();
+  });
+  it("lists win probability in the Race group straight after the pit window", () => {
+    const ids = MODULES.map((m) => m.id);
+    expect(ids.indexOf("winprob")).toBe(ids.indexOf("pitwindow") + 1);
+    const m = MODULES.find((x) => x.id === "winprob");
+    expect(m).toMatchObject({ label: "Win probability", href: "/winprob", group: "Race" });
+    expect(m?.mobilePrimary).toBeFalsy();
+  });
+  it("lists Ask the data first in the Analysis group", () => {
+    const analysis = MODULES.filter((m) => m.group === "Analysis");
+    expect(analysis[0]).toMatchObject({ id: "ask", label: "Ask the data", href: "/ask", group: "Analysis" });
+    expect(analysis[0].mobilePrimary).toBeFalsy();
+  });
   it("describes every module", () => {
     for (const m of MODULES) expect(m.description.length).toBeGreaterThan(10);
   });
@@ -24,6 +43,12 @@ describe("module registry", () => {
 describe("findModuleForPath", () => {
   it("matches exact paths", () => expect(findModuleForPath("/live")?.id).toBe("live"));
   it("matches nested paths by prefix", () => expect(findModuleForPath("/compare/x")?.id).toBe("compare"));
+  it("matches the race pace page", () => expect(findModuleForPath("/pace")?.id).toBe("pace"));
+  it("matches the championship odds page", () => expect(findModuleForPath("/championship")?.id).toBe("championship"));
+  it("matches the overtakes page", () => expect(findModuleForPath("/battles")?.id).toBe("battles"));
+  it("matches the pit window page", () => expect(findModuleForPath("/pitwindow")?.id).toBe("pitwindow"));
+  it("matches the ask page", () => expect(findModuleForPath("/ask")?.id).toBe("ask"));
+  it("matches the win probability page", () => expect(findModuleForPath("/winprob")?.id).toBe("winprob"));
   it("does not match a longer sibling name", () => expect(findModuleForPath("/livestock")).toBeUndefined());
   it("returns undefined for the landing page and unknown routes", () => {
     expect(findModuleForPath("/")).toBeUndefined();
@@ -37,6 +62,19 @@ describe("searching modules", () => {
   it("finds by keyword", () => {
     expect(search("h2h")[0].id).toBe("compare");
     expect(search("tyre")[0].id).toBe("strategy");
+  });
+  it("finds race pace by what it measures", () => {
+    expect(search("degradation")[0].id).toBe("pace");
+    expect(search("tyre")[0].id).toBe("strategy");
+  });
+  it("finds overtakes and battles by what they show", () => expect(search("overtakes")[0].id).toBe("battles"));
+  it("finds win probability by what it answers", () => {
+    expect(search("win probability")[0].id).toBe("winprob");
+    expect(search("who wins")[0].id).toBe("winprob");
+  });
+  it("finds the pit window by what it answers", () => {
+    expect(search("undercut")[0].id).toBe("pitwindow");
+    expect(search("pit stop")[0].id).toBe("pitwindow");
   });
   it("returns nothing for gibberish", () => expect(search("zzzz")).toEqual([]));
 });

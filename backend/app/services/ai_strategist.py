@@ -47,9 +47,11 @@ class AIStrategist:
             _, leader_num, _ = pos_drivers[i]
             _, chaser_num, chaser_t = pos_drivers[i+1]
             
-            gap = chaser_t.get("gap_to_next") or chaser_t.get("gap_to_leader", 99.0)
+            # lapped and retired cars have a text gap ("+1 LAP", "DNF") and no undercut to make
+            gap = next((g for g in (chaser_t.get("gap_to_next"), chaser_t.get("gap_to_leader"))
+                        if isinstance(g, (int, float)) and g), None)
             # If gap is under 1.5 seconds and they are in the pit window
-            if gap <= 1.5:
+            if gap is not None and gap <= 1.5:
                 leader_code = drivers_map.get(leader_num, {}).get("code", f"#{leader_num}")
                 chaser_code = drivers_map.get(chaser_num, {}).get("code", f"#{chaser_num}")
                 
@@ -95,10 +97,12 @@ class AIStrategist:
         # Check for safety car / cheap pit stop
         sc_active = False
         sc_reason = ""
+        # The newest safety car message (race control comes newest first) says whether one is out:
+        # "SAFETY CAR DEPLOYED" / "VSC DEPLOYED", then "... ENDING" or "... IN THIS LAP".
         for msg in race_control:
-            if msg.get("flag") in ["SAFETY CAR", "VIRTUAL SAFETY CAR"]:
-                sc_active = True
-                sc_reason = msg.get("message", "Safety Car active")
+            if msg.get("category") == "SafetyCar":
+                sc_active = "DEPLOYED" in (msg.get("message") or "").upper()
+                sc_reason = msg.get("message") if sc_active else ""
                 break
                 
         strategy_summary = {

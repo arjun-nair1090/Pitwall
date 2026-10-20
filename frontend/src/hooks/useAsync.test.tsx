@@ -23,6 +23,15 @@ describe("useAsync", () => {
     expect(result.current).toMatchObject({ status: "error", message: "No such race.", notFound: true });
   });
 
+  it("reports the HTTP status of a failure, and null when there was no response", async () => {
+    const refused = renderHook(() => useAsync(() => Promise.reject({ response: { status: 422, data: { detail: "Bad lap." } } }), "k"));
+    await waitFor(() => expect(refused.result.current.status).toBe("error"));
+    expect(refused.result.current).toMatchObject({ notFound: false, httpStatus: 422 });
+    const offline = renderHook(() => useAsync(() => Promise.reject(new Error("Network Error")), "k"));
+    await waitFor(() => expect(offline.result.current.status).toBe("error"));
+    expect(offline.result.current).toMatchObject({ httpStatus: null });
+  });
+
   it("reloads when the key changes and ignores a slower earlier request", async () => {
     let resolveFirst: (v: string) => void = () => {};
     const loaders: Record<string, () => Promise<string>> = {

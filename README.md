@@ -1,135 +1,139 @@
 <div align="center">
 
-# 🏁 PIT WALL
+<img src="docs/readme/hero.svg" alt="Pit Wall" width="100%">
 
-### The Formula 1 timing screen, for every race since 2018.
+<br>
 
-Overlay two drivers' laps. Replay a whole grand prix on the real clock. Rewrite a pit stop and see what it would have cost.<br/>
-Every number comes from official F1 timing data. The AI only writes the words.
-
-<br/>
-
-![Next.js](https://img.shields.io/badge/Next.js_14-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)
-![React](https://img.shields.io/badge/React_18-149ECA?style=for-the-badge&logo=react&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![Tailwind](https://img.shields.io/badge/Tailwind-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
-<br/>
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![Python](https://img.shields.io/badge/Python_3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
-![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)
-
-[**Quick start**](#-quick-start) &nbsp;·&nbsp; [**Features**](#-what-you-can-do) &nbsp;·&nbsp; [**Architecture**](#-how-its-put-together) &nbsp;·&nbsp; [**Design system**](#-the-timing-screen-design-system) &nbsp;·&nbsp; [**Testing**](#-testing)
+[What's in it](#whats-in-it) · [Live](#during-a-race) · [Run it](#running-it) · [How it works](#how-it-works) · [Tests](#tests)
 
 </div>
 
-<br/>
+<br>
 
-## ⚡ What you can do
+Pit Wall is an F1 timing app for people who watch the timing screen more than the TV. It does live timing during a session, and for any race since 2018 you can replay it, compare two drivers' laps, or work out whether a different pit stop would have paid off.
 
-| | Module | What it does |
-|---|---|---|
-| 📡 | **Live timing** | Positions, gaps and tyre ages as they happen, with an AI race engineer on the radio. |
-| 🗺️ | **Track map** | Every car on the circuit live, or pick a past race and **replay it lap by lap on the real clock**. |
-| ⚔️ | **Head to head** | Overlay two drivers' laps across speed, throttle, brake, gear, RPM, DRS and acceleration, with a gap trace and a dominance map showing who won each mini-sector. |
-| 🦶 | **Advanced analytics** | Throttle, brake and coasting behaviour for every driver across a session. |
-| 🛞 | **Strategy simulator** | Test a tyre strategy against a real session's own degradation data, planned against the true race distance. |
-| 📰 | **Race debrief** | An auto-written summary of any race since 2018, plus **what-if counterfactuals** on real strategies. |
-| 📚 | **Archive** | Browse past seasons, calendars and results. Only races that have finished are offered. |
-| 🏆 | **Season stats** | Driver and constructor championship standings since 2018. |
-| 🎯 | **Predictions** | Call the podium before lights-out and climb the season leaderboard. |
+Everything is built on [FastF1](https://github.com/theOehrly/Fast-F1) and F1's own live timing feed. Positions, gaps, tyre models and probabilities are all calculated in plain Python. Where a language model is involved, it only writes sentences around numbers it was given, and the app checks those sentences before showing them.
 
-### One picker, every page
+<img src="docs/readme/kerb.svg" width="100%" height="14">
 
-Head to head, Advanced analytics, Strategy and Track map all start from the same picker: a season, then only completed races, then only the sessions that weekend actually ran. Races are identified by round number, so every view is a shareable link:
+## What's in it
+
+**Live**
+
+| Page | What it does |
+|---|---|
+| Live timing | The tower, sectors, tyres and gaps, plus battles and pit stop forecasts during a race (more below). |
+| Track map | Every car on the circuit live, or a past race replayed lap by lap on the real clock. |
+
+**Looking back at a session**
+
+| Page | What it does |
+|---|---|
+| Head to head | Two drivers' fastest laps overlaid: speed, throttle, brake, gear, RPM, DRS, the gap, who won each mini-sector, and a corner-by-corner table. |
+| Advanced analytics | Throttle, brake and coasting habits for the whole field, and how consistent each driver is through each corner. |
+| Race pace | Fuel-corrected long-run pace, and how quickly each compound wore out. |
+| Strategy simulator | Try a tyre strategy against that race's own degradation numbers. |
+| Pit window | Pick any lap of a past race and see each driver's best plan from there, when their window opens, and who could undercut whom. |
+| Win probability | Every driver's chance of winning, lap by lap, with the reasoning behind any lap you click. |
+| Overtakes and battles | Every pass on track, places gained at the start, and every fight inside a second. |
+| Race debrief | A written summary of the race, and "what if he'd stopped five laps earlier" on the real strategies. |
+
+**The season**
+
+| Page | What it does |
+|---|---|
+| Season stats | Driver and constructor standings since 2018. |
+| Championship odds | Who can still win the title, from a Monte Carlo run of the races left. |
+| Archive | Past seasons, calendars and results. |
+| Predictions | Pick the podium before lights out and see how you rank. 25 points for an exact podium, 10 per driver who finishes in the top 3. |
+| Ask the data | Ask a question in plain English and get an answer built from the app's own analysis endpoints, with the calls it made listed underneath. Needs an Anthropic key. |
+
+Every analysis page has its own URL, so you can send someone a link straight to a comparison:
 
 ```text
 /compare?year=2024&round=14&d1=VER&d2=NOR
-/advanced?year=2024&round=14&session=Q
-/strategy?year=2024&round=14
+/pitwindow?year=2024&round=14&lap=20
 /map?year=2024&round=14
-/debrief?year=2023&race=Belgian Grand Prix
 ```
 
-### 🧠 AI that can't make things up
+<br>
 
-- **Deterministic first.** Every figure (results, gaps, stints, degradation, what-if deltas) is computed by ordinary code over FastF1 data.
-- **The model writes the wording, nothing else.** Its output is checked against the real result before it is shown.
-- **Always degrades gracefully.** With no API key, or if the model's answer doesn't check out, you get a template instead of an error.
-- **What-if** is a small LangGraph flow (`simulate` → `explain`): move a pit stop or swap a stint's compound and see what the tyre model says it would have done to race time.
-- **Historical RAG.** The live race engineer can answer cross-season questions from an ingested history corpus in ChromaDB ([optional](#-optional-history-for-the-ai-race-engineer)).
+<img src="docs/readme/head-to-head.svg" alt="Verstappen and Leclerc's qualifying laps at Spa in 2024, replayed side by side with speed and gap traces" width="100%">
 
-### 🎯 Accounts and the prediction game
+<sub>The graphic above uses real data: Verstappen's and Leclerc's best laps from qualifying at Spa in 2024, from the same endpoint the Head to head page calls, replayed at 7x. <code>docs/readme/generate.py</code> rebuilds it.</sub>
 
-- Email and password accounts: bcrypt, JWT in an httpOnly cookie, CSRF protection, server-side logout.
-- Pick the top 3 for an upcoming race. Picks lock at lights-out (checked against the official UTC schedule) and are scored against the real result: **25 points** for an exact podium, **10** per driver in the real top 3.
-- Known gaps, by design: no email verification or password reset, no rate limiting on login and signup, and signup reveals whether an email is registered.
+<img src="docs/readme/kerb.svg" width="100%" height="14">
 
-<br/>
+## During a race
 
-## 🚀 Quick start
+<img src="docs/readme/live.svg" alt="The live timing tower with a battles and pit stops panel" width="100%">
 
-You need **Python 3.12**, **Node 20+** and **Docker** (for Postgres and Redis).
+The live page reads F1's timing feed directly. During a race, the "Battles and pit stops" panel refreshes every few seconds and shows:
 
-**1. Configure**
+- **Battles.** Who is already in DRS range, and who will get there and roughly when. The estimate comes from the live gap and how much the chasing car has gained per lap over its last few clean laps.
+- **If they pit now.** Where each car would be after its out-lap, how far it would be from the cars either side, and a traffic warning if it would come out right behind someone.
+- **Undercut and overcut.** For each car close behind another, whether stopping first (or staying out longer) would get it past, and by how much.
+
+It was tested by replaying the Singapore 2026 race through it. The battle forecasts mostly came true, and 21 of the 23 real stops came out within one place of the forecast. Behind a safety car it stops forecasting battles and halves the cost of a stop.
+
+<img src="docs/readme/kerb.svg" width="100%" height="14">
+
+## Running it
+
+You need Python 3.12, Node 20+ and Docker (for Postgres and Redis).
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and set:
-
-| Variable | Value |
-|---|---|
-| `SECRET_KEY` | Required. Generate one: `python -c "import secrets; print(secrets.token_hex(32))"` |
-| `RUNNING_LOCALLY` | `true` when the backend runs on your machine rather than in Docker |
-| `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` | Optional. Without them the AI features fall back to templates |
-
-**2. Start Postgres and Redis**
+Set `SECRET_KEY` in `.env` (`python -c "import secrets; print(secrets.token_hex(32))"` makes one) and `RUNNING_LOCALLY=true` if the backend runs on your machine rather than in Docker. `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` are optional. Without them, the debrief and race engineer use templates and Ask the data is switched off.
 
 ```bash
 docker compose up -d postgres redis
-```
 
-**3. Start the backend** (http://localhost:8000)
-
-```bash
+# backend, http://localhost:8000
 cd backend
 python -m venv .venv
-.venv\Scripts\activate          # macOS/Linux: source .venv/bin/activate
+.venv\Scripts\activate            # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --port 8000
-```
 
-**4. Start the frontend** (http://localhost:3000)
-
-```bash
+# frontend, http://localhost:3000
 cd frontend
 npm install
 npm run dev
 ```
 
-Open **http://localhost:3000**. The first load of a session downloads its data from FastF1, so give it a moment; it's cached after that.
+The first time you open a session, FastF1 downloads it, which can take a minute. After that it loads from the cache.
 
-> **Prefer containers for everything?** `docker compose up --build -d` builds and runs the frontend and backend too. Note that the compose file expects the Docker service hostnames, so leave `RUNNING_LOCALLY=false` in that case.
+`docker compose up --build -d` runs the whole thing in containers instead. In that case, leave `RUNNING_LOCALLY=false`.
 
-<br/>
+**2026 races and live car positions.** F1 now puts this season's archive and the live car position stream behind an F1 TV login. FastF1 3.9 handles the login:
 
-## 🧱 How it's put together
+```bash
+python -m fastf1 auth f1tv --authenticate
+```
+
+It opens a browser to sign in, and the token lasts a few days. Without it, everything before 2026 still works, and live timing still works, but the track map loses the cars.
+
+<img src="docs/readme/kerb.svg" width="100%" height="14">
+
+## How it works
 
 ```mermaid
 flowchart LR
-    Browser["Browser<br/>Next.js 14 · React · Recharts"]
+    Browser["Next.js 14<br/>React · Recharts"]
     API["FastAPI<br/>REST + WebSocket"]
-    F1["FastF1<br/>historical sessions"]
-    OF1["OpenF1<br/>live sessions"]
-    PG[("PostgreSQL<br/>users · predictions")]
-    RD[("Redis<br/>live pub/sub")]
-    CH[("ChromaDB<br/>history corpus")]
-    LLM["Anthropic / OpenAI<br/>wording only"]
+    Feed["F1 live timing<br/>SignalR feed"]
+    F1["FastF1<br/>past sessions"]
+    OF1["OpenF1<br/>fallback"]
+    PG[("Postgres<br/>accounts · picks")]
+    RD[("Redis")]
+    CH[("ChromaDB<br/>history")]
+    LLM["Claude / OpenAI<br/>wording only"]
 
     Browser <-->|"/api/v1 · /ws"| API
+    API --> Feed
     API --> F1
     API --> OF1
     API --> PG
@@ -138,79 +142,45 @@ flowchart LR
     API -.-> LLM
 ```
 
-| Layer | Stack |
-|---|---|
-| **Frontend** | Next.js 14, React 18, TypeScript, Tailwind CSS, Recharts, framer-motion, react-grid-layout, Zustand, Lucide |
-| **Backend** | Python 3.12, FastAPI, SQLAlchemy, FastF1, pandas / NumPy, LangGraph |
-| **Data** | PostgreSQL 16, Redis 7, ChromaDB |
-| **AI** | Anthropic (default `claude-opus-5`) with an OpenAI fallback. Override with `ANTHROPIC_MODEL` / `OPENAI_MODEL` |
+The frontend uses Next.js 14, React 18, TypeScript, Tailwind, Recharts, framer-motion, react-grid-layout and Zustand. The backend uses FastAPI, SQLAlchemy, FastF1, pandas, NumPy and LangGraph (for the what-if flow). Data lives in Postgres 16, Redis 7 and ChromaDB.
+
+Accounts use bcrypt, a JWT in an httpOnly cookie, and CSRF protection. There's no email verification, no password reset and no rate limiting on login. That's fine for a hobby app, but don't expose it to the internet as-is.
 
 <details>
-<summary><b>API reference</b> (all under <code>/api/v1</code>)</summary>
+<summary><b>API</b> (everything is under <code>/api/v1</code>; interactive docs at <code>localhost:8000/docs</code>)</summary>
 
-<br/>
+<br>
 
 | Area | Endpoints |
 |---|---|
-| **Races** | `GET /races/historical` · `GET /races/session-info` · `GET /races/results` · `GET /races/latest-result` |
-| **Telemetry** | `POST /telemetry/compare` · `POST /telemetry/pedal-behavior` · `GET /telemetry/replay` |
-| **Strategy** | `POST /strategy/simulate` · `GET /sessions/{session_key}/strategy` |
-| **Live** | `GET /sessions/active` · `GET /sessions/{session_key}/drivers` · `.../timing` · `.../weather` · `.../race-control` · `.../radios` · `GET /circuits/{session_key}/layout` · WebSocket `/ws/{client_id}` |
-| **AI** | `GET /debrief` · `POST /whatif` · `POST /ai/chat` |
-| **Stats** | `GET /stats/standings` · `GET /drivers/known-codes` · `GET /drivers/{driver_code}/season-insights` · `GET /share/result-card` |
-| **Accounts** | `POST /auth/signup` · `/auth/login` · `/auth/logout` · `GET /auth/me` |
-| **Predictions** | `POST /predictions` · `GET /predictions/me` · `GET /leaderboard` · `POST /predictions/score` |
-
-Interactive docs are served by FastAPI at http://localhost:8000/docs.
+| Live | `GET /sessions/active` · `/sessions/{key}/drivers` · `/timing` · `/status` · `/race-strategy` · `/weather` · `/race-control` · `/radios` · `GET /circuits/{key}/layout` · WebSocket `/ws/{client_id}` |
+| Telemetry | `POST /telemetry/compare` · `/pedal-behavior` · `/corner-consistency` · `/race-pace` · `/race-battles` · `/pit-window` · `/win-probability` · `GET /telemetry/replay` |
+| Strategy | `POST /strategy/simulate` · `GET /sessions/{key}/strategy` · `POST /championship/odds` |
+| Races | `GET /races/historical` · `/races/session-info` · `/races/results` · `/races/latest-result` |
+| Writing | `GET /debrief` · `POST /whatif` · `POST /ai/chat` · `POST /ask` |
+| Stats | `GET /stats/standings` · `/drivers/known-codes` · `/drivers/{code}/season-insights` · `/share/result-card` |
+| Accounts | `POST /auth/signup` · `/auth/login` · `/auth/logout` · `GET /auth/me` |
+| Predictions | `POST /predictions` · `GET /predictions/me` · `GET /leaderboard` · `POST /predictions/score` |
 
 </details>
 
-<br/>
+<details>
+<summary><b>The look</b></summary>
 
-## 🎨 The "Timing Screen" design system
+<br>
 
-The look is the official one: the near-black navy of an F1 broadcast feed, F1 red, and squared-off graphics cut with a hairline rather than a curve.
+It copies the F1 broadcast graphics: dark navy, F1 red, and square corners. Colour is only used when it means something: purple for the fastest overall, green for a personal best, yellow for slower, red for live, plus tyre and team colours. Everything else is grey and white. The type is Titillium Web and Barlow Semi Condensed, both self-hosted. The colour tokens in `frontend/src/design/tokens.css` are tested against WCAG AA contrast.
 
-**One rule: colour only carries meaning.** Chrome is greys and white. Colour appears only as timing semantics (purple overall best, green personal best, yellow off pace), live/danger red, tyre compounds and team colours.
+To add a page, add one entry to `frontend/src/lib/modules.ts`. The sidebar, the mobile tab bar, the command palette and the landing page all read from it.
 
-- 🔴 **Red has exactly three jobs:** the frame (wordmark, the rule under the top bar, the bar beside a page title), the primary action, and the on-air state. It is never a solid block anywhere else.
-- ⚪ **White marks where you are:** the current page, the selected tab, the channels switched on.
-- 🔤 **Type:** Titillium Web for headlines, captions and labels, Barlow Semi Condensed for UI and data (tabular figures). Both self-hosted.
-- 📊 **Tables read as timing towers:** team colour flush to the row's left edge, faint banding, tabular figures.
-- ♿ **Contrast is tested:** the tokens in `frontend/src/design/tokens.css` are checked against WCAG AA by `tokens.test.ts`.
+</details>
 
-| | Where |
-|---|---|
-| Tokens | `frontend/src/design/tokens.css`, mapped in `tailwind.config.ts` |
-| Primitives | `frontend/src/components/ui/` (Panel, Button, Select, Input, Tabs, DataTable, …) |
-| Shell and command palette | `frontend/src/components/shell/` |
-| Adding a page | One entry in `frontend/src/lib/modules.ts`. The rail, mobile tab bar, palette and landing page all read it. |
+<details>
+<summary><b>Optional: race history for the race engineer</b></summary>
 
-<br/>
+<br>
 
-## 🧪 Testing
-
-```bash
-# Frontend
-cd frontend
-npm test                                # vitest
-npm run typecheck                       # tsc --noEmit
-node scripts/check-legacy.mjs --all     # no legacy styles
-node scripts/ui-sweep.mjs               # overflow, crashes, labels, contrast at 390/768/1280px
-                                        # (needs the dev server and API running)
-
-# Backend
-cd backend
-SECRET_KEY=test RUNNING_LOCALLY=true python -m pytest -q
-```
-
-GitHub Actions runs pytest, `tsc`, vitest and a production build on every push and pull request to `master`.
-
-<br/>
-
-## 🧠 Optional: history for the AI race engineer
-
-The race engineer can answer cross-season questions ("how did Verstappen's strategy at Spa compare across recent years") once its corpus is built. The app runs fine without it and the engineer stays live-session-only.
+With a history corpus, the race engineer can answer questions across seasons, like how Spa strategies have changed over recent years. Without one, it sticks to the live session.
 
 ```bash
 docker compose up -d chromadb
@@ -218,12 +188,17 @@ cd backend
 python -m app.scripts.ingest_history --years 2018-2025
 ```
 
-The first run can take **several hours**, because FastF1 loads each session fresh. It's safe to interrupt with Ctrl-C and rerun; sessions already ingested are skipped. Rerun with just the new year (`--years 2026`) to pick up newly completed weekends.
+The first run takes hours because every session is loaded from scratch. You can stop it with Ctrl-C and run it again; sessions that are already done get skipped.
 
-<br/>
+</details>
 
-<div align="center">
+<img src="docs/readme/kerb.svg" width="100%" height="14">
 
-**Built for people who watch the timing screen more than the TV.**
+## Tests
 
-</div>
+```bash
+cd backend && SECRET_KEY=test RUNNING_LOCALLY=true python -m pytest -q
+cd frontend && npm test && npm run typecheck && node scripts/check-legacy.mjs --all
+```
+
+GitHub Actions runs pytest, tsc, vitest and a production build on every push and pull request.

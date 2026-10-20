@@ -5,13 +5,14 @@ psycopg2-binary
 redis
 pydantic
 python-dotenv
-fastf1
+fastf1==3.9.0a0
 pandas
 numpy
 langgraph
 openai
-anthropic
+anthropic>=0.116
 chromadb
 requests
 bcrypt
 PyJWT
+signalrcore==1.0.2

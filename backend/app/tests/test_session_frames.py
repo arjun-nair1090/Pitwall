@@ -83,3 +83,26 @@ def test_load_session_frames_does_not_cache_failures(monkeypatch):
         session_frames.load_session_frames(2023, "Belgian Grand Prix", "Race")
     assert session_frames.load_session_frames(2023, "Belgian Grand Prix", "Race") is not None
     assert len(attempts) == 2
+
+
+class _UnloadedSession:
+    event = {"EventName": "Singapore Grand Prix"}
+    results = None
+
+    def load(self, **kwargs):
+        pass
+
+    @property
+    def laps(self):
+        import fastf1
+        raise fastf1.exceptions.DataNotLoadedError("not loaded")
+
+
+def test_a_session_that_will_not_load_explains_a_locked_archive(monkeypatch):
+    import fastf1
+    from app.services import session_info
+
+    monkeypatch.setattr(fastf1, "get_session", lambda *args: _UnloadedSession())
+    monkeypatch.setattr(session_info, "_probe_archive", lambda year: 401)
+    with pytest.raises(session_info.SessionDataError, match="F1 TV sign-in"):
+        session_frames._load_from_fastf1(2026, "Singapore Grand Prix", "Race")

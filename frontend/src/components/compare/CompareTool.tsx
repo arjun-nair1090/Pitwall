@@ -11,6 +11,7 @@ import { useAsync } from "@/hooks/useAsync";
 import { useSessionInfo } from "@/hooks/useRaceData";
 import { buildDuelRows, duelStyle, type DuelResult } from "@/lib/duel";
 import type { RaceParams } from "@/lib/compareParams";
+import CornerTable from "./CornerTable";
 import DominanceMap from "./DominanceMap";
 import DuelCharts from "./DuelCharts";
 import DuelHeader from "./DuelHeader";
@@ -134,7 +135,7 @@ export default function CompareTool({ initial }: { initial: RaceParams }) {
           <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <Panel title="Where the time was won" meta={`${session.event_name} ${sel.year}`} className="xl:sticky xl:top-20">
               <div className="p-4">
-                <DominanceMap lap1={result.driver1.telemetry} lap2={result.driver2.telemetry} code1={result.driver1.code} code2={result.driver2.code} style={style} />
+                <DominanceMap lap1={result.driver1.telemetry} lap2={result.driver2.telemetry} code1={result.driver1.code} code2={result.driver2.code} style={style} corners={result.corners ?? []} />
               </div>
             </Panel>
             <Panel title="Telemetry" meta="Both laps, by distance round the lap">
@@ -143,6 +144,10 @@ export default function CompareTool({ initial }: { initial: RaceParams }) {
               </div>
             </Panel>
           </div>
+          <Panel title="Corner by corner" meta="Each turn runs halfway to the next">
+            {/* a response without corners (an older backend) reads as no corner data */}
+            <CornerTable rows={result.corners ?? []} code1={result.driver1.code} code2={result.driver2.code} style={style} />
+          </Panel>
         </div>
       ) : null}
     </>

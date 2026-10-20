@@ -56,8 +56,14 @@ _FRAMES_CACHE = LruCache(maxsize=8)
 def _load_from_fastf1(year: int, gp: str, session_name: str) -> SessionFrames:
     import fastf1
 
+    from app.services.session_info import _no_data_error
+
     session = fastf1.get_session(year, gp, session_name)
     session.load(laps=True, telemetry=False, weather=False, messages=True)
+    try:
+        laps = session.laps  # raises if the load silently failed
+    except Exception as e:
+        raise _no_data_error(f"There's no data for {gp} {year} yet.", year, gp) from e
 
     race_control = None
     try:
@@ -70,7 +76,7 @@ def _load_from_fastf1(year: int, gp: str, session_name: str) -> SessionFrames:
         year=year,
         session_name=session_name,
         results=session.results,
-        laps=session.laps,
+        laps=laps,
         race_control=race_control,
     )
 

@@ -17,7 +17,7 @@ class Settings(BaseModel):
         host = self.POSTGRES_HOST
         if os.getenv("RUNNING_LOCALLY") == "true":
             host = "localhost"
-        return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{host}:5432/{self.POSTGRES_DB}"
+        return f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{host}:5432/{self.POSTGRES_DB}"
 
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://redis:6379/0")
     
