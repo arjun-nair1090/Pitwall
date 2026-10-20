@@ -148,8 +148,71 @@ def _track_laps(state: Dict[str, Any], data: Dict[str, Any]) -> None:
         entry["pit_in"] = False
 
 
-def apply_message(state: Dict[str, Any], topic: str, data: Any) -> None:
-    """Merge one topic's snapshot or patch into the state."""
+def _lap_start(state: Dict[str, Any], number: str, from_pit: bool) -> None:
+    """Begin a driver's next lap: whether it starts from the pit lane, and the track status so far."""
+    status = str((state.get("TrackStatus") or {}).get("Status") or "1")
+    state.setdefault("_lapacc", {})[number] = {"pit_out": from_pit, "track": {status}}
+
+
+def _record_laps(state: Dict[str, Any], data: Dict[str, Any], at: Optional[str]) -> None:
+    """Keep a row for every lap a driver completes, in the shape the tyre model and the forecasts
+    read: lap time, tyre and age, stint, whether it was a lap into or out of the pits, the track
+    statuses it ran under, and the place at its end.
+
+    A lap into the pits is one that ends in the pit lane (the line runs across it); the next lap then
+    starts from it. The flags are only read at the line, as the cars also run in and out of the pit
+    lane before the start."""
+    lines = data.get("Lines") if isinstance(data.get("Lines"), dict) else {}
+    if "TimingData" not in state:
+        # A snapshot: no lap has been seen completing yet; note where each car is starting its lap.
+        for number, line in lines.items():
+            if isinstance(line, dict):
+                _lap_start(state, number, bool(line.get("InPit") or line.get("PitOut")))
+        return
+
+    previous = (state.get("TimingData") or {}).get("Lines") or {}
+    app_lines = (state.get("TimingAppData") or {}).get("Lines") or {}
+    history = state.setdefault("_history", {})
+    for number, line in lines.items():
+        if not isinstance(line, dict):
+            continue
+        before = previous.get(number) or {}
+        acc = state.setdefault("_lapacc", {}).get(number)
+        if acc is None:
+            _lap_start(state, number, bool(before.get("InPit") or before.get("PitOut")))
+            acc = state["_lapacc"][number]
+        if line.get("PitOut"):
+            acc["pit_out"] = True
+
+        laps = line.get("NumberOfLaps")
+        if not isinstance(laps, int) or laps <= (before.get("NumberOfLaps") or 0):
+            continue
+        in_pit = bool(line.get("InPit", before.get("InPit")))
+        pit_out = bool(line.get("PitOut", before.get("PitOut")))
+        stints = [s for s in _as_list((app_lines.get(number) or {}).get("Stints")) if isinstance(s, dict)]
+        stint = stints[-1] if stints else {}
+        position = line.get("Position", before.get("Position"))
+        compound = stint.get("Compound")
+        # Only changed fields are sent, so a lap exactly as quick as the last comes without a time.
+        lap_time = line["LastLapTime"] if "LastLapTime" in line else before.get("LastLapTime")
+        history.setdefault(number, []).append({
+            "lap": laps,
+            "lap_time": _seconds(_value(lap_time)),
+            "compound": compound if compound and compound != "UNKNOWN" else None,
+            "tyre_age": stint.get("TotalLaps"),
+            "start_laps": stint.get("StartLaps"),
+            "stint": len(stints) or None,
+            "pit_in": in_pit,
+            "pit_out": acc["pit_out"],
+            "track": "".join(sorted(acc["track"])),
+            "position": int(position) if str(position or "").isdigit() else None,
+            "time": at,
+        })
+        _lap_start(state, number, in_pit or pit_out)
+
+
+def apply_message(state: Dict[str, Any], topic: str, data: Any, at: Optional[str] = None) -> None:
+    """Merge one topic's snapshot or patch into the state. `at` is the message's UTC time."""
     if topic in CAR_TOPICS:
         _apply_car_message(state, topic, data)
         return
@@ -157,7 +220,17 @@ def apply_message(state: Dict[str, Any], topic: str, data: Any) -> None:
         return
     if topic == "TimingData":
         _track_laps(state, data)
+        _record_laps(state, data, at)
     state[topic] = _merge(state.get(topic, {}), data)
+    if topic == "TrackStatus" and data.get("Status"):
+        for acc in (state.get("_lapacc") or {}).values():
+            acc["track"].add(str(data["Status"]))
+    if topic == "SessionStatus" and data.get("Status") == "Started":
+        # Lights out (or a restart): the laps start now, so nothing from before them counts.
+        lines = (state.get("TimingData") or {}).get("Lines") or {}
+        for number in list(state.get("_lapacc") or {}):
+            line = lines.get(number) or {}
+            _lap_start(state, number, bool(line.get("InPit") or line.get("PitOut")))
 
 
 # --- Parsing -------------------------------------------------------------------------------------
@@ -269,6 +342,7 @@ def session_from_state(state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "meeting_name": meeting.get("Name"),
         "circuit_short_name": (meeting.get("Circuit") or {}).get("ShortName"),
         "session_name": info.get("Name"),
+        "session_type": info.get("Type"),
         "date_start": start,
         "date_end": to_utc(info.get("EndDate")),
     }
@@ -408,8 +482,80 @@ def timing_from_state(state: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
             "compound": compound if compound and compound != "UNKNOWN" else None,
             "tyre_age": stint.get("TotalLaps") if stint else None,
             "is_pit": bool(line.get("InPit") or line.get("PitOut")),
+            "retired": bool(line.get("Retired")),
         }
     return timing
+
+
+def _runs(rows: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
+    """A driver's laps split into runs on one set of tyres: a run ends with a lap into the pits, or
+    where the stint changes across laps the feed missed."""
+    runs: List[List[Dict[str, Any]]] = []
+    for row in rows:
+        previous = runs[-1][-1] if runs else None
+        if previous is None or previous["pit_in"] or previous["stint"] != row["stint"]:
+            runs.append([])
+        runs[-1].append(row)
+    return runs
+
+
+def lap_history_from_state(state: Dict[str, Any]) -> Dict[str, List[Dict[str, Any]]]:
+    """Every lap seen completing since the feed joined the session, per driver number.
+
+    The tyre's age at the end of each lap is its age when fitted (StartLaps) plus the laps run on it,
+    the rule FastF1 uses. The feed's own lap counter for the tyre lags the lap line, and a stint the
+    feed lists twice stops counting. Joining mid-run there is no fitting lap to count from, so the age
+    first seen is counted on from. The compound is the run's latest, as the feed corrects it in place."""
+    history = {}
+    for number, rows in (state.get("_history") or {}).items():
+        derived = []
+        for run in _runs(rows):
+            first = run[0]
+            earlier = [r for r in rows if r["lap"] == first["lap"] - 1]
+            fitted_here = first["lap"] == 1 or bool(earlier and earlier[0]["pit_in"])
+            if fitted_here and first.get("start_laps") is not None:
+                anchor = first["start_laps"] + 1
+            else:
+                anchor = first.get("tyre_age")
+            compound = next((r["compound"] for r in reversed(run) if r["compound"]), None)
+            for row in run:
+                out = {k: v for k, v in row.items() if k != "start_laps"}
+                out["compound"] = compound
+                out["tyre_age"] = None if anchor is None else anchor + row["lap"] - first["lap"]
+                derived.append(out)
+        history[number] = derived
+    return history
+
+
+def used_compounds_from_state(state: Dict[str, Any]) -> Dict[str, List[str]]:
+    """The compounds each driver has run this session, in the order fitted."""
+    used = {}
+    for number, line in ((state.get("TimingAppData") or {}).get("Lines") or {}).items():
+        stints = [s for s in _as_list((line or {}).get("Stints")) if isinstance(s, dict)]
+        compounds = [s.get("Compound") for s in stints if s.get("Compound") and s.get("Compound") != "UNKNOWN"]
+        used[number] = list(dict.fromkeys(compounds))
+    return used
+
+
+def race_snapshot_from_state(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Everything the live race forecasts read, taken together so it all describes one moment."""
+    return {
+        "session": session_from_state(state) or {},
+        "timing": timing_from_state(state),
+        "drivers": drivers_from_state(state),
+        "history": lap_history_from_state(state),
+        "lap_count": lap_count_from_state(state),
+        "track_status": str((state.get("TrackStatus") or {}).get("Status") or "1"),
+        "used": used_compounds_from_state(state),
+    }
+
+
+def lap_count_from_state(state: Dict[str, Any]) -> Dict[str, Optional[int]]:
+    """The leader's current lap and the race distance (a session without laps has neither)."""
+    count = state.get("LapCount") or {}
+    current, total = count.get("CurrentLap"), count.get("TotalLaps")
+    return {"current": current if isinstance(current, int) and current > 0 else None,
+            "total": total if isinstance(total, int) and total > 0 else None}
 
 
 def weather_from_state(state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -477,20 +623,18 @@ def car_frames_from_state(state: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def f1tv_token() -> Optional[str]:
-    """The F1 TV token FastF1's login stored, if there is one and it has not expired. Never prompts:
+    """The F1 TV token FastF1's sign-in stored, if there is one and it has not expired. Never prompts:
     signing in is a one-off step a person runs (`python -m fastf1 auth f1tv --authenticate`)."""
     try:
-        import jwt
-        from fastf1.internals.f1auth import AUTH_DATA_FILE
+        from fastf1.internals.f1account.tokens import TokenStore
 
-        token = AUTH_DATA_FILE.read_text().strip()
-        if not token:
+        token = TokenStore.default().load()
+        if token is None:
             return None
-        claims = jwt.decode(token, options={"verify_signature": False})
-        if claims.get("exp") and claims["exp"] < time.time():
+        if not token.is_valid():
             print("The stored F1 TV token has expired; car positions need a fresh sign-in.")
             return None
-        return token
+        return token.value
     except Exception:
         return None
 
@@ -557,11 +701,21 @@ class LiveTimingFeed:
     def car_frames(self) -> List[Dict[str, Any]]:
         return self._read(car_frames_from_state)
 
+    def lap_history(self) -> Dict[str, List[Dict[str, Any]]]:
+        return self._read(lap_history_from_state)
+
+    def lap_count(self) -> Dict[str, Optional[int]]:
+        return self._read(lap_count_from_state)
+
+    def race_snapshot(self) -> Dict[str, Any]:
+        return self._read(race_snapshot_from_state)
+
     def _on_feed(self, args: Any) -> None:
         # A live message is [topic, data, utc].
         if isinstance(args, list) and len(args) >= 2 and isinstance(args[0], str):
+            at = args[2] if len(args) > 2 and isinstance(args[2], str) else None
             with self._lock:
-                apply_message(self._state, args[0], args[1])
+                apply_message(self._state, args[0], args[1], at)
             self._last_message = time.time()
 
     def _on_snapshot(self, completion: Any) -> None:
@@ -569,9 +723,14 @@ class LiveTimingFeed:
         result = getattr(completion, "result", None)
         if isinstance(result, dict):
             with self._lock:
+                previous = self._state
                 self._state = {}
                 for topic, data in result.items():
                     apply_message(self._state, topic, data)
+                # A reconnect to the same session keeps the laps seen so far; the snapshot has none.
+                key = (self._state.get("SessionInfo") or {}).get("Key")
+                if key is not None and key == (previous.get("SessionInfo") or {}).get("Key"):
+                    self._state["_history"] = previous.get("_history", {})
             self._last_message = time.time()
 
     def _connect(self):

@@ -470,3 +470,52 @@ def test_late_one_stops_match_the_brute_loop():
                 assert R == 1 and got is None
                 continue
             assert got.stops == want[1] and got.cost == pytest.approx(want[0][0], abs=1e-5)
+
+
+def overcut_model():
+    # MEDIUM barely wears and HARD is 1.5 s slower when fresh: a worn MEDIUM stays quicker than a new HARD.
+    return TyreModel({"SOFT": fit(95.0, 0.1), "MEDIUM": fit(90.0, 0.02), "HARD": fit(91.5, 0.02)}, 20.0)
+
+
+def test_overcut_gain_and_verdicts():
+    model = overcut_model()
+    leader = state("MEDIUM", age=30, used={"MEDIUM"}, code="LDR", position=1)
+
+    def oc(gap):
+        return ps.overcut(state("MEDIUM", age=10, used={"MEDIUM"}, code="CHA", position=2, gap=gap), leader, model, 30)
+
+    # The leader must stop for a second compound, onto HARD (SOFT is far slower): its first fresh lap is
+    # 91.5 + 0.02*1 = 91.52. The chaser's last lap on its MEDIUM, at age 12: 90.0 + 0.02*12 = 90.24.
+    # gain = 91.52 - 90.24 = 1.28.
+    likely = oc(0.7)
+    assert likely["gain"] == 1.28 and likely["margin"] == 0.58 and likely["verdict"] == "likely"
+    assert (likely["chaser"], likely["leader"], likely["gap"], likely["compound"]) == ("CHA", "LDR", 0.7, "HARD")
+    assert oc(1.0)["verdict"] == "possible" and oc(1.0)["margin"] == 0.28
+    assert oc(1.8)["verdict"] == "unlikely" and oc(1.8)["margin"] == -0.52
+
+
+def test_an_overcut_rarely_works_against_a_fresh_tyre_that_is_quicker():
+    # balance_model: everything wears 0.1 s a lap and MEDIUM is the quickest fresh tyre.
+    model = balance_model()
+    leader = state("HARD", age=20, used={"HARD"}, code="LDR", position=1)
+    out = ps.overcut(state("HARD", age=40, used={"HARD"}, code="CHA", position=2, gap=1.0), leader, model, 30)
+    # leader's first fresh MEDIUM lap 90.1; chaser's HARD at age 42: 90.2 + 4.2 = 94.4; gain -4.3
+    assert out["gain"] == -4.3 and out["verdict"] == "unlikely"
+
+
+def test_no_overcut_beyond_three_seconds_on_lap_one_wet_or_too_late():
+    model = overcut_model()
+    leader = state("MEDIUM", age=30, used={"MEDIUM"}, code="LDR", position=1)
+
+    def chaser(**kw):
+        args = dict(compound="MEDIUM", age=10, used={"MEDIUM"}, code="CHA", position=2, gap=1.0)
+        args.update(kw)
+        return state(**args)
+
+    assert ps.overcut(chaser(gap=3.0), leader, model, 30) is not None
+    assert ps.overcut(chaser(gap=3.1), leader, model, 30) is None
+    assert ps.overcut(chaser(gap=None), leader, model, 30) is None
+    assert ps.overcut(chaser(compound="WET", used={"WET"}), leader, model, 30) is None
+    assert ps.overcut(chaser(), state("INTERMEDIATE", 5, {"INTERMEDIATE"}, code="LDR"), model, 30) is None
+    assert ps.overcut(chaser(lap=1), leader, model, 30) is None
+    assert ps.overcut(chaser(), leader, model, 5) is None

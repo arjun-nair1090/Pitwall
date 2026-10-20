@@ -122,7 +122,7 @@ def test_timing_parses_times_gaps_and_tyres():
         "position": 1, "lap_number": 3, "last_lap_time": 90.606,
         "s1": 28.101, "s2": 36.502, "s3": 26.003,
         "gap_to_leader": 0.0, "gap_to_next": None,
-        "compound": "MEDIUM", "tyre_age": 3, "is_pit": False,
+        "compound": "MEDIUM", "tyre_age": 3, "is_pit": False, "retired": False,
     }
     leclerc = timing["16"]
     assert leclerc["position"] == 2
@@ -422,3 +422,192 @@ def test_in_qualifying_a_driver_whose_only_lap_this_part_was_deleted_shows_their
         "BestLapTimes": [{"Value": "1:34.182"}, {"Value": "1:32.947"}, {"Value": ""}],
     }}})
     assert timing_from_state(state)["16"]["last_lap_time"] == 92.947
+
+
+class _Store:
+    def __init__(self, token):
+        self.token = token
+
+    def load(self):
+        return self.token
+
+
+def test_the_f1tv_token_is_read_from_fastf1s_sign_in(monkeypatch):
+    import time as _time
+    from fastf1.internals.f1account import tokens
+    from app.services import live_timing
+
+    valid = tokens.SubscriptionToken(value="signed-in", expires_at=_time.time() + 86400)
+    monkeypatch.setattr(tokens.TokenStore, "default", classmethod(lambda cls: _Store(valid)))
+    assert live_timing.f1tv_token() == "signed-in"
+
+    expired = tokens.SubscriptionToken(value="old", expires_at=_time.time() - 60)
+    monkeypatch.setattr(tokens.TokenStore, "default", classmethod(lambda cls: _Store(expired)))
+    assert live_timing.f1tv_token() is None
+
+    monkeypatch.setattr(tokens.TokenStore, "default", classmethod(lambda cls: _Store(None)))
+    assert live_timing.f1tv_token() is None
+
+
+# --- Lap history (what the battles and pit-stop forecasts read) ------------------------------------
+
+from app.services.live_timing import lap_count_from_state, lap_history_from_state  # noqa: E402
+
+RACE = {
+    "SessionInfo": {"Meeting": {"Name": "United States Grand Prix", "Location": "Austin",
+                                "Country": {"Name": "United States"}, "Circuit": {"ShortName": "Austin"}},
+                    "Key": 11396, "Type": "Race", "Name": "Race", "StartDate": "2026-10-25T15:00:00",
+                    "EndDate": "2026-10-25T17:00:00", "GmtOffset": "-05:00:00"},
+    "SessionStatus": {"Status": "Started"},
+    "TrackStatus": {"Status": "1", "Message": "AllClear"},
+    "LapCount": {"CurrentLap": 1, "TotalLaps": 56},
+    "DriverList": {"1": {"Tla": "NOR"}, "16": {"Tla": "LEC"}},
+    "TimingData": {"Lines": {
+        "1": {"Position": "1", "NumberOfLaps": 0, "InPit": False, "PitOut": False, "Retired": False,
+              "GapToLeader": "", "IntervalToPositionAhead": {"Value": ""}},
+        "16": {"Position": "2", "NumberOfLaps": 0, "InPit": False, "PitOut": False, "Retired": False,
+               "GapToLeader": "+0.8", "IntervalToPositionAhead": {"Value": "+0.8"}},
+    }},
+    "TimingAppData": {"Lines": {"1": {"Stints": [{"Compound": "MEDIUM", "TotalLaps": 0}]},
+                                "16": {"Stints": [{"Compound": "SOFT", "TotalLaps": 0}]}}},
+}
+
+
+def race_state():
+    state = {}
+    for topic, data in RACE.items():
+        apply_message(state, topic, data)
+    return state
+
+
+def lap(state, number, lap_number, lap_time, at, **extra):
+    apply_message(state, "TimingData", {"Lines": {number: {
+        "NumberOfLaps": lap_number, "LastLapTime": {"Value": lap_time}, **extra}}}, at)
+
+
+def test_each_completed_lap_is_recorded_with_its_tyre_and_place():
+    state = race_state()
+    apply_message(state, "TimingAppData", {"Lines": {"1": {"Stints": {"0": {"TotalLaps": 1}}}}})
+    lap(state, "1", 1, "1:40.100", "2026-10-25T20:01:40Z")
+    apply_message(state, "TimingAppData", {"Lines": {"1": {"Stints": {"0": {"TotalLaps": 2}}}}})
+    lap(state, "1", 2, "1:38.500", "2026-10-25T20:03:18.5Z")
+    rows = lap_history_from_state(state)["1"]
+    assert [(r["lap"], r["lap_time"], r["compound"], r["tyre_age"], r["stint"], r["position"]) for r in rows] == [
+        (1, 100.1, "MEDIUM", 1, 1, 1), (2, 98.5, "MEDIUM", 2, 1, 1)]
+    assert rows[1]["time"] == "2026-10-25T20:03:18.5Z"
+    assert not rows[1]["pit_in"] and not rows[1]["pit_out"] and rows[1]["track"] == "1"
+
+
+def test_a_patch_without_a_new_lap_records_nothing():
+    state = race_state()
+    apply_message(state, "TimingData", {"Lines": {"1": {"Sectors": {"0": {"Value": "30.1"}}}}}, "2026-10-25T20:00:30Z")
+    assert lap_history_from_state(state) == {}
+
+
+def test_the_lap_into_the_pits_and_the_lap_out_are_flagged():
+    state = race_state()
+    lap(state, "16", 1, "1:40.000", "t1")
+    apply_message(state, "TimingData", {"Lines": {"16": {"InPit": True}}}, "t2")
+    lap(state, "16", 2, "2:01.000", "t3")  # crosses the line in the pit lane
+    apply_message(state, "TimingData", {"Lines": {"16": {"InPit": False, "PitOut": True}}}, "t4")
+    apply_message(state, "TimingAppData", {"Lines": {"16": {"Stints": {"1": {"Compound": "HARD", "TotalLaps": 0}}}}})
+    apply_message(state, "TimingData", {"Lines": {"16": {"PitOut": False}}}, "t5")
+    lap(state, "16", 3, "1:58.000", "t6")
+    lap(state, "16", 4, "1:39.000", "t7")
+    rows = lap_history_from_state(state)["16"]
+    assert [(r["lap"], r["pit_in"], r["pit_out"], r["compound"], r["stint"]) for r in rows] == [
+        (1, False, False, "SOFT", 1), (2, True, False, "SOFT", 1), (3, False, True, "HARD", 2), (4, False, False, "HARD", 2)]
+
+
+def test_a_lap_run_partly_under_a_virtual_safety_car_says_so():
+    state = race_state()
+    apply_message(state, "TrackStatus", {"Status": "6", "Message": "VSCDeployed"})
+    lap(state, "1", 1, "1:52.000", "t1")
+    apply_message(state, "TrackStatus", {"Status": "1", "Message": "AllClear"})
+    lap(state, "1", 2, "1:45.000", "t2")
+    lap(state, "1", 3, "1:38.000", "t3")
+    assert [r["track"] for r in lap_history_from_state(state)["1"]] == ["16", "16", "1"]
+
+
+def test_reconnecting_to_the_same_session_keeps_the_laps_seen_so_far():
+    feed = __import__("app.services.live_timing", fromlist=["LiveTimingFeed"]).LiveTimingFeed()
+    feed._on_snapshot(type("Completion", (), {"result": RACE})())
+    feed._on_feed(["TimingData", {"Lines": {"1": {"NumberOfLaps": 1, "LastLapTime": {"Value": "1:40.000"}}}}, "t1"])
+    feed._on_snapshot(type("Completion", (), {"result": RACE})())  # the link dropped and came back
+    assert len(feed._read(lap_history_from_state)["1"]) == 1
+    other = dict(RACE, SessionInfo=dict(RACE["SessionInfo"], Key=11397))
+    feed._on_snapshot(type("Completion", (), {"result": other})())  # a new session starts afresh
+    assert feed._read(lap_history_from_state) == {}
+
+
+def test_the_lap_count_and_race_distance():
+    state = race_state()
+    apply_message(state, "LapCount", {"CurrentLap": 12})
+    assert lap_count_from_state(state) == {"current": 12, "total": 56}
+    assert lap_count_from_state({}) == {"current": None, "total": None}
+
+
+def test_a_retired_car_is_marked_in_the_timing():
+    state = race_state()
+    apply_message(state, "TimingData", {"Lines": {"16": {"Retired": True}}})
+    timing = timing_from_state(state)
+    assert timing["16"]["retired"] is True and timing["1"]["retired"] is False
+
+
+def test_a_lap_exactly_as_quick_as_the_last_keeps_that_time():
+    # The feed only sends what changed, so an identical lap time doesn't come with the new lap.
+    state = race_state()
+    lap(state, "1", 1, "", "t1")
+    lap(state, "1", 2, "1:37.077", "t2")
+    apply_message(state, "TimingData", {"Lines": {"1": {"NumberOfLaps": 3}}}, "t3")
+    assert [r["lap_time"] for r in lap_history_from_state(state)["1"]] == [None, 97.077, 97.077]
+
+
+def test_tyre_age_counts_the_laps_since_the_stop_from_the_tyres_starting_age():
+    state = race_state()
+    # Used softs from qualifying: three laps old at the start. TotalLaps lags the lap line.
+    apply_message(state, "TimingAppData", {"Lines": {"16": {"Stints": {"0": {"StartLaps": 3, "TotalLaps": 3}}}}})
+    lap(state, "16", 1, "1:40.000", "t1")
+    lap(state, "16", 2, "1:38.000", "t2")
+    apply_message(state, "TimingData", {"Lines": {"16": {"InPit": True}}}, "t3")
+    lap(state, "16", 3, "2:00.000", "t4")
+    apply_message(state, "TimingAppData", {"Lines": {"16": {"Stints": {"1": {"Compound": "HARD", "StartLaps": 0, "TotalLaps": 0}}}}})
+    apply_message(state, "TimingData", {"Lines": {"16": {"InPit": False}}}, "t5")
+    lap(state, "16", 4, "1:58.000", "t6")
+    lap(state, "16", 5, "1:39.000", "t7")
+    assert [r["tyre_age"] for r in lap_history_from_state(state)["16"]] == [4, 5, 6, 1, 2]
+
+
+def test_joining_mid_stint_counts_on_from_the_age_first_seen():
+    state = {}
+    joined = dict(RACE, TimingData={"Lines": {"1": dict(RACE["TimingData"]["Lines"]["1"], NumberOfLaps=20)}},
+                  TimingAppData={"Lines": {"1": {"Stints": [{"Compound": "HARD", "StartLaps": 0, "TotalLaps": 20}]}}})
+    for topic, data in joined.items():
+        apply_message(state, topic, data)
+    apply_message(state, "TimingAppData", {"Lines": {"1": {"Stints": {"0": {"TotalLaps": 21}}}}})
+    lap(state, "1", 21, "1:39.000", "t1")
+    lap(state, "1", 22, "1:39.100", "t2")
+    assert [r["tyre_age"] for r in lap_history_from_state(state)["1"]] == [21, 22]
+
+
+def test_a_compound_the_feed_corrects_applies_to_the_whole_stint():
+    state = race_state()
+    lap(state, "1", 1, "1:40.000", "t1")
+    apply_message(state, "TimingAppData", {"Lines": {"1": {"Stints": {"0": {"Compound": "HARD"}}}}})
+    lap(state, "1", 2, "1:39.000", "t2")
+    assert [r["compound"] for r in lap_history_from_state(state)["1"]] == ["HARD", "HARD"]
+
+
+def test_a_race_snapshot_has_everything_the_forecasts_read():
+    from app.services.live_timing import LiveTimingFeed
+
+    feed = LiveTimingFeed()
+    feed._on_snapshot(type("Completion", (), {"result": RACE})())
+    feed._on_feed(["TimingAppData", {"Lines": {"16": {"Stints": {"1": {"Compound": "HARD"}}}}}, "t0"])
+    feed._on_feed(["TimingData", {"Lines": {"1": {"NumberOfLaps": 1, "LastLapTime": {"Value": "1:40.000"}}}}, "t1"])
+    snap = feed.race_snapshot()
+    assert snap["session"]["session_type"] == "Race" and snap["session"]["location"] == "Austin"
+    assert snap["timing"]["16"]["position"] == 2 and snap["drivers"][0]["code"] in ("NOR", "LEC")
+    assert len(snap["history"]["1"]) == 1
+    assert snap["lap_count"] == {"current": 1, "total": 56} and snap["track_status"] == "1"
+    assert snap["used"] == {"1": ["MEDIUM"], "16": ["SOFT", "HARD"]}

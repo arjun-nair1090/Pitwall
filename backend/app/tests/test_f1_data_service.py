@@ -239,3 +239,25 @@ def test_telemetry_tick_sends_the_live_feeds_car_frames_to_the_browsers(svc, mon
     assert run(svc.telemetry_tick()) == m.FEED_POLL_SECONDS
     assert [json.loads(s)["driver_number"] for s in sent] == [1]
     assert not any("/car_data" in url for url in svc.calls)
+
+
+def test_race_strategy_comes_from_the_live_feeds_snapshot(svc, monkeypatch):
+    from app.services import live_strategy
+
+    feed = FakeFeed()
+    feed.race_snapshot = lambda: {"session": {"session_type": "Race", "session_name": "Race", "year": 2026,
+                                              "location": "Austin"},
+                                  "timing": {}, "drivers": [], "history": {}, "lap_count": {"current": 5, "total": 56},
+                                  "track_status": "1", "used": {}}
+    asked = []
+    monkeypatch.setattr(m, "live_timing_feed", feed)
+    monkeypatch.setattr(live_strategy, "prior_pit_loss", lambda year, location: asked.append((year, location)) or 26.0)
+    out = run(svc.get_race_strategy(11396))
+    assert out["live"] is True and out["applicable"] is True and out["lap"] == 5
+    assert (out["pit_loss"], out["pit_loss_source"]) == (26.0, "last_year")
+    assert asked == [(2026, "Austin")]
+
+
+def test_race_strategy_is_only_live(svc, monkeypatch):
+    monkeypatch.setattr(m, "live_timing_feed", FakeFeed())
+    assert run(svc.get_race_strategy(11388)) == {"live": False}

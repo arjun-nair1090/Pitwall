@@ -1,4 +1,4 @@
-"""Pit window: the best remaining plan, the window around it and undercut odds, at a given lap.
+"""Pit window: the best remaining plan, the window around it and undercut and overcut odds, at a given lap.
 
 The model is deliberately small. A lap on compound c at tyre age t takes `base_c + deg_c * t`; fuel
 burn is the same whatever the plan, so it cancels and is left out. A plan is zero, one or two more
@@ -338,6 +338,42 @@ def undercut(chaser: DriverState, leader: DriverState, model: TyreModel,
     if R - 2 < MIN_STINT_LAPS or not _legal(_dry_used(leader), (fresh,), leader_dry):
         return None
     gain = model.lap_time(leader.compound, leader.tyre_age + 2) - model.lap_time(fresh, 1)
+    margin = round(gain - gap, 3)
+    return {"chaser": chaser.code, "leader": leader.code, "gap": round(gap, 3),
+            "gain": round(gain, 3), "margin": margin, "verdict": _verdict(margin), "compound": fresh}
+
+
+def overcut(chaser: DriverState, leader: DriverState, model: TyreModel,
+            laps_remaining: int, sprint: bool = False) -> Optional[Dict[str, Any]]:
+    """Would the chaser jump the car ahead by staying out when it stops first?
+
+    The mirror of `undercut`: the leader stops at the end of lap N + 1 and the chaser at the end of
+    N + 2, both onto the leader's best fresh compound. Pit losses cancel, so the gain is the leader's
+    first fresh lap against the chaser's last old-tyre lap (age a_C + 2); the margin is that less the
+    gap. It pays when a worn tyre is still quicker than a new one, such as a slow-to-come-in hard.
+    Out-lap warm-up, which makes many real overcuts work, is not modelled, so this errs against them.
+    When the leader's best plan is to stay out, its cheapest one-stop plan stands in for it.
+    """
+    gap = chaser.gap_ahead
+    if gap is None or gap > UNDERCUT_RANGE_S:
+        return None
+    if chaser.compound not in DRY_COMPOUNDS or leader.compound not in DRY_COMPOUNDS:
+        return None
+    if chaser.lap == 1 or leader.lap == 1:
+        return None
+    R = laps_remaining
+    chaser_dry = not sprint and not (set(chaser.used) & WET_COMPOUNDS)
+    leader_dry = not sprint and not (set(leader.used) & WET_COMPOUNDS)
+    sol = _solve(leader, model, R, leader_dry)
+    if sol.best_one_stop() is None:
+        return None
+    found = sol.best()
+    plan = found[1] if found and found[1].stops else sol.best_one_stop()
+    fresh = plan.stops[0].compound
+    # The chaser stops a lap later, so needs its own final stint of MIN_STINT_LAPS and a legal pair.
+    if R - 2 < MIN_STINT_LAPS or not _legal(_dry_used(chaser), (fresh,), chaser_dry):
+        return None
+    gain = model.lap_time(fresh, 1) - model.lap_time(chaser.compound, chaser.tyre_age + 2)
     margin = round(gain - gap, 3)
     return {"chaser": chaser.code, "leader": leader.code, "gap": round(gap, 3),
             "gain": round(gain, 3), "margin": margin, "verdict": _verdict(margin), "compound": fresh}

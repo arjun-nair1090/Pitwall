@@ -116,3 +116,9 @@ def test_session_status_is_not_stopped_when_the_live_feed_is_not_covering_the_se
     response = client.get("/api/v1/sessions/123/status")
     assert response.status_code == 200
     assert response.json() == {"stopped": False, "red_flag": False, "announcement": None, "resumes_at": None}
+
+
+def test_race_strategy_is_not_live_when_the_feed_is_not_covering_the_session():
+    response = client.get("/api/v1/sessions/123/race-strategy")
+    assert response.status_code == 200
+    assert response.json() == {"live": False}
