@@ -78,9 +78,12 @@ def test_a_short_stint_has_no_slope():
 
 
 def test_constant_tyre_life_has_no_slope():
+    laps = make_laps("HAM", 2, 7, tyre_life=5)
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        stint = summarise(make_laps("HAM", 2, 7, tyre_life=5))[0]
+        # pandas 2.3 on numpy 2.5 raises DeprecationWarnings from its own internals
+        warnings.simplefilter("ignore", DeprecationWarning)
+        stint = summarise(laps)[0]
     assert stint["deg_per_lap"] is None
     assert stint["fit"] is None
 
