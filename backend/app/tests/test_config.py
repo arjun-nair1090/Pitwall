@@ -24,3 +24,10 @@ def test_chroma_connection_swaps_to_localhost_when_running_locally(monkeypatch):
     settings = _reload_settings()
     assert settings.CHROMA_CONNECTION_HOST == "localhost"
     assert settings.CHROMA_CONNECTION_PORT == 8001
+
+
+def test_database_url_names_the_installed_psycopg2_driver():
+    # SQLAlchemy 2.1 maps a bare postgresql:// to psycopg 3, which isn't installed
+    from sqlalchemy.engine import make_url
+    settings = _reload_settings()
+    assert make_url(settings.DATABASE_URL).drivername == "postgresql+psycopg2"
