@@ -6,6 +6,7 @@ import { useState } from "react";
 import AIEngineerConsole from "@/components/AIEngineerConsole";
 import GapEvolutionChart from "@/components/GapEvolutionChart";
 import LiveTiming from "@/components/LiveTiming";
+import SessionNotice from "@/components/live/SessionNotice";
 import TeamRadioConsole from "@/components/TeamRadioConsole";
 import TelemetryConsole from "@/components/TelemetryConsole";
 import Button from "@/components/ui/Button";
@@ -55,6 +56,7 @@ export default function LiveDashboardPage() {
           </Button>
         }
       />
+      <SessionNotice />
       <Workspace name="live" panels={PANELS} defaults={DEFAULT_LAYOUTS} resetKey={resetKey} />
     </>
   );

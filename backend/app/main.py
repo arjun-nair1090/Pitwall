@@ -24,16 +24,16 @@ async def lifespan(app: FastAPI):
     # Connect to Redis
     await redis_service.connect()
 
-    # Task 1: Telemetry Streamer - Fetches real OpenF1 telemetry and broadcasts to Redis
+    # Task 1: Telemetry Streamer - Fetches real OpenF1 telemetry during a live session and broadcasts to Redis
     async def telemetry_streamer():
         print("Starting real F1 live telemetry streamer task...")
         while True:
+            wait = 30
             try:
-                session_key = await f1_service.get_latest_session_key()
-                await f1_service.stream_live_telemetry(session_key)
+                wait = await f1_service.telemetry_tick()
             except Exception as e:
                 print(f"Error in live telemetry streamer task: {e}")
-            await asyncio.sleep(1)
+            await asyncio.sleep(wait)
 
     # Task 2: Redis Subscriber - Listens to Redis pub/sub and broadcasts to WebSockets
     async def redis_subscriber():

@@ -76,13 +76,19 @@ describe("Rail", () => {
     });
 
     it("appears on Live timing while a session is live, and is announced", () => {
-      useF1Store.setState({ isConnected: true } as any);
+      useF1Store.setState({ activeSession: { circuit_short_name: "Monza", session_name: "Race", live: true } } as any);
       render(<Rail />);
       expect(screen.getByRole("link", { name: /Live timing.*live now/i })).toBeInTheDocument();
     });
 
+    it("is absent when the feed is connected but the latest session has finished", () => {
+      useF1Store.setState({ isConnected: true, activeSession: { circuit_short_name: "Singapore", session_name: "Race", live: false } } as any);
+      render(<Rail />);
+      expect(screen.getByRole("link", { name: /Live timing/ })).not.toHaveTextContent(/live now/i);
+    });
+
     it("appears only on Live timing", () => {
-      useF1Store.setState({ isConnected: true } as any);
+      useF1Store.setState({ activeSession: { circuit_short_name: "Monza", session_name: "Race", live: true } } as any);
       render(<Rail />);
       for (const link of within(screen.getByRole("navigation", { name: "Main" })).getAllByRole("link")) {
         const isLive = /^Live timing/.test(link.textContent ?? "");
@@ -136,11 +142,19 @@ describe("Rail", () => {
 
     it("says a session is live and links to live timing", () => {
       calendar.mockReturnValue(UPCOMING);
-      useF1Store.setState({ isConnected: true, activeSession: { circuit_short_name: "Monza", session_name: "Race" } } as any);
+      useF1Store.setState({ activeSession: { meeting_name: "Italian Grand Prix", circuit_short_name: "Monza", session_name: "Race", live: true } } as any);
       render(<Rail />);
-      const card = screen.getByRole("link", { name: /Live now.*Monza Race/i });
+      const card = screen.getByRole("link", { name: /Live now.*Italian Grand Prix Race/i });
       expect(card).toHaveAttribute("href", "/live");
       expect(screen.queryByRole("link", { name: /Next race/i })).not.toBeInTheDocument();
+    });
+
+    it("shows the next race, not Live now, when the latest session has finished", () => {
+      calendar.mockReturnValue(UPCOMING);
+      useF1Store.setState({ isConnected: true, activeSession: { circuit_short_name: "Singapore", session_name: "Race", live: false } } as any);
+      render(<Rail />);
+      expect(screen.getByRole("link", { name: /Next race.*Italian Grand Prix/i })).toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /Live now/i })).not.toBeInTheDocument();
     });
 
     it("stays out of the way until the calendar has loaded", () => {

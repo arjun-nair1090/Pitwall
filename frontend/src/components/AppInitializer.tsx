@@ -23,6 +23,10 @@ axios.interceptors.request.use((config) => {
   return config;
 });
 
+// How often to look for a new session, and how often to refresh the board while one is live.
+export const SESSION_REFRESH_MS = 60_000;
+export const LIVE_REFRESH_MS = 15_000;
+
 export default function AppInitializer({ children }: { children: React.ReactNode }) {
   const {
     activeSession,
@@ -48,60 +52,83 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     CHEQUERED: "info",
   };
 
-  // Initial Rest sync
+  // Session sync: the running session, else the latest one. Checked again every so often so a
+  // session that starts while the page is open goes live, and while live the board is refreshed.
   useEffect(() => {
-    // 1. Fetch active session metadata
-    axios
-      .get("/api/v1/sessions/active")
-      .then((res) => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let loadedKey: number | null = null;
+
+    const loadBoard = (key: number) => {
+      axios.get(`/api/v1/sessions/${key}/timing`).then((resT) => {
+        if (!cancelled) updateLeaderboard(resT.data);
+      }).catch(() => {});
+      axios.get(`/api/v1/sessions/${key}/weather`).then((resW) => {
+        // guard against the live_signal:false sentinel
+        if (!cancelled && resW.data?.live_signal !== false && resW.data?.air_temperature !== undefined) {
+          setWeather(resW.data);
+        }
+      }).catch(() => {});
+      axios.get(`/api/v1/sessions/${key}/race-control`).then((resR) => {
+        if (!cancelled) setRaceControlMessages(resR.data);
+      }).catch(() => {});
+    };
+
+    const sync = async () => {
+      let live = false;
+      try {
+        const res = await axios.get("/api/v1/sessions/active");
+        if (cancelled) return;
         const sess = res.data;
+        live = sess.live === true;
         setActiveSession(sess);
-        pushAlert({
-          id: `session-${sess.session_key}`,
-          severity: "info",
-          message: `Session live: ${sess.session_name} — ${sess.circuit_short_name || sess.location}`,
-          timestamp: Date.now(),
-        });
-
-        // 2. Fetch session drivers
-        axios.get(`/api/v1/sessions/${sess.session_key}/drivers`).then((resD) => {
-          setDrivers(resD.data);
-        });
-
-        // 3. Fetch timing boards
-        axios.get(`/api/v1/sessions/${sess.session_key}/timing`).then((resT) => {
-          updateLeaderboard(resT.data);
-        });
-
-        // 4. Fetch weather conditions (guard against live_signal:false sentinel)
-        axios.get(`/api/v1/sessions/${sess.session_key}/weather`).then((resW) => {
-          if (resW.data?.live_signal !== false && resW.data?.air_temperature !== undefined) {
-            setWeather(resW.data);
-          }
-        });
-
-        // 5. Fetch race control feed
-        axios.get(`/api/v1/sessions/${sess.session_key}/race-control`).then((resR) => {
-          setRaceControlMessages(resR.data);
-        });
-      })
-      .then(() => setApiStatus("ok"))
-      .catch((err) => {
-        // A response (even 404 "no active session") means the API is up; no response means it is not.
+        setApiStatus("ok");
+        if (live) {
+          pushAlert({
+            id: `session-${sess.session_key}`,
+            severity: "info",
+            message: `Session live: ${sess.meeting_name || sess.circuit_short_name || sess.location} ${sess.session_name}`,
+            timestamp: Date.now(),
+          });
+        }
+        if (sess.session_key !== loadedKey) {
+          loadedKey = sess.session_key;
+          axios.get(`/api/v1/sessions/${sess.session_key}/drivers`).then((resD) => {
+            if (!cancelled) setDrivers(resD.data);
+          }).catch(() => {});
+          loadBoard(sess.session_key);
+        } else if (live) {
+          loadBoard(sess.session_key);
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        // A response (even 404 "no session") means the API is up; no response means it is not.
         setApiStatus(err?.response ? "ok" : "unreachable");
-        if (!err?.response) console.error("Initialization sync failed", err);
-      });
+        if (err?.response?.status === 404) {
+          setActiveSession(null);
+          loadedKey = null;
+        }
+        if (!err?.response) console.error("Session sync failed", err);
+      }
+      if (!cancelled) timer = setTimeout(sync, live ? LIVE_REFRESH_MS : SESSION_REFRESH_MS);
+    };
 
+    sync();
     // A 401 here just means "not logged in" -- not an error to surface.
     axios
       .get("/api/v1/auth/me")
       .then((res) => setCurrentUser(res.data))
       .catch(() => setCurrentUser(null));
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, []);
 
   // Connect WebSockets
   useEffect(() => {
-    if (!activeSession) return;
+    if (!activeSession?.session_key) return;
 
     // Use NEXT_PUBLIC_API_URL if configured, otherwise fallback to window locations
     const apiHost = process.env.NEXT_PUBLIC_API_URL 
@@ -155,7 +182,7 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     return () => {
       socket.close();
     };
-  }, [activeSession]);
+  }, [activeSession?.session_key]);
 
   return <>{children}</>;
 }
