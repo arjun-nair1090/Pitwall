@@ -275,6 +275,18 @@ class F1DataService:
             return live_timing_feed.session_status()
         return {"stopped": False, "red_flag": False, "announcement": None, "resumes_at": None}
 
+    async def get_race_strategy(self, session_key: int) -> Dict[str, Any]:
+        """Live battles, rejoin places and undercut/overcut odds. They need the lap-by-lap history only
+        F1's feed is building during a session, so a session it isn't covering has none."""
+        if not live_timing_feed.serves(session_key):
+            return {"live": False}
+        from app.services import live_strategy
+
+        snapshot = live_timing_feed.race_snapshot()
+        session = snapshot.get("session") or {}
+        prior = live_strategy.prior_pit_loss(session.get("year"), session.get("location"))
+        return {"live": True, **await asyncio.to_thread(live_strategy.race_strategy, snapshot, prior)}
+
     async def get_live_radios(self, session_key: int) -> List[Dict[str, Any]]:
         if live_timing_feed.serves(session_key):
             return live_timing_feed.radios()

@@ -113,20 +113,29 @@ def _measured_stops(known: pd.DataFrame, stats: Dict[str, Dict[str, float]]) -> 
     return count
 
 
-def _pit_loss(known: pd.DataFrame, stats: Dict[str, Dict[str, float]]) -> float:
+def _pit_loss(known: pd.DataFrame, stats: Dict[str, Dict[str, float]], default: float) -> Tuple[float, bool]:
+    """The pit loss, and whether it was measured (else `default` stands in)."""
     if _measured_stops(known, stats) < MIN_MEASURED_STOPS:
-        return DEFAULT_PIT_LOSS_SECONDS
-    return estimate_pit_loss_seconds(known, stats)
+        return default, False
+    return estimate_pit_loss_seconds(known, stats), True
 
 
 def _tyre_model(known: pd.DataFrame) -> Tuple[TyreModel, float]:
     """The tyre model fitted on the known laps, and the pit loss."""
+    model, pit_loss, _ = tyre_model(known)
+    return model, pit_loss
+
+
+def tyre_model(known: pd.DataFrame, default_pit_loss: float = DEFAULT_PIT_LOSS_SECONDS) -> Tuple[TyreModel, float, bool]:
+    """The tyre model fitted on the known laps, the pit loss, and whether that loss was measured on
+    them. Before enough stops are, `default_pit_loss` stands in (live timing passes the circuit's own
+    from last year's race)."""
     # Laps behind a safety car or under a red flag say nothing about tyre wear, so they stay out of
     # the fit. The states and the pit-loss estimate still read every known lap.
     green = known[~neutralised_laps(known["TrackStatus"]).to_numpy()] if "TrackStatus" in known.columns else known
     fit = _near_the_pace(green) if not green.empty else known
     stats = compute_compound_stats(fit if not fit.empty else known)
-    pit_loss = _pit_loss(known, stats)
+    pit_loss, measured = _pit_loss(known, stats, default_pit_loss)
     used_by_fit = _fit_laps(fit if not fit.empty else known)  # the laps the fit really reads
 
     def trusted(c: str) -> bool:
@@ -158,7 +167,7 @@ def _tyre_model(known: pd.DataFrame) -> Tuple[TyreModel, float]:
         else:
             base = pit_strategy.DEFAULT_BASE_S
         compounds[c] = (base, deg, False, samples)
-    return TyreModel(compounds, float(pit_loss)), float(pit_loss)
+    return TyreModel(compounds, float(pit_loss)), float(pit_loss), measured
 
 
 def _early(compound: str, window: Dict[str, Any], model: TyreModel) -> bool:

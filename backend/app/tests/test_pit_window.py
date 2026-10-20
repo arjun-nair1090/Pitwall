@@ -533,3 +533,15 @@ def test_early_is_false_without_a_plan_to_qualify():
     laps.loc[laps["Driver"] == "BBB", "Compound"] = None
     payload = pit_window.pit_window_payload(FakeSession(laps, 12, pd.DataFrame({"Abbreviation": list(cars)})), 2)
     assert [d["early"] for d in payload["drivers"]] == [False, False]
+
+
+def test_the_tyre_model_says_when_its_pit_loss_was_measured():
+    _, loss, measured = pit_window.tyre_model(make_laps())
+    assert measured is True and loss > 40  # three stops, each 25 s slower in and out
+
+
+def test_before_three_stops_the_given_default_pit_loss_stands_in():
+    early = make_laps()
+    early = early[early["LapNumber"] <= 4]
+    assert pit_window.tyre_model(early, default_pit_loss=27.5)[1:] == (27.5, False)
+    assert pit_window._tyre_model(early)[1] == pit_window.DEFAULT_PIT_LOSS_SECONDS

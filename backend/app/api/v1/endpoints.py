@@ -129,6 +129,15 @@ async def get_session_status(session_key: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/sessions/{session_key}/race-strategy")
+async def get_session_race_strategy(session_key: int):
+    """While a race runs: battles about to start, where each car would rejoin from a stop now, and
+    undercut/overcut odds. {"live": false} for a session F1's live feed isn't covering."""
+    try:
+        return await f1_service.get_race_strategy(session_key)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/sessions/{session_key}/radios")
 async def get_session_radios(session_key: int):
     """Get driver team radio recordings."""
