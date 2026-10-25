@@ -24,7 +24,7 @@ export default function LandingPage() {
             <Link href="/compare" className={buttonClass({ variant: "secondary" })}>Compare two drivers</Link>
           </div>
         </div>
-        <div className="lg:col-span-7">
+        <div className="min-w-0 lg:col-span-7">
           <HeroTower />
         </div>
       </section>
