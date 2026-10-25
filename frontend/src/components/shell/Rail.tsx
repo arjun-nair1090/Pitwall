@@ -73,8 +73,8 @@ export default function Rail() {
           aria-label="Pit Wall home"
           className="mb-3 flex h-11 items-center justify-center gap-3 rounded-control px-2 text-chalk transition-colors hover:bg-raised lg:rail-expanded:justify-start"
         >
-          <Mark />
-          <Wordmark className="hidden text-2xl lg:rail-expanded:inline" />
+          <Mark className="lg:rail-expanded:hidden" />
+          <Wordmark className="hidden h-[22px] lg:rail-expanded:block" />
         </Link>
 
         <button

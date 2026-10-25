@@ -8,6 +8,15 @@ interface ChangelogEntry {
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    date: "2026-10-25",
+    title: "A new badge",
+    items: [
+      "A new logo: PIT / WALL, set wide in Michroma and split by a red slash, the wall between the pit lane and the track.",
+      "The collapsed sidebar and the browser tab carry P with the slash, so the app is easy to find among your tabs.",
+      "Shared result cards carry the new logo too.",
+    ],
+  },
+  {
     date: "2026-10-18",
     title: "Deeper analysis",
     items: [

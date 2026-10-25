@@ -9,7 +9,7 @@ import { cn } from "@/lib/cn";
 import { usePaletteStore } from "@/store/usePaletteStore";
 import { useF1Store } from "@/store/useTelemetryStore";
 import AccountControl from "./AccountControl";
-import Wordmark, { Mark } from "./Wordmark";
+import Wordmark from "./Wordmark";
 
 // The strip across the top of a broadcast feed: where we are, what the weather is doing, and
 // whether the session is on air. The red rule under it is the frame the whole product sits in.
@@ -29,9 +29,8 @@ export default function TopBar() {
 
   return (
     <header className="sticky top-0 z-20 flex min-h-12 items-center gap-3 border-b-2 border-live bg-tarmac/95 px-4 backdrop-blur md:px-6">
-      <Link href="/" aria-label="Pit Wall home" className="flex items-center gap-2 text-chalk md:hidden">
-        <Mark className="h-4 w-[18px]" />
-        <Wordmark className="text-xl" />
+      <Link href="/" aria-label="Pit Wall home" className="flex items-center text-chalk md:hidden">
+        <Wordmark className="h-[18px]" />
       </Link>
 
       <p className="hidden min-w-0 truncate text-sm md:block">
