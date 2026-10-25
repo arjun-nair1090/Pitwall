@@ -32,8 +32,9 @@ export const RECONNECT_MS = 2_000;
 const MAX_RECONNECT_MS = 30_000;
 
 export default function AppInitializer({ children }: { children: React.ReactNode }) {
+  const activeSession = useF1Store((s) => s.activeSession);
+  // Actions never change, so they are read once rather than subscribed to.
   const {
-    activeSession,
     setActiveSession,
     setDrivers,
     updateLeaderboard,
@@ -46,7 +47,7 @@ export default function AppInitializer({ children }: { children: React.ReactNode
     setApiStatus,
     setCurrentUser,
     setSessionStatus,
-  } = useF1Store();
+  } = useF1Store.getState();
 
   const FLAG_SEVERITY: Record<string, "info" | "warning" | "critical"> = {
     RED: "critical",

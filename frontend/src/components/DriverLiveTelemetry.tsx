@@ -21,7 +21,9 @@ function Meter({ label, value, fill }: { label: string; value: number; fill: str
 }
 
 export default function DriverLiveTelemetry() {
-  const { telemetry, drivers, selectedDriverNum } = useF1Store();
+  const telemetry = useF1Store((s) => s.telemetry);
+  const drivers = useF1Store((s) => s.drivers);
+  const selectedDriverNum = useF1Store((s) => s.selectedDriverNum);
 
   const driver = drivers.find((d) => d.driver_number === selectedDriverNum);
   const data = selectedDriverNum ? telemetry[selectedDriverNum] : null;

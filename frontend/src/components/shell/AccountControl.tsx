@@ -7,7 +7,8 @@ import Button, { buttonClass } from "@/components/ui/Button";
 import { useF1Store } from "@/store/useTelemetryStore";
 
 export default function AccountControl() {
-  const { currentUser, setCurrentUser } = useF1Store();
+  const currentUser = useF1Store((s) => s.currentUser);
+  const setCurrentUser = useF1Store((s) => s.setCurrentUser);
   const [logoutFailed, setLogoutFailed] = useState(false);
 
   const handleLogout = async () => {

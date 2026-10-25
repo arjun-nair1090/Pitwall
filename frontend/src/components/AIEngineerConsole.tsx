@@ -68,7 +68,7 @@ const WINDOW_COLUMNS: Column<PitWindow>[] = [
 ];
 
 export default function AIEngineerConsole() {
-  const { activeSession } = useF1Store();
+  const activeSession = useF1Store((s) => s.activeSession);
   const [activeTab, setActiveTab] = useState<Tab>("engineer");
 
   // AI Engineer State

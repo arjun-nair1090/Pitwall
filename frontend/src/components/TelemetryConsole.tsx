@@ -23,7 +23,9 @@ function Bar({ label, value, fill }: { label: string; value: number; fill: strin
 }
 
 export default function TelemetryConsole() {
-  const { telemetry, selectedDriverNum, drivers } = useF1Store();
+  const telemetry = useF1Store((s) => s.telemetry);
+  const selectedDriverNum = useF1Store((s) => s.selectedDriverNum);
+  const drivers = useF1Store((s) => s.drivers);
 
   const driver = useMemo(() => {
     if (selectedDriverNum === null) return null;

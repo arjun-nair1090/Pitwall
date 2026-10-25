@@ -30,7 +30,10 @@ function useElementWidth<T extends HTMLElement>() {
 }
 
 export default function LiveTiming() {
-  const { leaderboard, drivers, selectedDriverNum, setSelectedDriverNum } = useF1Store();
+  const leaderboard = useF1Store((s) => s.leaderboard);
+  const drivers = useF1Store((s) => s.drivers);
+  const selectedDriverNum = useF1Store((s) => s.selectedDriverNum);
+  const setSelectedDriverNum = useF1Store((s) => s.setSelectedDriverNum);
   const reducedMotion = usePrefersReducedMotion();
   const [containerRef, width] = useElementWidth<HTMLDivElement>();
   const showSectors = width >= SECTORS_MIN_WIDTH;

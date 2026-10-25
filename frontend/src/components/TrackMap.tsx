@@ -62,7 +62,11 @@ interface LayoutData {
 // The live circuit map: every car in the running session, drawn on the circuit outline. Past races
 // are watched in the Replay view instead.
 export default function TrackMap() {
-  const { activeSession, telemetry, drivers, selectedDriverNum, setSelectedDriverNum } = useF1Store();
+  const activeSession = useF1Store((s) => s.activeSession);
+  const telemetry = useF1Store((s) => s.telemetry);
+  const drivers = useF1Store((s) => s.drivers);
+  const selectedDriverNum = useF1Store((s) => s.selectedDriverNum);
+  const setSelectedDriverNum = useF1Store((s) => s.setSelectedDriverNum);
   const [layout, setLayout] = useState<LayoutData | null>(null);
   const [loadingLayout, setLoadingLayout] = useState(false);
 

@@ -14,7 +14,9 @@ import Wordmark, { Mark } from "./Wordmark";
 // The strip across the top of a broadcast feed: where we are, what the weather is doing, and
 // whether the session is on air. The red rule under it is the frame the whole product sits in.
 export default function TopBar() {
-  const { activeSession, apiStatus, weather } = useF1Store();
+  const activeSession = useF1Store((s) => s.activeSession);
+  const apiStatus = useF1Store((s) => s.apiStatus);
+  const weather = useF1Store((s) => s.weather);
   const setOpen = usePaletteStore((s) => s.setOpen);
   const [modKey, setModKey] = useState("Ctrl");
   useEffect(() => {

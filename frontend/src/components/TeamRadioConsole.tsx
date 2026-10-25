@@ -18,7 +18,9 @@ const FLAG_TONE = { RED: "live", YELLOW: "yellow" } as const;
 const flagTone = (flag: string) => FLAG_TONE[flag as keyof typeof FLAG_TONE] ?? "neutral";
 
 export default function TeamRadioConsole() {
-  const { activeSession, raceControl, drivers } = useF1Store();
+  const activeSession = useF1Store((s) => s.activeSession);
+  const raceControl = useF1Store((s) => s.raceControl);
+  const drivers = useF1Store((s) => s.drivers);
   const [radios, setRadios] = useState<RadioPacket[]>([]);
   const [loadingRadios, setLoadingRadios] = useState(false);
 
