@@ -54,3 +54,6 @@ logs/
 backend/data/fastf1_cache/
 frontend/data/fastf1_cache/
 *.sqlite
+
+# Brainstorming mockups
+.superpowers/
