@@ -21,7 +21,7 @@ from app.services.live_session import (
 # Enable FastF1 caching
 os.makedirs(settings.FASTF1_CACHE_DIR, exist_ok=True)
 try:
-    fastf1.Cache.enable_cache(settings.FASTF1_CACHE_DIR)
+    fastf1.Cache.configure(cache_dir=settings.FASTF1_CACHE_DIR)
 except Exception as e:
     print(f"Failed to enable FastF1 cache: {e}")
 
