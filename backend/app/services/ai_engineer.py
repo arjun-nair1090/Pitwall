@@ -1,9 +1,7 @@
 import asyncio
+import functools
 from typing import TypedDict, Dict, Any, Optional
 from datetime import datetime
-from openai import OpenAI
-from anthropic import Anthropic
-from langgraph.graph import StateGraph, START, END
 from app.core.config import settings
 from app.services.f1_data_service import f1_service
 from app.services import rag_service
@@ -22,9 +20,12 @@ class AIEngineer:
         self.openai_client = None
         self.anthropic_client = None
         
+        # The SDKs are imported only when a key is set: together they add about a second to startup.
         if settings.OPENAI_API_KEY and "your_openai" not in settings.OPENAI_API_KEY:
+            from openai import OpenAI
             self.openai_client = OpenAI(api_key=settings.OPENAI_API_KEY)
         if settings.ANTHROPIC_API_KEY and "your_anthropic" not in settings.ANTHROPIC_API_KEY:
+            from anthropic import Anthropic
             self.anthropic_client = Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
     async def retrieve_race_context(self, session_key: int) -> Dict[str, Any]:
@@ -182,23 +183,26 @@ async def generate_response_node(state: AgentState) -> Dict[str, Any]:
     response = await ai_engineer.call_llm(state["question"], combined_context)
     return {"response": response}
 
-# Compile Workflow Graph
-workflow = StateGraph(AgentState)
-workflow.add_node("retrieve_context", retrieve_context_node)
-workflow.add_node("retrieve_historical", retrieve_historical_node)
-workflow.add_node("generate_response", generate_response_node)
+# Compiled on first use: LangGraph takes most of a second to import.
+@functools.cache
+def _graph():
+    from langgraph.graph import StateGraph, START, END
 
-workflow.add_edge(START, "retrieve_context")
-workflow.add_edge(START, "retrieve_historical")
-workflow.add_edge("retrieve_context", "generate_response")
-workflow.add_edge("retrieve_historical", "generate_response")
-workflow.add_edge("generate_response", END)
+    workflow = StateGraph(AgentState)
+    workflow.add_node("retrieve_context", retrieve_context_node)
+    workflow.add_node("retrieve_historical", retrieve_historical_node)
+    workflow.add_node("generate_response", generate_response_node)
 
-graph = workflow.compile()
+    workflow.add_edge(START, "retrieve_context")
+    workflow.add_edge(START, "retrieve_historical")
+    workflow.add_edge("retrieve_context", "generate_response")
+    workflow.add_edge("retrieve_historical", "generate_response")
+    workflow.add_edge("generate_response", END)
+    return workflow.compile()
 
 # Unified wrapper
 async def answer_question(question: str, session_key: int) -> str:
-    res = await graph.ainvoke({
+    res = await _graph().ainvoke({
         "question": question,
         "session_key": session_key,
         "context_md": "",

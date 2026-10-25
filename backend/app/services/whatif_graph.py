@@ -8,9 +8,8 @@ The graph is sequential on purpose: the explanation must never start before -- o
 produced without -- a valid simulation, so an invalid hypothetical raises before the LLM
 is ever called."""
 import asyncio
+import functools
 from typing import Any, Dict, List, TypedDict
-
-from langgraph.graph import END, START, StateGraph
 
 from app.services import whatif
 from app.services.ai_engineer import ai_engineer
@@ -35,18 +34,23 @@ async def explain_node(state: WhatIfState) -> Dict[str, Any]:
     return {"explanation": out["explanation"], "explanation_source": out["source"]}
 
 
-_workflow = StateGraph(WhatIfState)
-_workflow.add_node("simulate", simulate_node)
-_workflow.add_node("explain", explain_node)
-_workflow.add_edge(START, "simulate")
-_workflow.add_edge("simulate", "explain")
-_workflow.add_edge("explain", END)
-graph = _workflow.compile()
+# Compiled on first use: LangGraph takes most of a second to import.
+@functools.cache
+def _graph():
+    from langgraph.graph import END, START, StateGraph
+
+    workflow = StateGraph(WhatIfState)
+    workflow.add_node("simulate", simulate_node)
+    workflow.add_node("explain", explain_node)
+    workflow.add_edge(START, "simulate")
+    workflow.add_edge("simulate", "explain")
+    workflow.add_edge("explain", END)
+    return workflow.compile()
 
 
 async def run_whatif(laps: Any, driver_code: str, changes: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Raises whatif.WhatIfError for an invalid hypothetical."""
-    final = await graph.ainvoke({
+    final = await _graph().ainvoke({
         "laps": laps,
         "driver_code": driver_code,
         "changes": changes,

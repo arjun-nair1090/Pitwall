@@ -1,8 +1,9 @@
-from typing import Dict, List, Optional
-
-import chromadb
+from typing import TYPE_CHECKING, Dict, List, Optional
 
 from app.core.config import settings
+
+if TYPE_CHECKING:
+    import chromadb
 
 COLLECTION_NAME = "f1_race_history"
 
@@ -12,6 +13,8 @@ _client: Optional["chromadb.ClientAPI"] = None
 def _get_client() -> "chromadb.ClientAPI":
     global _client
     if _client is None:
+        import chromadb  # slow to import, and only the race engineer needs it
+
         _client = chromadb.HttpClient(
             host=settings.CHROMA_CONNECTION_HOST,
             port=settings.CHROMA_CONNECTION_PORT,

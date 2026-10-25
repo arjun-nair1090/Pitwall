@@ -4,7 +4,6 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Literal, Optional
 from app.services.f1_data_service import f1_service
-import anthropic
 from app.services import championship_data, championship_sim, corner_analysis, data_assistant, duel_telemetry, latest_result, pit_window, race_battles, race_pace, race_replay, win_probability
 from app.services import session_info as session_info_service
 from app.services.race_debrief import NoResultsError
@@ -417,6 +416,7 @@ async def ask_the_data(req: AskRequest):
     client = data_assistant.make_client()
     if client is None:
         raise HTTPException(status_code=503, detail="The assistant isn't set up on this server (no Anthropic API key).")
+    import anthropic  # already loaded by make_client; kept out of startup
     try:
         return await data_assistant.ask(req.question, [t.model_dump() for t in req.history], client=client)
     except anthropic.RateLimitError:
