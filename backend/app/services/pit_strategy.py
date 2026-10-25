@@ -138,10 +138,6 @@ class _Solution:
         comp = DRY_COMPOUNDS[int(self.one_arg[k])]
         return Plan((Stop(self.lap + k, comp),), float(self.one[k]))
 
-    def plan_for(self, k: int) -> Plan:
-        """The cheapest plan whose first stop is at lap N + k."""
-        return self._two_plan(k) if self.use_two[k] else self._one_plan(k)
-
     def _two_plan(self, k: int) -> Plan:
         a = int(self.two_arg[k])
         k2 = int(self.k2[a // 9])

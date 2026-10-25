@@ -146,10 +146,6 @@ class F1DataService:
         fallback = await asyncio.to_thread(self._fastf1_fallback)
         return fallback["meta"] if fallback else None
 
-    async def get_latest_session_key(self) -> Optional[int]:
-        current = await self.current_session()
-        return current["session_key"] if current else None
-
     def _fastf1_fallback(self) -> Optional[Dict[str, Any]]:
         """The latest race of this season (or last) that FastF1 can load, for when OpenF1 can't help."""
         with self._fallback_lock:

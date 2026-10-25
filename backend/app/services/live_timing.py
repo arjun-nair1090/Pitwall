@@ -701,9 +701,6 @@ class LiveTimingFeed:
     def car_frames(self) -> List[Dict[str, Any]]:
         return self._read(car_frames_from_state)
 
-    def lap_history(self) -> Dict[str, List[Dict[str, Any]]]:
-        return self._read(lap_history_from_state)
-
     def lap_count(self) -> Dict[str, Optional[int]]:
         return self._read(lap_count_from_state)
 
