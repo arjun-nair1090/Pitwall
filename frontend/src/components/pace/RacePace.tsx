@@ -1,9 +1,11 @@
 "use client";
 
 import axios from "axios";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import SessionPicker, { type RaceSelection } from "@/components/analysis/SessionPicker";
 import ErrorState from "@/components/ErrorState";
+import ChartSkeleton from "@/components/charts/ChartSkeleton";
 import PageHeader from "@/components/ui/PageHeader";
 import Panel from "@/components/ui/Panel";
 import Skeleton, { Loading } from "@/components/ui/Skeleton";
@@ -11,9 +13,10 @@ import { useAsync } from "@/hooks/useAsync";
 import type { RaceParams } from "@/lib/compareParams";
 import type { FuelModel, RacePaceResult } from "@/lib/pace";
 import { SESSION_LABELS, type SessionCode } from "@/lib/season";
-import CompoundCurves from "./CompoundCurves";
 import PaceRanking from "./PaceRanking";
-import StintChart from "./StintChart";
+
+const CompoundCurves = dynamic(() => import("./CompoundCurves"), { ssr: false, loading: () => <ChartSkeleton height={320} /> });
+const StintChart = dynamic(() => import("./StintChart"), { ssr: false, loading: () => <ChartSkeleton height={320} /> });
 
 const SESSIONS = ["R", "S"] as const;
 

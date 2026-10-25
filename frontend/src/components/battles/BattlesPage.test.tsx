@@ -40,7 +40,7 @@ describe("BattlesPage", () => {
     const headings = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
     expect(headings.indexOf("Lap chart")).toBeGreaterThan(-1);
     expect(headings.indexOf("Lap chart")).toBeLessThan(headings.indexOf("Drivers"));
-    expect(screen.getByLabelText("Highlight")).toBeInTheDocument();
+    expect(await screen.findByLabelText("Highlight")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Passes", level: 2 })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Battles", level: 2 })).toBeInTheDocument();
     expect(screen.getByText("2024, round 14, Race")).toBeInTheDocument();

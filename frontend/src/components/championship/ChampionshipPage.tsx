@@ -1,8 +1,10 @@
 "use client";
 
 import axios from "axios";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import ErrorState from "@/components/ErrorState";
+import ChartSkeleton from "@/components/charts/ChartSkeleton";
 import PageHeader from "@/components/ui/PageHeader";
 import Panel from "@/components/ui/Panel";
 import Select from "@/components/ui/Select";
@@ -10,9 +12,10 @@ import Skeleton, { Loading } from "@/components/ui/Skeleton";
 import { useAsync } from "@/hooks/useAsync";
 import { FIRST_YEAR, type ChampionshipResult } from "@/lib/championship";
 import ConstructorsTable from "./ConstructorsTable";
-import OddsHistory from "./OddsHistory";
 import OddsTable from "./OddsTable";
 import RemainingRaces from "./RemainingRaces";
+
+const OddsHistory = dynamic(() => import("./OddsHistory"), { ssr: false, loading: () => <ChartSkeleton height={320} /> });
 
 const CAVEAT =
   "Each remaining race and sprint is simulated 10,000 times from every driver's finishing positions this season, weighted towards recent races, with their own retirement rate. It knows nothing about upgrades, grid penalties or team orders.";

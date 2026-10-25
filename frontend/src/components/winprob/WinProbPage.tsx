@@ -1,10 +1,12 @@
 "use client";
 
 import axios from "axios";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import SessionPicker, { type RaceSelection } from "@/components/analysis/SessionPicker";
 import ErrorState from "@/components/ErrorState";
+import ChartSkeleton from "@/components/charts/ChartSkeleton";
 import LapStepper from "@/components/ui/LapStepper";
 import PageHeader from "@/components/ui/PageHeader";
 import Panel from "@/components/ui/Panel";
@@ -15,7 +17,8 @@ import { lastLapFromError } from "@/lib/pitwindow";
 import { SESSION_LABELS } from "@/lib/season";
 import { clampLap, type WinProbResult } from "@/lib/winprob";
 import LapOdds from "./LapOdds";
-import WinChart from "./WinChart";
+
+const WinChart = dynamic(() => import("./WinChart"), { ssr: false, loading: () => <ChartSkeleton height={360} /> });
 
 const SESSIONS = ["R", "S"] as const;
 

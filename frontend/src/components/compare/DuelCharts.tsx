@@ -1,10 +1,14 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
+import ChartSkeleton from "@/components/charts/ChartSkeleton";
 import EmptyState from "@/components/ui/EmptyState";
 import { cn } from "@/lib/cn";
 import type { DuelRow, DuelStyle } from "@/lib/duel";
-import ChannelChart, { CHART_DEFS } from "./ChannelChart";
+import { CHART_DEFS } from "./chartDefs";
+
+const ChannelChart = dynamic(() => import("./ChannelChart"), { ssr: false, loading: () => <ChartSkeleton height={160} /> });
 
 interface DuelChartsProps {
   rows: readonly DuelRow[];

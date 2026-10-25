@@ -1,9 +1,11 @@
 "use client";
 
 import axios from "axios";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import SessionPicker, { type RaceSelection } from "@/components/analysis/SessionPicker";
 import ErrorState from "@/components/ErrorState";
+import ChartSkeleton from "@/components/charts/ChartSkeleton";
 import PageHeader from "@/components/ui/PageHeader";
 import Panel from "@/components/ui/Panel";
 import Skeleton, { Loading } from "@/components/ui/Skeleton";
@@ -12,7 +14,8 @@ import type { RaceParams } from "@/lib/compareParams";
 import type { PedalRow } from "@/lib/pedals";
 import { SESSION_LABELS } from "@/lib/season";
 import CornerConsistency from "./CornerConsistency";
-import PedalChart from "./PedalChart";
+
+const PedalChart = dynamic(() => import("./PedalChart"), { ssr: false, loading: () => <ChartSkeleton height={320} /> });
 
 // How every driver used the throttle and brake over their fastest lap in any session since 2018.
 // The analysis runs as soon as a session is chosen (there is nothing else to configure), and the

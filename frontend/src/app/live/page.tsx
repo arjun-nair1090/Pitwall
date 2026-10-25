@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { RotateCcw } from "lucide-react";
 import { useState } from "react";
 import AIEngineerConsole from "@/components/AIEngineerConsole";
-import GapEvolutionChart from "@/components/GapEvolutionChart";
+import ChartSkeleton from "@/components/charts/ChartSkeleton";
 import LiveTiming from "@/components/LiveTiming";
 import RaceStrategyPanel from "@/components/live/RaceStrategyPanel";
 import SessionNotice from "@/components/live/SessionNotice";
@@ -16,6 +16,7 @@ import type { WorkspacePanelDef } from "@/components/workspace/Workspace";
 import WorkspaceSkeleton from "@/components/workspace/WorkspaceSkeleton";
 import type { Layouts } from "@/lib/layoutStore";
 
+const GapEvolutionChart = dynamic(() => import("@/components/GapEvolutionChart"), { ssr: false, loading: () => <ChartSkeleton height="100%" /> });
 const Workspace = dynamic(() => import("@/components/workspace/Workspace"), { ssr: false, loading: () => <WorkspaceSkeleton /> });
 
 const PANELS: WorkspacePanelDef[] = [

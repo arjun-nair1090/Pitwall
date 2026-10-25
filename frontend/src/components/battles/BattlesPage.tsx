@@ -1,9 +1,11 @@
 "use client";
 
 import axios from "axios";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import SessionPicker, { type RaceSelection } from "@/components/analysis/SessionPicker";
 import ErrorState from "@/components/ErrorState";
+import ChartSkeleton from "@/components/charts/ChartSkeleton";
 import PageHeader from "@/components/ui/PageHeader";
 import Panel from "@/components/ui/Panel";
 import Skeleton, { Loading } from "@/components/ui/Skeleton";
@@ -13,8 +15,9 @@ import type { RaceParams } from "@/lib/compareParams";
 import { SESSION_LABELS } from "@/lib/season";
 import BattleTable from "./BattleTable";
 import DriverMoves from "./DriverMoves";
-import LapChart from "./LapChart";
 import PassFeed from "./PassFeed";
+
+const LapChart = dynamic(() => import("./LapChart"), { ssr: false, loading: () => <ChartSkeleton height={420} /> });
 
 const SESSIONS = ["R", "S"] as const;
 

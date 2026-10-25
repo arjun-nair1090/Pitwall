@@ -24,10 +24,10 @@ const rows = buildDuelRows(lap(280), lap(275), 50);
 const props = { rows, code1: "VER", code2: "NOR", style: duelStyle("#3671C6", "#FF8000") };
 
 describe("DuelCharts", () => {
-  it("starts with the channels that matter most for a comparison", () => {
+  it("starts with the channels that matter most for a comparison", async () => {
     render(<DuelCharts {...props} />);
     for (const name of ["Speed", "Gap", "Throttle", "Brake", "Gear"]) {
-      expect(screen.getByRole("heading", { name })).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name })).toBeInTheDocument();
     }
     expect(screen.queryByRole("heading", { name: "Engine revs" })).not.toBeInTheDocument();
   });
@@ -37,7 +37,7 @@ describe("DuelCharts", () => {
     const revs = screen.getByRole("button", { name: "Engine revs" });
     expect(revs).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(revs);
-    expect(screen.getByRole("heading", { name: "Engine revs" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Engine revs" })).toBeInTheDocument();
     expect(revs).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(revs);
     expect(screen.queryByRole("heading", { name: "Engine revs" })).not.toBeInTheDocument();
@@ -51,9 +51,9 @@ describe("DuelCharts", () => {
     expect(screen.getByRole("button", { name: "Acceleration" })).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("explains how to read the gap chart with the drivers' names", () => {
+  it("explains how to read the gap chart with the drivers' names", async () => {
     render(<DuelCharts {...props} />);
-    expect(screen.getByText(/Above zero, VER was ahead; below zero, NOR was\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Above zero, VER was ahead; below zero, NOR was\./)).toBeInTheDocument();
   });
 
   it("keys the lines to the drivers, dashing the second when they're teammates", () => {
