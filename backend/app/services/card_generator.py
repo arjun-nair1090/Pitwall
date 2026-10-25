@@ -12,6 +12,7 @@ BACKGROUND_COLOR = (5, 5, 8)
 TEXT_PRIMARY = (255, 255, 255)
 TEXT_MUTED = (150, 150, 160)
 ACCENT_BAR_WIDTH = 16
+F1_RED = (225, 6, 0)
 
 
 def hex_to_rgb(hex_color: str) -> Tuple[int, int, int]:
@@ -41,6 +42,26 @@ def _font(name: str, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(ASSETS_DIR / name), size)
 
 
+def draw_wordmark(draw: ImageDraw.ImageDraw, x: float, baseline: float, cap: float, color: Tuple[int, int, int]) -> float:
+    """The PIT / WALL wordmark, as in the app: Michroma tracked 0.32 em, split by a red slash that runs
+    from 0.3 cap heights above the letters to 0.3 below. Returns the x where it ends."""
+    font = _font("Michroma-Regular.ttf", round(cap / 0.75))  # Michroma's cap height is 0.75 em
+    tracking = 0.32 * font.size
+    unit = cap / 100  # the app's outlines put the cap height at 100 units
+
+    def word(text: str, at: float) -> float:
+        for i, ch in enumerate(text):
+            draw.text((at, baseline), ch, font=font, fill=color, anchor="ls")
+            at += font.getlength(ch) + (tracking if i < len(text) - 1 else 0)
+        return at
+
+    x = word("PIT", x) + 62 * unit
+    top = baseline - cap - 30 * unit
+    draw.polygon([(x + 25.6 * unit, top), (x + 48 * unit, top), (x + 22.4 * unit, top + 160 * unit), (x, top + 160 * unit)],
+                 fill=F1_RED)
+    return word("WALL", x + 48 * unit + 62 * unit)
+
+
 def render_result_card(
     driver_code: str,
     team_color: str,
@@ -59,7 +80,7 @@ def render_result_card(
 
     content_left = 60
 
-    draw.text((content_left, 40), "F1 PIT WALL", font=_font("TitilliumWeb-SemiBold.ttf", 28), fill=TEXT_MUTED)
+    draw_wordmark(draw, content_left, 62, 18, TEXT_MUTED)
     draw.text(
         (content_left, 80),
         f"{year} {event_name.upper()} — {session_name.upper()}",

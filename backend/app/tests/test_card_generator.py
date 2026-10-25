@@ -1,11 +1,13 @@
 import io
 
-from PIL import Image, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
 from app.services.card_generator import (
     ASSETS_DIR,
     CARD_HEIGHT,
     CARD_WIDTH,
+    F1_RED,
+    draw_wordmark,
     hex_to_rgb,
     render_result_card,
     wrap_text,
@@ -65,3 +67,25 @@ def test_render_result_card_handles_missing_position():
     )
     img = Image.open(io.BytesIO(png_bytes))
     assert img.format == "PNG"
+
+
+def test_wordmark_splits_pit_and_wall_with_a_red_slash():
+    img = Image.new("RGB", (600, 120), (0, 0, 0))
+    end = draw_wordmark(ImageDraw.Draw(img), 20, 80, 30, (150, 150, 160))
+    pixels = img.load()
+    red_columns = sorted({x for x in range(600) for y in range(120) if pixels[x, y] == F1_RED})
+    letter_columns = sorted({x for x in range(600) for y in range(120) if pixels[x, y] == (150, 150, 160)})
+    assert red_columns, "the slash is drawn in F1 red"
+    # Letters on both sides of the slash: PIT before it, WALL after it.
+    assert letter_columns[0] < red_columns[0] and letter_columns[-1] > red_columns[-1]
+    assert 20 < end < 600
+
+
+def test_result_card_header_carries_the_wordmark():
+    png = render_result_card(
+        driver_code="VER", team_color="#3671C6", position=1, year=2023, event_name="Belgian Grand Prix",
+        session_name="Race", fastest_lap_str="1:47.305", strategy_text="One stop.",
+    )
+    img = Image.open(io.BytesIO(png)).convert("RGB")
+    header = [img.getpixel((x, y)) for x in range(60, 500) for y in range(30, 75)]
+    assert F1_RED in header
