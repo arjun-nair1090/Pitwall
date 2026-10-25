@@ -13,6 +13,16 @@ def test_health():
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
 
+def test_large_responses_are_gzipped_for_clients_that_accept_it():
+    response = client.get("/openapi.json", headers={"Accept-Encoding": "gzip"})
+    assert response.status_code == 200
+    assert response.headers["content-encoding"] == "gzip"
+    assert response.json()["info"]["title"] == "F1 Pit Wall API"
+
+def test_small_responses_are_sent_as_they_are():
+    response = client.get("/health", headers={"Accept-Encoding": "gzip"})
+    assert "content-encoding" not in response.headers
+
 def test_get_active_session():
     # This might make a network call or fail if OpenF1 is offline. Let's make sure it handles responses.
     response = client.get("/api/v1/sessions/active")

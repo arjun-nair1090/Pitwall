@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 import asyncio
 from app.core.config import settings
 from app.websocket.manager import manager
@@ -72,6 +73,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# Telemetry, replay and analysis answers are large JSON documents that compress well.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Connect api endpoints
 app.include_router(api_router, prefix="/api/v1")
