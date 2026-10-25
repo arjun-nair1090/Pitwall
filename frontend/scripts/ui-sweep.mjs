@@ -50,7 +50,8 @@ const AUDIT = `(() => {
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     const text = n.textContent.trim(); const el = n.parentElement;
-    if (!text || !el || !visible(el) || el.closest("script,style,noscript,canvas,svg")) continue;
+    // Text hidden from assistive tech is decoration (a separator, say), which WCAG 1.4.3 exempts.
+    if (!text || !el || !visible(el) || el.closest("script,style,noscript,canvas,svg,[aria-hidden=true]")) continue;
     const s = getComputedStyle(el); const fg = parse(s.color); const bg = bgOf(el);
     const alpha = fg.length > 3 ? fg[3] : 1;
     const mixed = fg.slice(0, 3).map((v, i) => Math.round(v * alpha + bg[i] * (1 - alpha)));
