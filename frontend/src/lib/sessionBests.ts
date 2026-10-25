@@ -9,7 +9,7 @@ export interface Bests {
   s3?: number;
 }
 export type BestKey = keyof Bests;
-export const BEST_KEYS: readonly BestKey[] = ["lap", "s1", "s2", "s3"];
+const BEST_KEYS: readonly BestKey[] = ["lap", "s1", "s2", "s3"];
 
 const usable = (v: number | undefined): v is number => typeof v === "number" && Number.isFinite(v) && v > 0;
 

@@ -16,7 +16,7 @@ export interface TelemetryPoint {
   acceleration: number;
 }
 
-export const CHANNELS = ["speed", "throttle", "brake", "gear", "rpm", "drs", "acceleration"] as const;
+const CHANNELS = ["speed", "throttle", "brake", "gear", "rpm", "drs", "acceleration"] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 // Channels that jump between values rather than varying smoothly: blending gear 3 and 4 into 3.4

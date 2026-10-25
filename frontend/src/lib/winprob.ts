@@ -32,7 +32,7 @@ export interface WinProbResult {
 }
 
 // A driver gets a line on the chart once they reach this chance on some lap.
-export const LINE_THRESHOLD = 0.05;
+const LINE_THRESHOLD = 0.05;
 
 export interface ChartDriver extends WinProbDriver {
   dashed: boolean;

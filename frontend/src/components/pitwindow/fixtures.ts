@@ -1,7 +1,7 @@
 import type { PitDriver, PitWindowResult } from "@/lib/pitwindow";
 
 // A driver with every field filled in; tests override what they care about.
-export const driver = (o: Partial<PitDriver>): PitDriver => ({
+const driver = (o: Partial<PitDriver>): PitDriver => ({
   code: "VER", name: "Max Verstappen", team: "Red Bull Racing", color: "#3671C6", position: 1, compound: "MEDIUM",
   tyre_age: 12, used: ["MEDIUM"], gap_ahead: null, status: "stay out", best: null, window: null, cheap_stop: false,
   rule_breach: false, early: false, ...o,

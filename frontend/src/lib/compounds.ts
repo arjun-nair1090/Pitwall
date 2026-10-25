@@ -11,7 +11,7 @@ export interface CompoundStyle {
   color: string;
 }
 
-export const COMPOUND_STYLES: Record<CompoundKey, CompoundStyle> = {
+const COMPOUND_STYLES: Record<CompoundKey, CompoundStyle> = {
   SOFT: { key: "SOFT", letter: "S", label: "Soft", color: "#e10600" },
   MEDIUM: { key: "MEDIUM", letter: "M", label: "Medium", color: "#ffd12b" },
   HARD: { key: "HARD", letter: "H", label: "Hard", color: "#f3f3f3" },

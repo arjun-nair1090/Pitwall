@@ -22,7 +22,7 @@ export interface CornerDuelRow {
 }
 
 // Telemetry is sampled about every 10 m at top speed, so braking points closer than that are the same.
-export const BRAKE_TIE_M = 10;
+const BRAKE_TIE_M = 10;
 
 // A time delta that rounds to 0.000 s is level: it is shown as "Level" and never credited to a driver.
 export const isLevel = (delta: number): boolean => Math.abs(delta).toFixed(3) === "0.000";

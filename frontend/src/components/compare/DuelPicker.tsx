@@ -30,7 +30,7 @@ function effectiveLap(drivers: readonly SessionDriver[], code: string, lap: stri
   return lap || String(find(drivers, code)?.fastest_lap ?? "");
 }
 
-export function sameLap(drivers: readonly SessionDriver[], value: DuelChoice): boolean {
+function sameLap(drivers: readonly SessionDriver[], value: DuelChoice): boolean {
   return value.d1 === value.d2 && effectiveLap(drivers, value.d1, value.l1) === effectiveLap(drivers, value.d2, value.l2);
 }
 

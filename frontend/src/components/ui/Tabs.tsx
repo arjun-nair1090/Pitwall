@@ -6,7 +6,7 @@ export interface TabItem {
   label: string;
 }
 
-export const tabId = (base: string, id: string) => `${base}-tab-${id}`;
+const tabId = (base: string, id: string) => `${base}-tab-${id}`;
 
 // Spread onto the element that shows the selected tab's content.
 export function tabPanelProps(base: string, id: string) {
