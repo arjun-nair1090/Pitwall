@@ -7,6 +7,7 @@ import bisect
 import json
 import math
 import os
+import re
 import urllib.request
 
 OUT = os.path.dirname(os.path.abspath(__file__))
@@ -17,6 +18,10 @@ CHALK, MUTE, FAINT = "#F0F0F5", "#ACACBE", "#9292A6"
 PURPLE, GREEN, YELLOW, RED = "#B57BFF", "#35D07F", "#F6C945", "#E10600"
 FONT = "'Titillium Web','Barlow Semi Condensed','Arial Narrow','Helvetica Neue',Arial,sans-serif"
 ROT = 250
+
+# The wordmark's outlines, shared with the app (cap height 100 units, baseline at y = 100).
+_BRAND = open(os.path.join(OUT, "..", "..", "frontend", "src", "components", "shell", "brandPaths.ts"), encoding="utf-8").read()
+BRAND = dict(re.findall(r'export const (\w+) = "([^"]+)";', _BRAND))
 
 request = urllib.request.Request(
     f"{API}/telemetry/compare",
@@ -227,9 +232,10 @@ def hero():
         + f'<g class="rise"><circle class="live" cx="70" cy="70" r="5" fill="{RED}"/>'
           f'<text x="84" y="75" font-size="14" font-weight="700" letter-spacing="3" fill="{MUTE}">FORMULA 1 TIMING  ·  2018 TO NOW</text></g>'
         + f'<g>{speed_lines}</g>'
-        + f'<g class="rise" style="animation-delay:.15s"><path d="M64 128 h36 l-30 116 h-36 z" fill="{RED}"/>'
-          f'<text x="100" y="230" font-size="116" font-weight="900" font-style="italic" letter-spacing="-2" fill="{CHALK}">PIT WALL</text>'
-          f'<text x="100" y="230" font-size="116" font-weight="900" font-style="italic" letter-spacing="-2" fill="url(#shine)" opacity="0.85">PIT WALL</text></g>'
+        + f'<g class="rise" style="animation-delay:.15s"><g transform="translate(64 169) scale(0.57)">'
+          f'<path d="{BRAND["LOCKUP_PIT"]} {BRAND["LOCKUP_WALL"]}" fill="{CHALK}"/>'
+          f'<path d="{BRAND["LOCKUP_PIT"]} {BRAND["LOCKUP_WALL"]}" fill="url(#shine)" opacity="0.85"/>'
+          f'<polygon points="{BRAND["LOCKUP_SLASH"]}" fill="{RED}"/></g></g>'
         + f'<g clip-path="url(#typeclip)"><text x="64" y="290" font-size="26" fill="{MUTE}">The timing screen, for every grand prix since 2018.</text></g>'
         + chip_svg
         + f'<text x="64" y="392" font-size="15" fill="{FAINT}">Built on FastF1 and F1\'s own live timing feed. Numbers come from code, never a language model.</text>'
