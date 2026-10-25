@@ -1,10 +1,10 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
 import { Radio } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import CompoundBadge from "@/components/CompoundBadge";
 import EmptyState from "@/components/ui/EmptyState";
+import { usePrefersReducedMotion, useReorderAnimation } from "@/hooks/useReorderAnimation";
 import { cn } from "@/lib/cn";
 import { fieldBests, mergeBests, type BestKey, type Bests } from "@/lib/sessionBests";
 import { classifyTime, formatGap, formatLapTime, formatSector, TIMING_TEXT_CLASS } from "@/lib/timing";
@@ -31,7 +31,7 @@ function useElementWidth<T extends HTMLElement>() {
 
 export default function LiveTiming() {
   const { leaderboard, drivers, selectedDriverNum, setSelectedDriverNum } = useF1Store();
-  const reducedMotion = useReducedMotion() ?? false;
+  const reducedMotion = usePrefersReducedMotion();
   const [containerRef, width] = useElementWidth<HTMLDivElement>();
   const showSectors = width >= SECTORS_MIN_WIDTH;
 
@@ -64,6 +64,7 @@ export default function LiveTiming() {
     const overallBest = fieldBests(Array.from(bestsRef.current.values()).map((entry) => entry.bests));
     return { rows: list, overall: overallBest };
   }, [leaderboard, driversMap]);
+  const rowRef = useReorderAnimation<HTMLDivElement>(rows.map((r) => r.number), !reducedMotion);
 
   if (rows.length === 0) {
     return (
@@ -111,11 +112,10 @@ export default function LiveTiming() {
               );
             };
             return (
-              <motion.div
+              <div
                 key={number}
+                ref={rowRef(number)}
                 role="row"
-                layout={!reducedMotion}
-                transition={{ type: "spring", stiffness: 380, damping: 36 }}
                 className={cn(
                   "grid h-10 items-center border-b border-gantry/60 pr-2 transition-colors even:bg-raised/20 hover:bg-raised/60",
                   isSelected && "bg-raised even:bg-raised",
@@ -154,7 +154,7 @@ export default function LiveTiming() {
                 <span role="cell" className="pl-3">
                   {timing.compound ? <CompoundBadge compound={timing.compound} age={timing.tyre_age} /> : "–"}
                 </span>
-              </motion.div>
+              </div>
             );
           })}
         </div>

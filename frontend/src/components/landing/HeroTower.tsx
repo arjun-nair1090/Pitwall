@@ -1,12 +1,12 @@
 "use client";
 
-import { useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Button, { buttonClass } from "@/components/ui/Button";
 import EmptyState from "@/components/ui/EmptyState";
 import Panel from "@/components/ui/Panel";
 import Skeleton, { Loading } from "@/components/ui/Skeleton";
+import { usePrefersReducedMotion } from "@/hooks/useReorderAnimation";
 import { winnerCaption, type LatestResult } from "@/lib/latestResult";
 import { markIntroSeen, readIntroPreference } from "./introPreference";
 import RaceTower from "./RaceTower";
@@ -15,7 +15,7 @@ import { useLatestResult } from "./useLatestResult";
 import { useStartSequence } from "./useStartSequence";
 
 function Sequence({ data, instant }: { data: LatestResult; instant: boolean }) {
-  const reduced = useReducedMotion() ?? false;
+  const reduced = usePrefersReducedMotion();
   const { lit, stage, skip } = useStartSequence({ instant });
   useEffect(() => {
     if (!instant) markIntroSeen(window);

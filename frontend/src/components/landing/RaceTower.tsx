@@ -1,7 +1,7 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { useReorderAnimation } from "@/hooks/useReorderAnimation";
 import {
   finishOrder, gridOrder, positionsGained, resultLabel, type ClassificationRow,
 } from "@/lib/latestResult";
@@ -21,15 +21,15 @@ interface RaceTowerProps {
 // window (the rest is clipped), which is the whole point of the reveal.
 export default function RaceTower({ rows, phase, reducedMotion, label, visibleRows = 10 }: RaceTowerProps) {
   const ordered = phase === "grid" ? gridOrder(rows) : finishOrder(rows);
+  const rowRef = useReorderAnimation<HTMLLIElement>(ordered.map((row) => row.code), !reducedMotion);
   return (
     <ol aria-label={label} className="relative overflow-hidden" style={{ height: visibleRows * ROW_HEIGHT }}>
       {ordered.map((row, index) => {
         const gained = positionsGained(row);
         return (
-          <motion.li
+          <li
             key={row.code}
-            layout={!reducedMotion}
-            transition={{ type: "spring", stiffness: 380, damping: 36 }}
+            ref={rowRef(row.code)}
             className="grid items-center border-b border-gantry/60 pr-3 text-sm tabular-nums even:bg-raised/20"
             style={{ height: ROW_HEIGHT, gridTemplateColumns: "2.75rem 4px minmax(0,1fr) auto auto" }}
           >
@@ -58,7 +58,7 @@ export default function RaceTower({ rows, phase, reducedMotion, label, visibleRo
                 )
               ) : null}
             </span>
-          </motion.li>
+          </li>
         );
       })}
     </ol>
