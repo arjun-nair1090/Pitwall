@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, type SyntheticEvent } from "react";
 import { CalendarClock, PanelLeftClose, PanelLeftOpen, Radio, Search } from "lucide-react";
 import Kbd from "@/components/ui/Kbd";
 import { useSeasonCalendar } from "@/hooks/useRaceData";
@@ -18,8 +19,11 @@ import Wordmark, { Mark } from "./Wordmark";
 // variant, both driven by <html data-rail>, so nothing depends on React having run yet. Labels stay
 // in the page as screen-reader text while collapsed, so every link always has a name.
 const LABEL = "sr-only lg:rail-expanded:not-sr-only whitespace-nowrap";
-const TOOLTIP =
-  "pointer-events-none absolute left-full top-1/2 z-40 ml-3 -translate-y-1/2 whitespace-nowrap rounded-control border border-gantry bg-raised px-2.5 py-1 text-xs font-medium text-chalk opacity-0 shadow-lg transition-opacity group-hover/item:opacity-100 group-focus-visible/item:opacity-100 lg:rail-expanded:hidden";
+const TIP_BOX =
+  "pointer-events-none absolute left-full z-40 ml-3 -translate-y-1/2 whitespace-nowrap rounded-control border border-gantry bg-raised px-2.5 py-1 text-xs font-medium text-chalk shadow-lg lg:rail-expanded:hidden";
+// A tooltip inside its own item, shown on hover. Only for items outside the scrolling nav: the nav
+// clips anything past its right edge, so its items share one tooltip drawn beside it instead.
+const TOOLTIP = `${TIP_BOX} top-1/2 opacity-0 transition-opacity group-hover/item:opacity-100 group-focus-visible/item:opacity-100`;
 
 // What is happening right now: the running session, or else the next race on the calendar.
 function StatusCard() {
@@ -64,10 +68,22 @@ export default function Rail() {
   const live = useF1Store((s) => s.activeSession?.live === true);
   const openSearch = usePaletteStore((s) => s.setOpen);
   const [collapsed, setCollapsed] = useRailCollapsed();
+  // The nav item being pointed at or focused, and the height of its middle on screen (the rail
+  // starts at the top of the viewport, so that is also its height within the rail).
+  const [tip, setTip] = useState<{ label: string; top: number } | null>(null);
+  const hideTip = () => setTip(null);
+  const tipFor = (label: string) => {
+    const show = (e: SyntheticEvent<HTMLElement>) => {
+      const box = e.currentTarget.getBoundingClientRect();
+      setTip({ label, top: box.top + box.height / 2 });
+    };
+    return { onPointerEnter: show, onFocus: show, onPointerLeave: hideTip, onBlur: hideTip };
+  };
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-[var(--rail-w)] flex-col border-r border-gantry bg-tarmac transition-[width] duration-200 motion-reduce:transition-none md:flex">
-      <nav aria-label="Main" className="flex min-h-0 flex-1 flex-col px-2 py-3 [@media(max-height:640px)]:overflow-y-auto">
+      {/* The menu is taller than many screens, so it scrolls between the brand and the footer. */}
+      <nav aria-label="Main" onScroll={hideTip} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-3">
         <Link
           href="/"
           aria-label="Pit Wall home"
@@ -81,12 +97,12 @@ export default function Rail() {
           type="button"
           onClick={() => openSearch(true)}
           aria-keyshortcuts="Control+K"
+          {...tipFor("Search")}
           className="group/item relative mb-1 flex h-10 items-center justify-center gap-3 rounded-control border border-edge px-2 text-sm text-mute transition-colors hover:bg-raised hover:text-chalk lg:rail-expanded:justify-start lg:rail-expanded:px-3"
         >
           <Search aria-hidden className="h-4 w-4 shrink-0" />
           <span className={cn("flex-1 text-left", LABEL)}>Search</span>
           <Kbd className="hidden lg:rail-expanded:inline">Ctrl K</Kbd>
-          <span aria-hidden className={TOOLTIP}>Search</span>
         </button>
 
         {GROUP_ORDER.map((group) => (
@@ -102,6 +118,7 @@ export default function Rail() {
                   key={m.id}
                   href={m.href}
                   aria-current={active ? "page" : undefined}
+                  {...tipFor(m.label)}
                   className={cn(
                     "group/item relative flex h-10 items-center justify-center gap-3 rounded-control px-1 font-display text-[13px] uppercase tracking-[0.06em] transition-colors lg:rail-expanded:justify-start",
                     active ? "font-bold text-chalk" : "font-semibold text-mute hover:text-chalk",
@@ -123,13 +140,13 @@ export default function Rail() {
                       <span aria-hidden className="absolute right-1 top-1.5 h-2 w-2 rounded-full bg-live lg:rail-expanded:static lg:rail-expanded:ml-auto lg:rail-expanded:mr-2" />
                     </>
                   )}
-                  <span aria-hidden className={TOOLTIP}>{m.label}</span>
                 </Link>
               );
             })}
           </div>
         ))}
       </nav>
+      {tip && <span aria-hidden data-rail-tip className={TIP_BOX} style={{ top: tip.top }}>{tip.label}</span>}
 
       <StatusCard />
 

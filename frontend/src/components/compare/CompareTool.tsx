@@ -102,6 +102,7 @@ export default function CompareTool({ initial }: { initial: RaceParams }) {
             onChange={setChoice}
             onSubmit={submit}
             loading={duel.status === "loading"}
+            driversLoading={info.status === "loading"}
             dirty={dirty}
           />
         </div>
