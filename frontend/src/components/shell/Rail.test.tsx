@@ -64,6 +64,17 @@ describe("Rail", () => {
     expect(screen.queryByRole("link", { current: "page" })).toBeNull();
   });
 
+  it("names the page you point at in a tooltip beside the menu, which can scroll without clipping it", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<Rail />);
+    const link = screen.getByRole("link", { name: /Head to head/ });
+    await user.hover(link);
+    expect(container.querySelector("[data-rail-tip]")).toHaveTextContent("Head to head");
+    expect(link.closest("nav")).not.toContainElement(container.querySelector("[data-rail-tip]") as HTMLElement);
+    await user.unhover(link);
+    expect(container.querySelector("[data-rail-tip]")).toBeNull();
+  });
+
   it("goes home from the brand", () => {
     render(<Rail />);
     expect(screen.getByRole("link", { name: "Pit Wall home" })).toHaveAttribute("href", "/");
