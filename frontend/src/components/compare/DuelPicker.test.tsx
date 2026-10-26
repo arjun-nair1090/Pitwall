@@ -23,6 +23,14 @@ const setup = (over: Partial<Parameters<typeof DuelPicker>[0]> = {}) => {
 };
 
 describe("DuelPicker", () => {
+  it("says the drivers are loading while the session is", () => {
+    setup({ drivers: [], driversLoading: true });
+    const select = screen.getByLabelText("Driver 1");
+    expect(select).toBeDisabled();
+    expect(select).toHaveAttribute("aria-busy", "true");
+    expect(within(select).getByRole("option")).toHaveTextContent("Loading drivers…");
+  });
+
   it("offers every driver who ran laps, by name", () => {
     setup();
     const options = within(screen.getByLabelText("Driver 1")).getAllByRole("option").map((o) => o.textContent);

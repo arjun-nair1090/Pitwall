@@ -19,6 +19,8 @@ interface DuelPickerProps {
   onChange: (next: DuelChoice) => void;
   onSubmit: () => void;
   loading: boolean;
+  // The session's driver list is still loading.
+  driversLoading?: boolean;
   // The choices differ from the comparison currently on screen.
   dirty: boolean;
 }
@@ -35,10 +37,11 @@ function sameLap(drivers: readonly SessionDriver[], value: DuelChoice): boolean 
 }
 
 function DriverFields({
-  side, drivers, code, lap, onDriver, onLap,
+  side, drivers, loading, code, lap, onDriver, onLap,
 }: {
   side: 1 | 2;
   drivers: readonly SessionDriver[];
+  loading: boolean;
   code: string;
   lap: string;
   onDriver: (code: string) => void;
@@ -48,7 +51,8 @@ function DriverFields({
   const lapCount = current?.laps ?? 0;
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_9.5rem] gap-2">
-      <Select label={`Driver ${side}`} value={code} disabled={drivers.length === 0} onChange={(e) => onDriver(e.target.value)}>
+      <Select label={`Driver ${side}`} value={code} loading={loading} disabled={drivers.length === 0} onChange={(e) => onDriver(e.target.value)}>
+        {loading && <option value="">Loading drivers…</option>}
         {drivers.map((d) => <option key={d.code} value={d.code}>{d.code} {d.name}</option>)}
       </Select>
       <Select label={`Driver ${side} lap`} value={lap} disabled={!current} onChange={(e) => onLap(e.target.value)}>
@@ -59,7 +63,7 @@ function DriverFields({
   );
 }
 
-export default function DuelPicker({ drivers, value, onChange, onSubmit, loading, dirty }: DuelPickerProps) {
+export default function DuelPicker({ drivers, value, onChange, onSubmit, loading, driversLoading = false, dirty }: DuelPickerProps) {
   const identical = drivers.length > 0 && sameLap(drivers, value);
   const pick = (side: 1 | 2, code: string) => {
     const laps = find(drivers, code)?.laps ?? 0;
@@ -74,9 +78,9 @@ export default function DuelPicker({ drivers, value, onChange, onSubmit, loading
       className="flex flex-col gap-3"
     >
       <div className="grid items-end gap-3 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto]">
-        <DriverFields side={1} drivers={drivers} code={value.d1} lap={value.l1} onDriver={(c) => pick(1, c)} onLap={(l) => onChange({ ...value, l1: l })} />
+        <DriverFields side={1} drivers={drivers} loading={driversLoading} code={value.d1} lap={value.l1} onDriver={(c) => pick(1, c)} onLap={(l) => onChange({ ...value, l1: l })} />
         <span aria-hidden className="hidden pb-2.5 text-center text-sm font-semibold text-faint xl:block">vs</span>
-        <DriverFields side={2} drivers={drivers} code={value.d2} lap={value.l2} onDriver={(c) => pick(2, c)} onLap={(l) => onChange({ ...value, l2: l })} />
+        <DriverFields side={2} drivers={drivers} loading={driversLoading} code={value.d2} lap={value.l2} onDriver={(c) => pick(2, c)} onLap={(l) => onChange({ ...value, l2: l })} />
         <Button type="submit" variant="primary" loading={loading} disabled={drivers.length === 0 || identical} className="xl:min-w-[11rem]">
           <Activity aria-hidden className="h-4 w-4" />
           {dirty ? "Update comparison" : "Compare"}
