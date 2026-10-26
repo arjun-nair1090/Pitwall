@@ -5,7 +5,7 @@ so live data comes from here instead. The feed is a SignalR hub: subscribing ret
 every topic, then each change arrives as a patch to merge into it. Lists are patched as dicts keyed
 by index ({"Sectors": {"0": {...}}}). Without an F1 TV login the hub sends timing, tyres, weather,
 race control and team radio, but not car telemetry (CarData.z) or car positions (Position.z). With the
-token from `python -m fastf1 auth f1tv --authenticate`, it sends those two as well.
+token from `python -m fastf1 auth f1tv --authenticate --method browser`, it sends those two as well.
 """
 import base64
 import copy
@@ -624,7 +624,7 @@ def car_frames_from_state(state: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def f1tv_token() -> Optional[str]:
     """The F1 TV token FastF1's sign-in stored, if there is one and it has not expired. Never prompts:
-    signing in is a one-off step a person runs (`python -m fastf1 auth f1tv --authenticate`)."""
+    signing in is a one-off step a person runs (`python -m fastf1 auth f1tv --authenticate --method browser`)."""
     try:
         from fastf1.internals.f1account.tokens import TokenStore
 

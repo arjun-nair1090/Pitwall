@@ -205,7 +205,7 @@ def test_a_locked_archive_says_to_sign_in_to_f1_tv(monkeypatch):
     monkeypatch.setattr(si, "_probe_archive", lambda year: 401)
     with pytest.raises(si.SessionDataError, match="F1 TV sign-in") as err:
         si.load_session(2026, "Singapore", "R", round_number=17)
-    assert "python -m fastf1 auth f1tv --authenticate" in str(err.value)
+    assert "python -m fastf1 auth f1tv --authenticate --method browser" in str(err.value)
 
 
 def test_a_locked_archive_explains_empty_laps_too(monkeypatch):

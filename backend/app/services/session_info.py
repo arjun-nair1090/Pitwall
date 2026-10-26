@@ -23,7 +23,7 @@ class SessionDataError(Exception):
 # Since October 2026 F1's timing archive only serves signed-in F1 TV subscribers. FastF1 sends the
 # token itself once someone has signed in on this machine.
 ARCHIVE_INDEX_URL = "https://livetiming.formula1.com/static/{year}/Index.json"
-ARCHIVE_SIGN_IN = "python -m fastf1 auth f1tv --authenticate"
+ARCHIVE_SIGN_IN = "python -m fastf1 auth f1tv --authenticate --method browser"
 _ARCHIVE_TTL_SECONDS = 120
 _ARCHIVE_STATUS: Dict[int, Tuple[float, bool]] = {}
 

@@ -108,13 +108,13 @@ The first time you open a session, FastF1 downloads it, which can take a minute.
 
 `docker compose up --build -d` runs the whole thing in containers instead. In that case, leave `RUNNING_LOCALLY=false`.
 
-**2026 races and live car positions.** F1 now puts this season's archive and the live car position stream behind an F1 TV login. FastF1 3.9 handles the login:
+**Race data and live car positions.** F1 now puts its timing archive, older seasons included, and the live car position stream behind an F1 TV login. FastF1 3.9 handles the login:
 
 ```bash
-python -m fastf1 auth f1tv --authenticate
+python -m fastf1 auth f1tv --authenticate --method browser
 ```
 
-It opens a browser to sign in, and the token lasts a few days. Without it, everything before 2026 still works, and live timing still works, but the track map loses the cars.
+It prints a link to sign in through your browser, and the token lasts a few days (`python -m fastf1 auth f1tv --status` shows when it expires). Without `--method browser` it asks for your email and password in the terminal instead, which fails where nothing can type into it. Without a token, sessions the backend hasn't already cached won't load, and the track map loses the cars, but live timing still works.
 
 <img src="docs/readme/kerb.svg" width="100%" height="14">
 
