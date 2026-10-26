@@ -57,3 +57,6 @@ frontend/data/fastf1_cache/
 
 # Brainstorming mockups
 .superpowers/
+
+# Playwright MCP screenshots and logs
+.playwright-mcp/
