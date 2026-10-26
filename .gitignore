@@ -60,3 +60,6 @@ frontend/data/fastf1_cache/
 
 # Playwright MCP screenshots and logs
 .playwright-mcp/
+
+# Personal Claude Code settings (permission rules), kept per machine
+.claude/settings.local.json
