@@ -63,7 +63,8 @@ describe("WinProbPage", () => {
         : answer(_u, body)) as never);
     render(<WinProbPage initial={{ ...initial, lap: 60 }} />);
     expect(await screen.findByText("Lap 6 of 6")).toBeInTheDocument();
-    expect(lapsAsked()).toEqual([60, 6]);
+    // The clamped lap shows before its request goes out (an effect after the render), so wait for it.
+    await waitFor(() => expect(lapsAsked()).toEqual([60, 6]));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
