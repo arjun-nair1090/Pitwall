@@ -39,3 +39,11 @@ def _offline_archive_check(monkeypatch):
 
     monkeypatch.setattr(session_info, "_probe_archive", lambda year: None)
     session_info._ARCHIVE_STATUS.clear()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    """Every test starts with no requests counted, so limits never leak between tests."""
+    from app.core import rate_limit
+
+    rate_limit.reset()

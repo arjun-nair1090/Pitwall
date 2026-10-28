@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import rate_limit
 from app.models.models import PredictionModel, UserModel
 from app.services import predictions_service
 from app.services.auth_service import (
@@ -157,7 +158,7 @@ def verify_origin(request: Request) -> None:
         raise HTTPException(status_code=403, detail="Request origin not allowed")
 
 
-@router.post("/auth/signup", response_model=UserResponse, dependencies=[Depends(verify_origin)])
+@router.post("/auth/signup", response_model=UserResponse, dependencies=[Depends(verify_origin), Depends(rate_limit("signup", 5, 3600))])
 async def signup(req: SignupRequest, response: Response, db: Session = Depends(get_db)):
     existing = db.query(UserModel).filter(UserModel.email == req.email).first()
     if existing:
@@ -176,7 +177,7 @@ async def signup(req: SignupRequest, response: Response, db: Session = Depends(g
     return user
 
 
-@router.post("/auth/login", response_model=UserResponse, dependencies=[Depends(verify_origin)])
+@router.post("/auth/login", response_model=UserResponse, dependencies=[Depends(verify_origin), Depends(rate_limit("login", 10, 900))])
 async def login(req: LoginRequest, response: Response, db: Session = Depends(get_db)):
     user = db.query(UserModel).filter(UserModel.email == req.email).first()
     # Always run a real bcrypt comparison -- against a throwaway hash when the

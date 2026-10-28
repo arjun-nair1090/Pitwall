@@ -57,12 +57,14 @@ export default function AskPage() {
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
 
   const ask = async (raw: string) => {
     const question = raw.trim();
     if (!question || pending !== null || unavailable) return;
     setPending(question);
     setError(null);
+    setSignedOut(false);
     try {
       const res = await axios.post<AskResponse>("/api/v1/ask", { question, history: historyOf(exchanges) });
       setExchanges((prev) => [...prev, { question, answer: res.data.answer, sources: res.data.sources }]);
@@ -70,7 +72,8 @@ export default function AskPage() {
     } catch (err) {
       const { status, message } = failureOf(err);
       if (status === 503) setUnavailable(true);
-      setError(message);
+      if (status === 401) setSignedOut(true);
+      else setError(message);
     } finally {
       setPending(null);
     }
@@ -122,6 +125,14 @@ export default function AskPage() {
               Ask
             </Button>
           </div>
+          {signedOut && (
+            <p role="alert" className="text-sm text-live-text">
+              <Link href="/login" className="underline underline-offset-2">
+                Log in
+              </Link>{" "}
+              to ask a question.
+            </p>
+          )}
           {error && (
             <p role="alert" className="text-sm text-live-text">
               {error}
