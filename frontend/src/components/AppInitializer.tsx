@@ -31,6 +31,14 @@ export const CONDITIONS_REFRESH_MS = 15_000;
 export const RECONNECT_MS = 2_000;
 const MAX_RECONNECT_MS = 30_000;
 
+// Where the live feed's socket connects: NEXT_PUBLIC_API_URL if set, otherwise this page's host (port 8000
+// on localhost). An https page may only open wss:// sockets, so the scheme follows the API's, or the page's.
+export function socketBase(apiUrl: string | undefined, page: Pick<Location, "protocol" | "host" | "hostname">): string {
+  if (apiUrl) return apiUrl.replace(/^http/, "ws").replace(/\/$/, "");
+  if (page.hostname === "localhost") return "ws://localhost:8000";
+  return `${page.protocol === "https:" ? "wss" : "ws"}://${page.host}`;
+}
+
 export default function AppInitializer({ children }: { children: React.ReactNode }) {
   const activeSession = useF1Store((s) => s.activeSession);
   // Actions never change, so they are read once rather than subscribed to.
@@ -162,11 +170,7 @@ export default function AppInitializer({ children }: { children: React.ReactNode
   useEffect(() => {
     if (!activeSession?.session_key) return;
 
-    // Use NEXT_PUBLIC_API_URL if configured, otherwise fallback to window locations
-    const apiHost = process.env.NEXT_PUBLIC_API_URL 
-      ? process.env.NEXT_PUBLIC_API_URL.replace("http://", "").replace("https://", "")
-      : (window.location.hostname === "localhost" ? "localhost:8000" : window.location.host);
-    const wsUrl = `ws://${apiHost}/ws/pitwall-client-${Math.random().toString(36).substring(2, 6)}`;
+    const wsUrl = `${socketBase(process.env.NEXT_PUBLIC_API_URL, window.location)}/ws/pitwall-client-${Math.random().toString(36).substring(2, 6)}`;
     
     // The socket drops whenever the backend restarts or the network blips; keep reconnecting
     // (2 s, doubling to 30 s) until the page unmounts, so the feed never stays on standby.
