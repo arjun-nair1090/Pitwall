@@ -18,6 +18,16 @@ def _clear_memo():
     si.clear_cache()
 
 
+@pytest.fixture(autouse=True)
+def _signed_in():
+    """/ask is signed-in only; a test that wants a visitor removes this override."""
+    from app.api.v1.auth_endpoints import get_current_user
+
+    app.dependency_overrides[get_current_user] = lambda: object()
+    yield
+    app.dependency_overrides.pop(get_current_user, None)
+
+
 def _raise(message):
     def boom(*args, **kwargs):
         raise si.SessionDataError(message)
@@ -464,6 +474,24 @@ def test_ask_without_a_key_is_a_503(monkeypatch):
     response = client.post("/api/v1/ask", json={"question": "Who won?"})
     assert response.status_code == 503
     assert response.json()["detail"] == "The assistant isn't set up on this server (no Anthropic API key)."
+
+
+def test_ask_needs_a_signed_in_visitor(monkeypatch):
+    from app.api.v1.auth_endpoints import get_current_user
+    app.dependency_overrides.pop(get_current_user)
+    fake = _ask_client(monkeypatch, _says("never reached"))
+    response = client.post("/api/v1/ask", json={"question": "Who won?"})
+    assert response.status_code == 401
+    assert fake.calls == []
+
+
+def test_ask_is_limited_to_20_questions_an_hour(monkeypatch):
+    _ask_client(monkeypatch, *[_says("ok") for _ in range(20)])
+    for _ in range(20):
+        assert client.post("/api/v1/ask", json={"question": "Who won?"}).status_code == 200
+    response = client.post("/api/v1/ask", json={"question": "Who won?"})
+    assert response.status_code == 429
+    assert int(response.headers["Retry-After"]) > 0
 
 
 def test_ask_treats_the_placeholder_key_as_unset(monkeypatch):

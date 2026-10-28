@@ -53,6 +53,23 @@ def test_login_with_wrong_password_returns_401():
     assert response.status_code == 401
 
 
+def test_login_is_limited_to_10_tries_per_15_minutes():
+    _signup(email="limited@example.com", password="correct-password-3")
+    wrong = {"email": "limited@example.com", "password": "guess"}
+    for _ in range(10):
+        assert client.post("/api/v1/auth/login", json=wrong).status_code == 401
+    right = {"email": "limited@example.com", "password": "correct-password-3"}
+    response = client.post("/api/v1/auth/login", json=right)
+    assert response.status_code == 429
+    assert "Retry-After" in response.headers
+
+
+def test_signup_is_limited_to_5_accounts_an_hour():
+    for i in range(5):
+        assert _signup(email=f"many{i}@example.com").status_code == 200
+    assert _signup(email="many5@example.com").status_code == 429
+
+
 def test_me_requires_authentication():
     anon_client = _client()
     response = anon_client.get("/api/v1/auth/me")

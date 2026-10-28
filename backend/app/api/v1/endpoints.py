@@ -1,8 +1,10 @@
 import asyncio
 
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import List, Literal, Optional
+from app.api.v1.auth_endpoints import get_current_user
+from app.core.rate_limit import rate_limit
 from app.services.f1_data_service import f1_service
 from app.services import championship_data, championship_sim, corner_analysis, data_assistant, duel_telemetry, latest_result, pit_window, race_battles, race_pace, race_replay, win_probability
 from app.services import session_info as session_info_service
@@ -410,9 +412,11 @@ class AskRequest(BaseModel):
         return value.strip() if isinstance(value, str) else value
 
 
-@router.post("/ask")
+@router.post("/ask", dependencies=[Depends(rate_limit("ai", 20, 3600)), Depends(get_current_user)])
 async def ask_the_data(req: AskRequest):
-    """Answer a question by calling the app's own analyses as tools; every call made is listed."""
+    """Answer a question by calling the app's own analyses as tools; every call made is listed.
+
+    Signed-in only, and rate limited: every question spends API credits."""
     client = data_assistant.make_client()
     if client is None:
         raise HTTPException(status_code=503, detail="The assistant isn't set up on this server (no Anthropic API key).")
@@ -461,7 +465,7 @@ class AIChatRequest(BaseModel):
     session_key: int
     question: str
 
-@router.post("/ai/chat")
+@router.post("/ai/chat", dependencies=[Depends(rate_limit("ai", 20, 3600))])
 async def ai_chat(req: AIChatRequest):
     """Ask the AI Race Engineer a question about the active session."""
     try:

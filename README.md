@@ -46,7 +46,7 @@ Everything is built on [FastF1](https://github.com/theOehrly/Fast-F1) and F1's o
 | Championship odds | Who can still win the title, from a Monte Carlo run of the races left. |
 | Archive | Past seasons, calendars and results. |
 | Predictions | Pick the podium before lights out and see how you rank. 25 points for an exact podium, 10 per driver who finishes in the top 3. |
-| Ask the data | Ask a question in plain English and get an answer built from the app's own analysis endpoints, with the calls it made listed underneath. Needs an Anthropic key. |
+| Ask the data | Ask a question in plain English and get an answer built from the app's own analysis endpoints, with the calls it made listed underneath. Needs an Anthropic key and a signed-in user. |
 
 Every analysis page has its own URL, so you can send someone a link straight to a comparison:
 
@@ -144,7 +144,7 @@ flowchart LR
 
 The frontend uses Next.js 14, React 18, TypeScript, Tailwind, Recharts, framer-motion, react-grid-layout and Zustand. The backend uses FastAPI, SQLAlchemy, FastF1, pandas, NumPy and LangGraph (for the what-if flow). Data lives in Postgres 16, Redis 7 and ChromaDB.
 
-Accounts use bcrypt, a JWT in an httpOnly cookie, and CSRF protection. There's no email verification, no password reset and no rate limiting on login. That's fine for a hobby app, but don't expose it to the internet as-is.
+Accounts use bcrypt, a JWT in an httpOnly cookie, and CSRF protection. Each IP gets 10 login tries per 15 minutes and 5 sign-ups an hour. The routes that spend AI credits are limited too: Ask the data takes 20 questions an hour and needs a signed-in user. The limits are counted in the backend's memory, so run a single worker. There's no email verification or password reset.
 
 <details>
 <summary><b>API</b> (everything is under <code>/api/v1</code>; interactive docs at <code>localhost:8000/docs</code>)</summary>

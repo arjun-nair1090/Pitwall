@@ -2,9 +2,10 @@
 import asyncio
 from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.rate_limit import rate_limit
 from app.services import race_debrief, whatif, whatif_graph
 from app.services.ai_engineer import ai_engineer
 from app.services.session_frames import LruCache, SessionFrames, load_session_frames
@@ -87,7 +88,7 @@ class WhatIfRequest(BaseModel):
     changes: List[WhatIfChange] = Field(min_length=1, max_length=5)
 
 
-@router.post("/whatif")
+@router.post("/whatif", dependencies=[Depends(rate_limit("whatif", 30, 3600))])
 async def whatif_endpoint(req: WhatIfRequest) -> Dict[str, Any]:
     """Counterfactual on a real driver's strategy ("what if they'd pitted 5 laps later?").
 

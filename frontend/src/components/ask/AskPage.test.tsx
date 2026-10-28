@@ -174,6 +174,16 @@ describe("AskPage", () => {
     expect(screen.queryByText(detail)).toBeNull();
   });
 
+  it("asks a signed-out visitor to log in, and keeps the question", async () => {
+    post.mockRejectedValueOnce(failure(401, "Not authenticated"));
+    render(<AskPage />);
+    fireEvent.change(box(), { target: { value: "Who won?" } });
+    fireEvent.click(askButton());
+    expect(await screen.findByRole("link", { name: "Log in" })).toHaveAttribute("href", "/login");
+    expect(screen.queryByText("Not authenticated")).toBeNull();
+    expect(box().value).toBe("Who won?");
+  });
+
   it("falls back to a generic message when the server gives no detail", async () => {
     post.mockRejectedValueOnce(new Error("network"));
     render(<AskPage />);
