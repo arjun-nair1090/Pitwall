@@ -202,3 +202,7 @@ cd frontend && npm test && npm run typecheck && node scripts/check-legacy.mjs --
 ```
 
 GitHub Actions runs pytest, tsc, vitest and a production build on every push and pull request.
+
+## Disclaimer
+
+Pit Wall is an unofficial fan project, not associated with Formula 1 or the FIA. F1, Formula One and related marks are trademarks of Formula One Licensing B.V. Timing data comes from F1's public live timing feed via FastF1 and OpenF1.

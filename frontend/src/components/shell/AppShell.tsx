@@ -23,6 +23,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
         <main id="main" tabIndex={-1} className="flex flex-col px-4 pb-24 pt-4 md:px-6 md:pb-8 md:pt-6">
           {children}
+          <footer className="mt-auto pt-8 text-xs text-faint">
+            Pit Wall is an unofficial fan project, not associated with Formula 1 or the FIA. F1, Formula One and
+            related marks are trademarks of Formula One Licensing B.V.
+          </footer>
         </main>
       </div>
       <MobileTabBar />
