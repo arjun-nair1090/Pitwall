@@ -7,7 +7,7 @@ vi.mock("axios", () => ({
   default: { get: (...args: unknown[]) => get(...args), defaults: {}, interceptors: { request: { use: vi.fn() } } },
 }));
 
-import AppInitializer, { CONDITIONS_REFRESH_MS, LIVE_REFRESH_MS, RECONNECT_MS, SESSION_REFRESH_MS } from "./AppInitializer";
+import AppInitializer, { CONDITIONS_REFRESH_MS, LIVE_REFRESH_MS, RECONNECT_MS, SESSION_REFRESH_MS, socketBase } from "./AppInitializer";
 
 const FINISHED = { session_key: 11388, meeting_name: "Singapore Grand Prix", session_name: "Race", live: false };
 const LIVE = { session_key: 11396, meeting_name: "United States Grand Prix", session_name: "Race", live: true };
@@ -141,5 +141,23 @@ describe("AppInitializer", () => {
     await flush();
     expect(useF1Store.getState().activeSession).toBeNull();
     expect(useF1Store.getState().apiStatus).toBe("ok");
+  });
+});
+
+describe("socketBase", () => {
+  const page = (protocol: string, host: string) => ({ protocol, host, hostname: host.split(":")[0] });
+
+  it("uses wss for an https API, so an https page may open it", () => {
+    expect(socketBase("https://api.pitwall.example.com", page("https:", "pitwall.example.com"))).toBe("wss://api.pitwall.example.com");
+    expect(socketBase("https://api.pitwall.example.com/", page("https:", "pitwall.example.com"))).toBe("wss://api.pitwall.example.com");
+  });
+
+  it("keeps ws for a plain http API", () => {
+    expect(socketBase("http://localhost:8000", page("http:", "localhost:3000"))).toBe("ws://localhost:8000");
+  });
+
+  it("falls back to the page's own host and scheme without an API URL", () => {
+    expect(socketBase(undefined, page("http:", "localhost:3000"))).toBe("ws://localhost:8000");
+    expect(socketBase(undefined, page("https:", "pitwall.example.com"))).toBe("wss://pitwall.example.com");
   });
 });
