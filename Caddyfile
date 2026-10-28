@@ -1,0 +1,4 @@
+# HTTPS in front of the backend for docker-compose.prod.yml. Caddy fetches and renews the certificate.
+{$API_DOMAIN} {
+	reverse_proxy backend:8000
+}

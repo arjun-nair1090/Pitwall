@@ -1,0 +1,51 @@
+# Production backend: the API, Postgres and Redis behind Caddy, which gets the HTTPS certificate itself.
+# On a server with ports 80 and 443 open:  docker compose -f docker-compose.prod.yml up -d --build
+# The frontend goes on Vercel. See "Deploying" in the README.
+services:
+  backend:
+    build: ./backend
+    restart: always
+    env_file: .env
+    environment:
+      RUNNING_LOCALLY: "false"  # secure cookies, and the Docker service names for Postgres and Redis
+    # One worker: rate limits and WebSocket clients live in this process's memory. Only Caddy can
+    # reach this port, so trusting its X-Forwarded-For (to rate limit the real visitor) is safe.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
+    volumes:
+      - fastf1_cache:/app/data/fastf1_cache  # downloaded race data survives rebuilds
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-f1_pitwall}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in .env, for example api.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - backend
+
+volumes:
+  fastf1_cache:
+  postgres_data:
+  caddy_data:

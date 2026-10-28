@@ -118,6 +118,27 @@ It prints a link to sign in through your browser, and the token lasts a few days
 
 <img src="docs/readme/kerb.svg" width="100%" height="14">
 
+## Deploying
+
+The frontend suits Vercel. The backend doesn't: it keeps the live-timing feed and WebSocket clients in one long-running process, and it caches downloaded race data on disk. So run the backend on a small server with Docker, and use one domain for both halves (say `pitwall.example.com` and `api.pitwall.example.com`). Login cookies are `SameSite=Lax`, so they're only sent when the two share a site.
+
+**Backend.** Point an `A` record for `api.pitwall.example.com` at the server, then:
+
+```bash
+git clone https://github.com/arjun-nair1090/Pitwall.git && cd Pitwall
+cp .env.example .env
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+In `.env`, set a new `SECRET_KEY`, a strong `POSTGRES_PASSWORD`, `API_DOMAIN=api.pitwall.example.com` and `CORS_ALLOWED_ORIGINS=https://pitwall.example.com`. Caddy gets the HTTPS certificate on its own. Postgres and Redis aren't reachable from outside.
+
+**Frontend.** Import the repo in Vercel, set the root directory to `frontend`, add `NEXT_PUBLIC_API_URL=https://api.pitwall.example.com` and attach `pitwall.example.com` as the domain.
+
+**Before you share the link:**
+- If you add `ANTHROPIC_API_KEY`, set a monthly spend limit in the Anthropic console as well. The rate limits cap each visitor, not the total.
+- Don't sign in to F1 TV on the server. The token is your subscription, and live timing works without it, minus car positions.
+- Open the current season's races once. The first load of a session downloads its data, which takes a while.
+
 ## How it works
 
 ```mermaid
