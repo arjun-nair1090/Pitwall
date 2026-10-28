@@ -73,7 +73,8 @@ describe("PitWindowPage", () => {
         : Promise.resolve({ data: { ...PIT_WINDOW, total_laps: 8, lap: body.lap } })) as never);
     render(<PitWindowPage initial={initial} />);
     expect(await screen.findByText("Lap 7 of 8")).toBeInTheDocument();
-    expect(lapsAsked()).toEqual([10, 7]);
+    // The clamped lap shows before its request goes out (an effect after the render), so wait for it.
+    await waitFor(() => expect(lapsAsked()).toEqual([10, 7]));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
@@ -126,7 +127,7 @@ describe("PitWindowPage", () => {
   it("clamps the lap when a good answer shows the race is shorter than the lap asked for", async () => {
     render(<PitWindowPage initial={{ ...initial, lap: 50 }} />);
     expect(await screen.findByText("Lap 43 of 44")).toBeInTheDocument();
-    expect(lapsAsked()).toEqual([50, 43]);
+    await waitFor(() => expect(lapsAsked()).toEqual([50, 43]));
   });
 
   it("starts the new race afresh when another race is picked", async () => {
