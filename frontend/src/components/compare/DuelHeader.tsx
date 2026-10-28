@@ -2,6 +2,7 @@
 
 import { Download } from "lucide-react";
 import CompoundBadge from "@/components/CompoundBadge";
+import { API_BASE } from "@/lib/apiBase";
 import type { DuelDriver, DuelStyle } from "@/lib/duel";
 import type { SessionCode } from "@/lib/season";
 import { formatLapTime } from "@/lib/timing";
@@ -76,10 +77,9 @@ function DriverCard({
 }
 
 export default function DuelHeader({ driver1, driver2, style, year, eventName, session }: DuelHeaderProps) {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   const card = (code: string) =>
     session === "R"
-      ? `${apiBase}/api/v1/share/result-card?${new URLSearchParams({ year: String(year), gp: eventName, session: "Race", driver: code })}`
+      ? `${API_BASE}/api/v1/share/result-card?${new URLSearchParams({ year: String(year), gp: eventName, session: "Race", driver: code })}`
       : undefined;
 
   return (

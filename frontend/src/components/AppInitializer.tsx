@@ -2,10 +2,11 @@
 
 import React, { useEffect } from "react";
 import axios from "axios";
+import { API_BASE, SOCKET_API_URL } from "@/lib/apiBase";
 import { useF1Store } from "@/store/useTelemetryStore";
 
 // Configure default base URL for Axios to communicate with backend
-axios.defaults.baseURL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+axios.defaults.baseURL = API_BASE;
 axios.defaults.withCredentials = true;
 
 function getCookie(name: string): string | null {
@@ -31,7 +32,7 @@ export const CONDITIONS_REFRESH_MS = 15_000;
 export const RECONNECT_MS = 2_000;
 const MAX_RECONNECT_MS = 30_000;
 
-// Where the live feed's socket connects: NEXT_PUBLIC_API_URL if set, otherwise this page's host (port 8000
+// Where the live feed's socket connects: the backend's URL if known, otherwise this page's host (port 8000
 // on localhost). An https page may only open wss:// sockets, so the scheme follows the API's, or the page's.
 export function socketBase(apiUrl: string | undefined, page: Pick<Location, "protocol" | "host" | "hostname">): string {
   if (apiUrl) return apiUrl.replace(/^http/, "ws").replace(/\/$/, "");
@@ -170,7 +171,7 @@ export default function AppInitializer({ children }: { children: React.ReactNode
   useEffect(() => {
     if (!activeSession?.session_key) return;
 
-    const wsUrl = `${socketBase(process.env.NEXT_PUBLIC_API_URL, window.location)}/ws/pitwall-client-${Math.random().toString(36).substring(2, 6)}`;
+    const wsUrl = `${socketBase(SOCKET_API_URL, window.location)}/ws/pitwall-client-${Math.random().toString(36).substring(2, 6)}`;
     
     // The socket drops whenever the backend restarts or the network blips; keep reconnecting
     // (2 s, doubling to 30 s) until the page unmounts, so the feed never stays on standby.

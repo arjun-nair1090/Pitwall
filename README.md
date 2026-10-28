@@ -134,6 +134,8 @@ In `.env`, set a new `SECRET_KEY`, a strong `POSTGRES_PASSWORD`, `API_DOMAIN=api
 
 **Frontend.** Import the repo in Vercel, set the root directory to `frontend`, add `NEXT_PUBLIC_API_URL=https://api.pitwall.example.com` and attach `pitwall.example.com` as the domain.
 
+**No domain of your own?** Give the backend a free name (DuckDNS, say `pitwall.duckdns.org`, as `API_DOMAIN`) and set `API_PROXY_TARGET=https://pitwall.duckdns.org` in Vercel instead of `NEXT_PUBLIC_API_URL`. The site then forwards `/api/*` to the backend, so the browser only talks to the `vercel.app` address and login cookies still work. Live timing's socket connects to the backend directly. Put the `vercel.app` address in `CORS_ALLOWED_ORIGINS`. Behind the proxy, the backend sees Vercel's addresses rather than each visitor's, so the rate limits count per Vercel address. Open slow first loads on the backend URL directly, so the proxy doesn't time out waiting.
+
 **Before you share the link:**
 - If you add `ANTHROPIC_API_KEY`, set a monthly spend limit in the Anthropic console as well. The rate limits cap each visitor, not the total.
 - Don't sign in to F1 TV on the server. The token is your subscription, and live timing works without it, minus car positions.
