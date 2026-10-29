@@ -151,7 +151,7 @@ python -m fastf1 auth f1tv --authenticate --method browser   # once; repeat when
 PITWALL_SSH=ubuntu@<server-ip> PITWALL_SSH_KEY=~/.ssh/<key> python -m app.scripts.sync_sessions --since 2018
 ```
 
-It copies every qualifying, sprint and race session that has finished and isn't on the server yet, and records them in `data/fastf1_cache/synced.txt`. Schedule it daily (cron, or Task Scheduler on Windows) to add each new weekend automatically. It exits with code 2 when the F1 TV sign-in has expired.
+It copies every qualifying, sprint and race session that has finished and isn't on the server yet, and records them in `data/fastf1_cache/synced.txt`. Schedule it daily (cron, or Task Scheduler on Windows) to add each new weekend automatically. When the F1 TV sign-in has expired and new sessions are waiting, it exits with code 2 (on Windows it also pops up a reminder with the sign-in command copied to the clipboard).
 
 ## How it works
 
