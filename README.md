@@ -139,7 +139,19 @@ In `.env`, set a new `SECRET_KEY`, a strong `POSTGRES_PASSWORD`, `API_DOMAIN=api
 **Before you share the link:**
 - If you add `ANTHROPIC_API_KEY`, set a monthly spend limit in the Anthropic console as well. The rate limits cap each visitor, not the total.
 - Don't sign in to F1 TV on the server. The token is your subscription, and live timing works without it, minus car positions.
-- Open the current season's races once. The first load of a session downloads its data, which takes a while.
+- The server can't download races from F1's archive itself; copy them in from your machine (below).
+
+### Keeping races up to date
+
+Formula 1's timing archive needs an F1 TV sign-in and blocks cloud-server IPs, so a deployed backend can't download races itself. Download them on your own machine and copy them across instead:
+
+```bash
+cd backend
+python -m fastf1 auth f1tv --authenticate --method browser   # once; repeat when the sign-in expires
+PITWALL_SSH=ubuntu@<server-ip> PITWALL_SSH_KEY=~/.ssh/<key> python -m app.scripts.sync_sessions --since 2018
+```
+
+It copies every qualifying, sprint and race session that has finished and isn't on the server yet, and records them in `data/fastf1_cache/synced.txt`. Schedule it daily (cron, or Task Scheduler on Windows) to add each new weekend automatically. When the F1 TV sign-in has expired and new sessions are waiting, it exits with code 2 (on Windows it also pops up a reminder with the sign-in command copied to the clipboard).
 
 ## How it works
 
