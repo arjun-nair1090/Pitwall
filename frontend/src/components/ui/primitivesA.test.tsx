@@ -63,6 +63,12 @@ describe("Loading", () => {
     render(<Loading label="Loading standings"><div /></Loading>);
     expect(screen.getByRole("status")).toHaveTextContent("Loading standings");
   });
+
+  it("puts a spinner beside a message, so a long wait visibly moves", () => {
+    const { container } = render(<Loading label="Simulating" message="Up to a minute"><div /></Loading>);
+    expect(screen.getByText("Up to a minute")).toBeInTheDocument();
+    expect(container.querySelector("svg.animate-spin")).not.toBeNull();
+  });
 });
 
 describe("EmptyState and Pill", () => {

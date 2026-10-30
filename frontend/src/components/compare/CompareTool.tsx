@@ -121,10 +121,10 @@ export default function CompareTool({ initial }: { initial: RaceParams }) {
           onRetry={duel.notFound ? undefined : duel.retry}
         />
       ) : duel.status === "loading" ? (
-        <Loading label="Loading telemetry">
-          <p className="mb-4 text-sm text-mute">
-            Loading the telemetry for {submitted?.choice.d1} and {submitted?.choice.d2}. The first time a race is opened this can take up to a minute.
-          </p>
+        <Loading
+          label="Loading telemetry"
+          message={<>Loading the telemetry for {submitted?.choice.d1} and {submitted?.choice.d2}. The first time a race is opened this can take up to a minute.</>}
+        >
           <div className="grid gap-4 xl:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <Skeleton className="h-96" />
             <Skeleton className="h-96" />

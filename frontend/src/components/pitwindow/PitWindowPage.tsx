@@ -130,12 +130,12 @@ export default function PitWindowPage({ initial }: { initial: RaceParams & { lap
           </Panel>
         </div>
       ) : (
-        <Loading label="Working out the pit windows">
-          <p className="mb-4 text-sm text-mute">
-            {sel.round === null
-              ? "Loading the season's races…"
-              : "Reading every lap run so far. The first time a race is opened this can take up to a minute."}
-          </p>
+        <Loading
+          label="Working out the pit windows"
+          message={sel.round === null
+            ? "Loading the season's races…"
+            : "Reading every lap run so far. The first time a race is opened this can take up to a minute."}
+        >
           <Skeleton className="h-96" />
         </Loading>
       )}

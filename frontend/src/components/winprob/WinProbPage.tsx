@@ -141,12 +141,12 @@ export default function WinProbPage({ initial }: { initial: RaceParams & { lap?:
           </Panel>
         </div>
       ) : (
-        <Loading label="Working out every lap">
-          <p className="mb-4 text-sm text-mute">
-            {noRound
-              ? "Loading the season's races…"
-              : "Working out every lap of the race… The first time a race is opened this can take up to a minute."}
-          </p>
+        <Loading
+          label="Working out every lap"
+          message={noRound
+            ? "Loading the season's races…"
+            : "Working out every lap of the race… The first time a race is opened this can take up to a minute."}
+        >
           <Skeleton className="h-96" />
         </Loading>
       )}

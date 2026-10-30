@@ -142,8 +142,10 @@ export default function StrategyTool({ initial }: { initial: RaceParams }) {
           {outcome.status === "error" ? (
             <ErrorState title="Couldn't run the simulation" message={outcome.message} onRetry={outcome.notFound ? undefined : outcome.retry} />
           ) : outcome.status === "loading" ? (
-            <Loading label="Simulating">
-              <p className="mb-4 text-sm text-mute">Simulating your plan. The first time a race is used this can take up to a minute.</p>
+            <Loading
+              label="Simulating"
+              message="Simulating your plan. The first time a race is used this can take up to a minute."
+            >
               <div className="grid gap-3 sm:grid-cols-3">
                 <Skeleton className="h-24" />
                 <Skeleton className="h-24" />

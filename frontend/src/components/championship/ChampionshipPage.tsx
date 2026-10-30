@@ -94,10 +94,10 @@ export default function ChampionshipPage({ initial }: { initial: { year: number;
           </Panel>
         </div>
       ) : (
-        <Loading label="Simulating the season">
-          <p className="mb-4 text-sm text-mute">
-            Simulating the rest of the season… The first time a season is opened this can take up to a minute.
-          </p>
+        <Loading
+          label="Simulating the season"
+          message="Simulating the rest of the season… The first time a season is opened this can take up to a minute."
+        >
           <Skeleton className="h-96" />
         </Loading>
       )}
