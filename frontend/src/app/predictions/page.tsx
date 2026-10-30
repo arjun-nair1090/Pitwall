@@ -3,7 +3,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { Trophy, Lock, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { Trophy, Lock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import Button from "@/components/ui/Button";
 import { useF1Store } from "@/store/useTelemetryStore";
 import ErrorState from "@/components/ErrorState";
 import { getApiErrorMessage } from "@/lib/apiError";
@@ -285,14 +286,9 @@ export default function PredictionsPage() {
             </div>
           )}
 
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="bg-chalk text-tarmac hover:bg-white hover:bg-live/90 font-bold py-2.5 px-8 rounded-panel transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+          <Button type="submit" variant="primary" disabled={!canSubmit} loading={submitting}>
             {myPredictions.some((p) => p.event_name === eventName) ? "Update Prediction" : "Submit Prediction"}
-          </button>
+          </Button>
         </form>
       )}
 
