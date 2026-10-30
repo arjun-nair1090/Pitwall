@@ -82,12 +82,12 @@ export default function RacePace({ initial }: { initial: RaceParams }) {
           </Panel>
         </div>
       ) : (
-        <Loading label="Analysing the session">
-          <p className="mb-4 text-sm text-mute">
-            {sel.round === null
-              ? "Loading the season's races…"
-              : "Measuring every driver's clean laps. The first time a race is opened this can take up to a minute."}
-          </p>
+        <Loading
+          label="Analysing the session"
+          message={sel.round === null
+            ? "Loading the season's races…"
+            : "Measuring every driver's clean laps. The first time a race is opened this can take up to a minute."}
+        >
           <Skeleton className="h-96" />
         </Loading>
       )}

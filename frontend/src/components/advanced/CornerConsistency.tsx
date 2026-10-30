@@ -106,12 +106,12 @@ export default function CornerConsistency({ sel }: { sel: RaceSelection }) {
             />
           </>
         ) : (
-          <Loading label="Analysing the laps">
-            <p className="mb-4 text-sm text-mute">
-              {driver === null
-                ? "Loading the session's drivers…"
-                : "Analysing every clean lap. The first time a race is opened this can take up to a minute."}
-            </p>
+          <Loading
+            label="Analysing the laps"
+            message={driver === null
+              ? "Loading the session's drivers…"
+              : "Analysing every clean lap. The first time a race is opened this can take up to a minute."}
+          >
             <Skeleton className="h-72" />
           </Loading>
         )}
