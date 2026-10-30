@@ -11,6 +11,7 @@ import CompoundBadge from "@/components/CompoundBadge";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { DebriefResponse } from "@/lib/insights";
 import PageHeader from "@/components/ui/PageHeader";
+import Select from "@/components/ui/Select";
 
 interface RaceOption {
   country: string;
@@ -122,38 +123,34 @@ function DebriefContent() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div>
-          <label htmlFor="debrief-season" className="block text-xs font-bold text-mute mb-2">Season</label>
-          <select
-            id="debrief-season"
-            value={year}
-            onChange={(e) => {
-              linked.current = { year: null, race: null };
-              setYear(parseInt(e.target.value));
-            }}
-            className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 "
-          >
-            {Array.from({ length: currentYear - FIRST_SEASON + 1 }, (_, i) => currentYear - i).map((y) => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
-        </div>
-        <div className="sm:col-span-2">
-          <label htmlFor="debrief-race" className="block text-xs font-bold text-mute mb-2">Grand Prix</label>
-          <select
-            id="debrief-race"
-            value={eventName}
-            onChange={(e) => setEventName(e.target.value)}
-            disabled={racesLoading || races.length === 0}
-            className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2 disabled:opacity-50"
-          >
-            {racesLoading && <option value="">Loading…</option>}
-            {!racesLoading && races.length === 0 && <option value="">No completed races yet</option>}
-            {races.map((r) => (
-              <option key={r.event_name} value={r.event_name}>{r.country} — {r.event_name}</option>
-            ))}
-          </select>
-        </div>
+        <Select
+          label="Season"
+          id="debrief-season"
+          value={year}
+          onChange={(e) => {
+            linked.current = { year: null, race: null };
+            setYear(parseInt(e.target.value));
+          }}
+        >
+          {Array.from({ length: currentYear - FIRST_SEASON + 1 }, (_, i) => currentYear - i).map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </Select>
+        <Select
+          label="Grand Prix"
+          id="debrief-race"
+          className="sm:col-span-2"
+          value={eventName}
+          onChange={(e) => setEventName(e.target.value)}
+          loading={racesLoading}
+          disabled={races.length === 0}
+        >
+          {racesLoading && <option value="">Loading races…</option>}
+          {!racesLoading && races.length === 0 && <option value="">No completed races yet</option>}
+          {races.map((r) => (
+            <option key={r.event_name} value={r.event_name}>{r.country} — {r.event_name}</option>
+          ))}
+        </Select>
       </div>
 
       {racesError ? (
