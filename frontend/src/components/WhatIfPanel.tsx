@@ -2,8 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { FlaskConical, Loader2, Sparkles, Info } from "lucide-react";
+import { FlaskConical, Sparkles, Info } from "lucide-react";
 import StintBar from "@/components/StintBar";
+import Button from "@/components/ui/Button";
 import { getApiErrorMessage } from "@/lib/apiError";
 import type { DebriefFacts, Stint, WhatIfChange, WhatIfResponse } from "@/lib/insights";
 
@@ -190,14 +191,9 @@ export default function WhatIfPanel({ facts }: WhatIfPanelProps) {
 
       {preview.error && <p className="text-live-text text-sm" role="alert">{preview.error}</p>}
 
-      <button
-        onClick={run}
-        disabled={!canRun}
-        className="bg-chalk text-tarmac hover:bg-white hover:bg-live/90 font-bold py-2.5 px-8 rounded-panel transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
-      >
-        {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+      <Button variant="primary" onClick={run} disabled={!canRun} loading={loading}>
         {changes.length === 0 ? "Change something to run" : "Run what-if"}
-      </button>
+      </Button>
 
       {error && (
         <div className="bg-live/10 border border-live/40 text-live-text p-3 rounded-panel text-sm" role="alert">

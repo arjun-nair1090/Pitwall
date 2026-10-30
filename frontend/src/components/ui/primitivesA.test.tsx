@@ -19,6 +19,12 @@ describe("Button", () => {
     expect(b).toBeDisabled();
     expect(b).toHaveAttribute("aria-busy", "true");
   });
+  it("lays the spinner over its label instead of beside it, so it keeps its width", () => {
+    render(<Button loading>Save</Button>);
+    const b = screen.getByRole("button", { name: "Save" });
+    expect(b.querySelector("svg.animate-spin")).toHaveClass("absolute");
+    expect(screen.getByText("Save")).toHaveClass("opacity-0");
+  });
   it("exposes its classes for links styled as buttons", () => {
     // Red fills the primary action and nothing else, so one thing on a page is the solid red block.
     expect(buttonClass({ variant: "primary" })).toContain("bg-live");

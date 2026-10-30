@@ -6,7 +6,7 @@ type Variant = "primary" | "secondary" | "ghost";
 type Size = "md" | "sm";
 
 const BASE =
-  "inline-flex items-center justify-center gap-2 rounded-control font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+  "relative inline-flex items-center justify-center gap-2 rounded-control font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 // Red is the one action colour, the way it is on every official F1 surface. Everything else is a
 // quiet outline, so the primary action is the only thing on a page competing with the data.
 const VARIANT: Record<Variant, string> = {
@@ -43,8 +43,14 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
       className={buttonClass({ variant, size, className })}
       {...rest}
     >
-      {loading && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-      {children}
+      {/* The spinner sits over a transparent label, so the button never changes width while busy
+          and keeps its accessible name. */}
+      {loading ? (
+        <>
+          <Loader2 className="absolute h-4 w-4 animate-spin" aria-hidden />
+          <span className="inline-flex items-center gap-2 opacity-0">{children}</span>
+        </>
+      ) : children}
     </button>
   );
 });
