@@ -26,8 +26,8 @@ def test_small_responses_are_sent_as_they_are():
 def test_get_active_session():
     # This might make a network call or fail if OpenF1 is offline. Let's make sure it handles responses.
     response = client.get("/api/v1/sessions/active")
-    # It should either be 200 (if it succeeds) or 500/404 (with detail)
-    assert response.status_code in [200, 404, 500]
+    # It should either be 200 (if it succeeds) or 502/404 (with detail)
+    assert response.status_code in [200, 404, 502]
 
 
 def test_strategy_simulate_invalid_stint_plan_does_not_crash():
@@ -53,7 +53,7 @@ def test_result_card_returns_png_or_a_handled_error():
         "year": 2023, "gp": "Belgian Grand Prix", "driver": "VER", "session": "Race",
     })
     # Real FastF1 network call -- accept success or a handled (never unhandled) failure.
-    assert response.status_code in (200, 404, 500)
+    assert response.status_code in (200, 404, 502)
     if response.status_code == 200:
         assert response.headers["content-type"] == "image/png"
         assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
