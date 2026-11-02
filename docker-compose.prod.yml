@@ -39,6 +39,7 @@ services:
       - "443:443"
     environment:
       API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in .env, for example api.example.com}
+      PROXY_SECRET: ${PROXY_SECRET:?set PROXY_SECRET in .env, the same value as in Vercel}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
