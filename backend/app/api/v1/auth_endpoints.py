@@ -337,14 +337,15 @@ class ScoreRequest(BaseModel):
     event_name: str = Field(min_length=1, max_length=200)
 
 
-@router.post("/predictions/score")
+@router.post("/predictions/score", dependencies=[Depends(rate_limit("score", 10, 3600))])
 async def score_race(req: ScoreRequest, db: Session = Depends(get_db)):
     """Recompute points for one race from the official result.
 
     Deliberately unauthenticated: points are a pure function of the official
     result and each user's already-locked pick, so calling it early, late or
     repeatedly can't change any outcome -- but it does refuse to run until the
-    race has started and a *final* classification exists."""
+    race has started and a *final* classification exists. Rate limited, since
+    each call fetches the result and rewrites every user's points."""
     event = await _load_event(req.year, req.event_name)
     if not predictions_service.race_has_started(event, _utc_now()):
         raise HTTPException(status_code=400, detail="This race hasn't started yet -- nothing to score.")
