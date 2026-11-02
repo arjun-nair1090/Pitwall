@@ -91,15 +91,18 @@ async def health_check():
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
-    await manager.connect(websocket, client_id)
+    # client_id is only a label for the logs; the client picks it, so it identifies nothing.
+    if not await manager.connect(websocket):
+        return
     try:
         while True:
             data = await websocket.receive_text()
-            print(f"Message from {client_id}: {data}")
+            print(f"Message from {client_id!r}: {data!r}")
             # Echo message or handle custom subscription requests
-            await manager.send_personal_message(f"Received: {data}", client_id)
+            await manager.send_personal_message(f"Received: {data}", websocket)
     except WebSocketDisconnect:
-        await manager.disconnect(client_id)
+        pass
     except Exception as e:
-        print(f"WebSocket Error for {client_id}: {e}")
-        await manager.disconnect(client_id)
+        print(f"WebSocket Error for {client_id!r}: {e}")
+    finally:
+        await manager.disconnect(websocket)

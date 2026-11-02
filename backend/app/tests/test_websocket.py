@@ -1,41 +1,60 @@
 import pytest
 from unittest.mock import AsyncMock
-from app.websocket.manager import ConnectionManager
 from fastapi import WebSocket
+from fastapi.testclient import TestClient
+
+from app.main import app
+from app.websocket import manager as manager_module
+from app.websocket.manager import ConnectionManager
+
 
 @pytest.mark.asyncio
-async def test_send_personal_message_success():
+async def test_send_personal_message_goes_to_that_socket_only():
     manager = ConnectionManager()
-    client_id = "test_user"
+    mine, other = AsyncMock(spec=WebSocket), AsyncMock(spec=WebSocket)
+    assert await manager.connect(mine) and await manager.connect(other)
 
-    # Mock WebSocket object
-    mock_ws = AsyncMock(spec=WebSocket)
-    manager.active_connections[client_id] = mock_ws
+    await manager.send_personal_message("Hello Test", mine)
 
-    message = "Hello Test"
-    await manager.send_personal_message(message, client_id=client_id)
+    mine.send_text.assert_called_once_with("Hello Test")
+    other.send_text.assert_not_called()
 
-    # Verify send_text was called with the correct message
-    mock_ws.send_text.assert_called_once_with(message)
 
 @pytest.mark.asyncio
-async def test_send_personal_message_no_connection():
+async def test_broadcast_reaches_every_socket_and_skips_disconnected_ones():
     manager = ConnectionManager()
-    client_id = "non_existent"
+    a, b = AsyncMock(spec=WebSocket), AsyncMock(spec=WebSocket)
+    await manager.connect(a)
+    await manager.connect(b)
+    await manager.disconnect(b)
+    await manager.disconnect(b)  # twice is harmless
 
-    # Should not raise an error even if client is not in connections
-    await manager.send_personal_message("Hello", client_id)
+    await manager.broadcast("lap 12")
+
+    a.send_text.assert_called_once_with("lap 12")
+    b.send_text.assert_not_called()
+
 
 @pytest.mark.asyncio
-async def test_send_personal_message_wrong_client():
+async def test_a_full_server_turns_new_sockets_away(monkeypatch):
+    monkeypatch.setattr(manager_module, "MAX_CONNECTIONS", 1)
     manager = ConnectionManager()
-    actual_id = "user_a"
-    wrong_id = "user_b"
+    first, second = AsyncMock(spec=WebSocket), AsyncMock(spec=WebSocket)
+    assert await manager.connect(first) is True
+    assert await manager.connect(second) is False
+    second.accept.assert_not_called()
+    second.close.assert_called_once_with(code=1013)
 
-    mock_ws = AsyncMock(spec=WebSocket)
-    manager.active_connections[actual_id] = mock_ws
 
-    await manager.send_personal_message("Hello", client_id=wrong_id)
-
-    # Should not have called send_text for user_b since it's not in connections
-    mock_ws.send_text.assert_not_called()
+def test_two_clients_with_the_same_id_cannot_knock_each_other_off():
+    # The id is picked by the client (four random characters), so it must not identify the connection:
+    # a second socket using it used to replace the first one's entry and silence it.
+    client = TestClient(app)
+    with client.websocket_connect("/ws/pitwall-client-abcd") as first, \
+            client.websocket_connect("/ws/pitwall-client-abcd") as second:
+        first.send_text("one")
+        second.send_text("two")
+        assert first.receive_text() == "Received: one"
+        assert second.receive_text() == "Received: two"
+        assert len(manager_module.manager.active_connections) == 2
+    assert len(manager_module.manager.active_connections) == 0
