@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional, Tuple
 import fastf1
 import pandas as pd
 
+from app.services import fastf1_fixes  # noqa: F401  (patches FastF1 on import)
+
 FALLBACK_COLOR = "#9AA3B2"
 _CACHE_TTL_SECONDS = 600
 _cache: Dict[Tuple, Tuple[float, Dict[str, Any]]] = {}
