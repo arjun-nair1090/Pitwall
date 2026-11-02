@@ -423,7 +423,8 @@ async def ask_the_data(req: AskRequest):
     import anthropic, openai  # kept out of startup; Gemini goes through the openai SDK
     try:
         return await data_assistant.ask(req.question, [t.model_dump() for t in req.history], client=client)
-    except (anthropic.RateLimitError, openai.RateLimitError):
+    except (anthropic.RateLimitError, openai.RateLimitError) as e:
+        print(f"The assistant was rate limited: {e}")  # says whether it's a burst or a used-up daily quota
         raise HTTPException(status_code=429, detail="The assistant is busy. Try again in a minute.")
     except Exception as e:
         print(f"The assistant failed: {e!r}")
