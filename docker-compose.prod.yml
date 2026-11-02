@@ -10,7 +10,7 @@ services:
       RUNNING_LOCALLY: "false"  # secure cookies, and the Docker service names for Postgres and Redis
     # One worker: rate limits and WebSocket clients live in this process's memory. Only Caddy can
     # reach this port, so trusting its X-Forwarded-For (to rate limit the real visitor) is safe.
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=* --no-server-header
     volumes:
       - fastf1_cache:/app/data/fastf1_cache  # downloaded race data survives rebuilds
     depends_on:
