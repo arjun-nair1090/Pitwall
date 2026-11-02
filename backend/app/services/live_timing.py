@@ -626,9 +626,9 @@ def f1tv_token() -> Optional[str]:
     """The F1 TV token FastF1's sign-in stored, if there is one and it has not expired. Never prompts:
     signing in is a one-off step a person runs (`python -m fastf1 auth f1tv --authenticate --method browser`)."""
     try:
-        from fastf1.internals.f1account.tokens import TokenStore
+        from fastf1.internals.f1account import token_manager
 
-        token = TokenStore.default().load()
+        token = token_manager.get_stored()
         if token is None:
             return None
         if not token.is_valid():

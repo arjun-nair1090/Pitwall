@@ -22,10 +22,11 @@ from pathlib import Path
 
 import fastf1
 import pandas as pd
-from fastf1.internals.f1account.tokens import TokenStore
+from fastf1.internals.f1account import token_manager
 from fastf1.req import RateLimitExceededError
 
 from app.core.config import settings
+from app.services import fastf1_fixes  # noqa: F401  (patches FastF1 on import)
 
 # Sprint qualifying was "Sprint Shootout" in 2023 and is "Sprint Qualifying" from 2024 (2021-22 sprints had none).
 WANTED = {"Qualifying", "Sprint Shootout", "Sprint Qualifying", "Sprint", "Race"}
@@ -120,7 +121,7 @@ def main() -> int:
         log("nothing new")
         return 0
 
-    token = TokenStore.default().load()
+    token = token_manager.get_stored()
     if not (token and token.is_valid()) and not os.environ.get("F1_USERNAME"):
         # without this check FastF1 would sit at a password prompt nobody sees
         remind_to_sign_in(len(due))

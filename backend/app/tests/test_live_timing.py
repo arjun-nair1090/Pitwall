@@ -424,28 +424,20 @@ def test_in_qualifying_a_driver_whose_only_lap_this_part_was_deleted_shows_their
     assert timing_from_state(state)["16"]["last_lap_time"] == 92.947
 
 
-class _Store:
-    def __init__(self, token):
-        self.token = token
-
-    def load(self):
-        return self.token
-
-
 def test_the_f1tv_token_is_read_from_fastf1s_sign_in(monkeypatch):
     import time as _time
-    from fastf1.internals.f1account import tokens
+    from fastf1.internals.f1account import token_manager, tokens
     from app.services import live_timing
 
     valid = tokens.SubscriptionToken(value="signed-in", expires_at=_time.time() + 86400)
-    monkeypatch.setattr(tokens.TokenStore, "default", classmethod(lambda cls: _Store(valid)))
+    monkeypatch.setattr(token_manager, "get_stored", lambda: valid)
     assert live_timing.f1tv_token() == "signed-in"
 
     expired = tokens.SubscriptionToken(value="old", expires_at=_time.time() - 60)
-    monkeypatch.setattr(tokens.TokenStore, "default", classmethod(lambda cls: _Store(expired)))
+    monkeypatch.setattr(token_manager, "get_stored", lambda: expired)
     assert live_timing.f1tv_token() is None
 
-    monkeypatch.setattr(tokens.TokenStore, "default", classmethod(lambda cls: _Store(None)))
+    monkeypatch.setattr(token_manager, "get_stored", lambda: None)
     assert live_timing.f1tv_token() is None
 
 
