@@ -1,5 +1,17 @@
 # HTTPS in front of the backend for docker-compose.prod.yml. Caddy fetches and renews the certificate.
 {$API_DOMAIN} {
+	# HTTPS only from now on, and no framing or MIME sniffing. The API never serves pages, so its CSP
+	# allows nothing. -Server and -Via stop announcing the software behind it.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+		-Server
+		-Via
+	}
+
 	# Requests forwarded by the site carry PROXY_SECRET and the visitor's IP; only then is that IP
 	# passed on, so the rate limits count visitors. Anyone else is counted by the address they connect from.
 	@site {
