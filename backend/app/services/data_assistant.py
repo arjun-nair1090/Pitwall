@@ -12,7 +12,7 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.services import (
-    championship_data, latest_result, pit_window, race_battles, race_pace, win_probability,
+    championship_data, gemini_chat, latest_result, pit_window, race_battles, race_pace, win_probability,
 )
 from app.services.championship_sim import ChampionshipError
 from app.services.llm_utils import extract_text, supports_effort
@@ -307,13 +307,17 @@ def _run_clean(name: str, clean: Dict[str, Any]) -> Tuple[str, bool]:
 # ---- the loop ----
 
 def make_client() -> Any:
-    """A fresh async client built from settings, or None when no usable key is configured. Build one
-    per request and close it afterwards."""
+    """A fresh async client built from settings: Claude if its key is set, else Gemini, else None. Build
+    one per request and close it afterwards."""
     key = settings.ANTHROPIC_API_KEY
-    if not key or "your_anthropic" in key:
-        return None
-    from anthropic import AsyncAnthropic
-    return AsyncAnthropic(api_key=key, timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_RETRIES)
+    if key and "your_anthropic" not in key:
+        from anthropic import AsyncAnthropic
+        return AsyncAnthropic(api_key=key, timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_RETRIES)
+    if gemini_chat.gemini_key():
+        from openai import AsyncOpenAI
+        return gemini_chat.GeminiClient(AsyncOpenAI(api_key=gemini_chat.gemini_key(), base_url=gemini_chat.BASE_URL,
+                                                    timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_RETRIES))
+    return None
 
 
 def _conversation(question: str, history: List[Dict[str, str]]) -> List[Dict[str, Any]]:

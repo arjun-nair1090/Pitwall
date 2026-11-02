@@ -79,10 +79,11 @@ class _FakeOpenAI:
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=self._text))])
 
 
-def _engine(anthropic_client=None, openai_client=None):
+def _engine(anthropic_client=None, openai_client=None, gemini_client=None):
     engine = ai_engineer.AIEngineer.__new__(ai_engineer.AIEngineer)
     engine.anthropic_client = anthropic_client
     engine.openai_client = openai_client
+    engine.gemini_client = gemini_client
     return engine
 
 
