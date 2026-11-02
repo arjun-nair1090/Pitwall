@@ -3,6 +3,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 import asyncio
+import os
 from app.core.config import settings
 from app.websocket.manager import manager
 from app.services.f1_data_service import f1_service
@@ -64,7 +65,13 @@ async def lifespan(app: FastAPI):
     live_timing_feed.stop()
 
 
-app = FastAPI(title="F1 Pit Wall API", lifespan=lifespan)
+# The interactive docs list every route and model; only a developer's machine serves them.
+_docs = os.getenv("RUNNING_LOCALLY") == "true"
+app = FastAPI(
+    title="F1 Pit Wall API", lifespan=lifespan,
+    docs_url="/docs" if _docs else None, redoc_url="/redoc" if _docs else None,
+    openapi_url="/openapi.json" if _docs else None,
+)
 
 app.add_middleware(
     CORSMiddleware,
