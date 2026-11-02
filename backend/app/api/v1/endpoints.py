@@ -80,7 +80,7 @@ async def get_active_session():
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the current session")
 
 @router.get("/sessions/{session_key}/drivers")
 async def get_session_drivers(session_key: int):
@@ -89,7 +89,7 @@ async def get_session_drivers(session_key: int):
         drivers = await f1_service.get_drivers(session_key)
         return drivers
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the drivers")
 
 @router.get("/sessions/{session_key}/timing")
 async def get_session_timing(session_key: int):
@@ -98,7 +98,7 @@ async def get_session_timing(session_key: int):
         timing = await f1_service.get_live_timing(session_key)
         return timing
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "live timing")
 
 @router.get("/sessions/{session_key}/weather")
 async def get_session_weather(session_key: int):
@@ -111,7 +111,7 @@ async def get_session_weather(session_key: int):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the weather")
 
 @router.get("/sessions/{session_key}/race-control")
 async def get_session_race_control(session_key: int):
@@ -120,7 +120,7 @@ async def get_session_race_control(session_key: int):
         messages = await f1_service.get_live_race_control(session_key)
         return messages
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "race control messages")
 
 @router.get("/sessions/{session_key}/status")
 async def get_session_status(session_key: int):
@@ -128,7 +128,7 @@ async def get_session_status(session_key: int):
     try:
         return await f1_service.get_session_status(session_key)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the session status")
 
 @router.get("/sessions/{session_key}/race-strategy")
 async def get_session_race_strategy(session_key: int):
@@ -137,7 +137,7 @@ async def get_session_race_strategy(session_key: int):
     try:
         return await f1_service.get_race_strategy(session_key)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the race strategy")
 
 @router.get("/sessions/{session_key}/radios")
 async def get_session_radios(session_key: int):
@@ -146,7 +146,7 @@ async def get_session_radios(session_key: int):
         radios = await f1_service.get_live_radios(session_key)
         return radios
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "team radio")
 
 @router.get("/circuits/{session_key}/layout")
 async def get_circuit_layout(session_key: int, year: int = 2024, gp: str = "Belgium", session_type: str = "Race"):
@@ -160,7 +160,7 @@ async def get_circuit_layout(session_key: int, year: int = 2024, gp: str = "Belg
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the circuit layout")
 
 @router.post("/telemetry/compare")
 async def compare_telemetry(req: TelemetryCompareRequest):
@@ -443,7 +443,7 @@ async def get_stats_standings(year: int = Query(...)):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the standings")
 
 @router.get("/telemetry/replay")
 async def get_telemetry_replay(
@@ -486,7 +486,7 @@ async def get_session_strategy(session_key: int):
         strategy = await ai_strategist.get_strategy_recommendations(session_key)
         return strategy
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the strategy")
 
 
 @router.get("/races/historical")
@@ -516,7 +516,7 @@ async def get_historical_races(year: int):
             })
         return races
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the race calendar")
 
 @router.get("/races/session-info")
 async def get_session_info(
@@ -705,7 +705,7 @@ async def get_result_card(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the result card")
 
 
 @router.get("/drivers/{driver_code}/season-insights")
@@ -734,4 +734,4 @@ async def get_driver_season_insights(driver_code: str, year: int = Query(...)):
             "insights": insights,
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _analysis_error(e, "the season insights")

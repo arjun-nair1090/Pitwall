@@ -655,3 +655,64 @@ def test_ai_chat_answers_a_signed_in_visitor_and_hides_internal_errors(monkeypat
     response = client.post("/api/v1/ai/chat", json={"session_key": 1, "question": "Box?"})
     assert response.status_code == 500
     assert "internal-host" not in response.text
+
+
+# ---- unexpected failures never show the visitor what went wrong inside ----
+
+def _async_raising():
+    async def fn(*a, **k):
+        raise RuntimeError("redis://internal-host:6379 refused")
+    return fn
+
+
+@pytest.mark.parametrize("method, url", [
+    ("current_session", "/api/v1/sessions/active"),
+    ("get_drivers", "/api/v1/sessions/1/drivers"),
+    ("get_live_timing", "/api/v1/sessions/1/timing"),
+    ("get_live_weather", "/api/v1/sessions/1/weather"),
+    ("get_live_race_control", "/api/v1/sessions/1/race-control"),
+    ("get_session_status", "/api/v1/sessions/1/status"),
+    ("get_race_strategy", "/api/v1/sessions/1/race-strategy"),
+    ("get_live_radios", "/api/v1/sessions/1/radios"),
+    ("get_season_standings", "/api/v1/stats/standings?year=2024"),
+    ("get_season_standings", "/api/v1/drivers/VER/season-insights?year=2024"),
+])
+def test_a_crash_is_reported_without_internal_details(monkeypatch, method, url):
+    from app.services.f1_data_service import f1_service
+
+    monkeypatch.setattr(f1_service, method, _async_raising())
+    response = client.get(url)
+    assert response.status_code == 502
+    assert "internal-host" not in response.text
+    assert response.json()["detail"].startswith("Couldn't load")
+
+
+def test_a_crashing_circuit_layout_hides_internal_details(monkeypatch):
+    from app.services.f1_data_service import f1_service
+
+    def boom(*args):
+        raise RuntimeError("/srv/cache/internal-host.sqlite locked")
+
+    monkeypatch.setattr(f1_service, "get_circuit_layout", boom)
+    response = client.get("/api/v1/circuits/1/layout")
+    assert response.status_code == 502
+    assert "internal-host" not in response.text
+
+
+def test_a_crashing_calendar_hides_internal_details(monkeypatch):
+    def boom(year):
+        raise RuntimeError("/srv/cache/internal-host.sqlite locked")
+
+    monkeypatch.setattr(fastf1, "get_event_schedule", boom)
+    response = client.get("/api/v1/races/historical", params={"year": 2024})
+    assert response.status_code == 502
+    assert "internal-host" not in response.text
+
+
+def test_a_crashing_strategist_hides_internal_details(monkeypatch):
+    from app.services.ai_strategist import ai_strategist
+
+    monkeypatch.setattr(ai_strategist, "get_strategy_recommendations", _async_raising())
+    response = client.get("/api/v1/sessions/1/strategy")
+    assert response.status_code == 502
+    assert "internal-host" not in response.text
