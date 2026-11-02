@@ -419,11 +419,11 @@ async def ask_the_data(req: AskRequest):
     Signed-in only, and rate limited: every question spends API credits."""
     client = data_assistant.make_client()
     if client is None:
-        raise HTTPException(status_code=503, detail="The assistant isn't set up on this server (no Anthropic API key).")
-    import anthropic  # already loaded by make_client; kept out of startup
+        raise HTTPException(status_code=503, detail="The assistant isn't set up on this server (no Anthropic or Gemini API key).")
+    import anthropic, openai  # kept out of startup; Gemini goes through the openai SDK
     try:
         return await data_assistant.ask(req.question, [t.model_dump() for t in req.history], client=client)
-    except anthropic.RateLimitError:
+    except (anthropic.RateLimitError, openai.RateLimitError):
         raise HTTPException(status_code=429, detail="The assistant is busy. Try again in a minute.")
     except Exception as e:
         print(f"The assistant failed: {e!r}")

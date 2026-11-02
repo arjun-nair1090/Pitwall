@@ -50,10 +50,14 @@ class Settings(BaseModel):
 
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    # Used when no Anthropic key is set; free from https://aistudio.google.com/apikey
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     # Model IDs are configuration: hardcoded IDs go stale when a model is retired,
     # which silently degrades every AI feature to its fallback.
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
+    # Google's alias for its newest Flash model, so the default never names a retired one.
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
     FASTF1_CACHE_DIR: str = os.getenv("FASTF1_CACHE_DIR", "data/fastf1_cache")
 
 settings = Settings()
