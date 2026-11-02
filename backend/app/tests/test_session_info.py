@@ -233,3 +233,14 @@ def test_the_archive_check_is_cached(monkeypatch):
 def test_an_unreachable_archive_is_not_reported_as_locked(monkeypatch):
     monkeypatch.setattr(si, "_probe_archive", lambda year: None)
     assert si.archive_locked(2026) is False
+
+
+def test_a_locked_archive_on_the_deployed_server_tells_visitors_the_race_is_coming(monkeypatch):
+    # The server can't download from F1's archive at all; races are copied to it from a signed-in laptop,
+    # so visitors get no sign-in command they couldn't run anyway.
+    monkeypatch.setenv("RUNNING_LOCALLY", "false")
+    _patch(monkeypatch, FakeSession(loaded=False))
+    monkeypatch.setattr(si, "_probe_archive", lambda year: 403)
+    with pytest.raises(si.SessionDataError) as err:
+        si.load_session(2026, "Mexico City", "R", round_number=19)
+    assert str(err.value) == "Belgian Grand Prix 2026 isn't on Pitwall yet. New races are added a few hours after they finish."
