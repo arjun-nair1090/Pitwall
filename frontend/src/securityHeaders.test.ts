@@ -6,7 +6,7 @@ async function headersFor(env: Record<string, string>) {
   vi.resetModules();
   for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);
   const { default: config } = await import("../next.config.mjs");
-  const rules = await config.headers();
+  const rules = await config.headers!();
   return Object.fromEntries(rules.flatMap((r: { headers: { key: string; value: string }[] }) => r.headers.map((h) => [h.key, h.value])));
 }
 
