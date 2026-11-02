@@ -618,3 +618,38 @@ def test_ask_does_not_leak_an_unexpected_failure(monkeypatch):
     response = client.post("/api/v1/ask", json={"question": "Who won?"})
     assert response.status_code == 502
     assert "secret" not in response.text
+
+
+# ---- /ai/chat: spends AI credits, so it is signed-in only like /ask ----
+
+def test_ai_chat_needs_a_signed_in_visitor(monkeypatch):
+    from app.api.v1.auth_endpoints import get_current_user
+    from app.services import ai_engineer
+    calls = []
+
+    async def answer(question, session_key):
+        calls.append(question)
+        return "never"
+
+    monkeypatch.setattr(ai_engineer, "answer_question", answer)
+    app.dependency_overrides.pop(get_current_user)
+    assert client.post("/api/v1/ai/chat", json={"session_key": 1, "question": "Box?"}).status_code == 401
+    assert calls == []
+
+
+def test_ai_chat_answers_a_signed_in_visitor_and_hides_internal_errors(monkeypatch):
+    from app.services import ai_engineer
+
+    async def answer(question, session_key):
+        return "Box this lap."
+
+    monkeypatch.setattr(ai_engineer, "answer_question", answer)
+    assert client.post("/api/v1/ai/chat", json={"session_key": 1, "question": "Box?"}).json() == {"response": "Box this lap."}
+
+    async def broken(question, session_key):
+        raise RuntimeError("redis://internal-host:6379 refused")
+
+    monkeypatch.setattr(ai_engineer, "answer_question", broken)
+    response = client.post("/api/v1/ai/chat", json={"session_key": 1, "question": "Box?"})
+    assert response.status_code == 500
+    assert "internal-host" not in response.text
