@@ -2,8 +2,9 @@
 Download newly finished sessions on this machine and copy them into a deployed server's race cache.
 
 Formula 1's timing archive needs an F1 TV sign-in and refuses cloud-server IPs, so a deployed backend
-can't download races itself. Run this on a machine that can, after signing in once with
-`python -m fastf1 auth f1tv --authenticate --method browser`, and schedule it to run daily.
+can't download races itself. Run this on a machine that can, and schedule it to run hourly. When the
+F1 TV sign-in (good for 4 days) has expired and sessions are waiting, it opens the sign-in page and
+carries on once you've signed in.
 
 Usage (from backend/):
     PITWALL_SSH=ubuntu@<server-ip> PITWALL_SSH_KEY=~/.ssh/<key> python -m app.scripts.sync_sessions
@@ -15,9 +16,12 @@ import argparse
 import gc
 import logging
 import os
+import re
 import subprocess
 import sys
+import threading
 import time
+import webbrowser
 from pathlib import Path
 
 import fastf1
@@ -32,6 +36,8 @@ from app.services import fastf1_fixes  # noqa: F401  (patches FastF1 on import)
 WANTED = {"Qualifying", "Sprint Shootout", "Sprint Qualifying", "Sprint", "Race"}
 SKIP = {"2018 14 Italian Grand Prix | Race"}  # FastF1 crashes processing its tyre stints (IndexError)
 SETTLE = pd.Timedelta(hours=4)  # F1 publishes a session's files a while after it ends
+SIGN_IN_WAIT_S = 30 * 60  # how long an opened sign-in page waits for you
+SIGN_IN_EVERY = pd.Timedelta(hours=6)  # so an ignored sign-in isn't a new browser tab every hour
 # where docker-compose.prod.yml's fastf1_cache volume lives on the server
 VOLUME = os.environ.get("PITWALL_CACHE_VOLUME", "/var/lib/docker/volumes/pitwall_fastf1_cache/_data")
 
@@ -83,20 +89,24 @@ def fetch(cache: Path, year: int, rnd: int, name: str, server: str, key_file: st
             time.sleep(61 * 60)
 
 
-def remind_to_sign_in(waiting: int):
-    sign_in = f"{sys.executable} -m fastf1 auth f1tv --authenticate --method browser"
-    log(f"F1 TV sign-in expired, {waiting} new session(s) waiting. Run: {sign_in}")
-    if sys.platform == "win32":  # a scheduled run is hidden, so pop the reminder up where it'll be seen
-        import ctypes
-        subprocess.run("clip", input=sign_in, text=True)
-        ctypes.windll.user32.MessageBoxW(
-            None,
-            f"{waiting} new F1 session(s) are ready for Pitwall, but your F1 TV sign-in has expired.\n\n"
-            f"The sign-in command is copied. Paste it into a terminal, sign in, and they'll be added "
-            f"on the next daily run:\n\n{sign_in}",
-            "Pitwall race sync",
-            0x40 | 0x1000,  # MB_ICONINFORMATION | MB_SYSTEMMODAL: an info box that stays on top
-        )
+def sign_in_in_browser(cache: Path, waiting: int) -> bool:
+    """Opens the F1 TV sign-in page and waits for it. True once a fresh token is stored."""
+    prompted = cache / "sign_in_opened.txt"
+    if prompted.exists() and pd.Timestamp.now() - pd.Timestamp(prompted.read_text()) < SIGN_IN_EVERY:
+        log(f"F1 TV sign-in expired, {waiting} new session(s) waiting; the sign-in page was opened recently")
+        return False
+    prompted.write_text(pd.Timestamp.now().isoformat())
+    log(f"F1 TV sign-in expired, {waiting} new session(s) waiting: opening the sign-in page")
+
+    from fastf1.internals.f1account import browser
+    # FastF1 only prints the page's address, and nobody sees a scheduled run's output, so open it instead
+    browser.print = lambda message: webbrowser.open(re.search(r"https://\S+", message).group(0))
+    signing_in = threading.Thread(target=token_manager.get, daemon=True,
+                                  kwargs={"force_renew": True, "auth_func": browser.login_browser})
+    signing_in.start()
+    signing_in.join(SIGN_IN_WAIT_S)
+    token = token_manager.get_stored()
+    return bool(token and token.is_valid())
 
 
 def main() -> int:
@@ -124,8 +134,10 @@ def main() -> int:
     token = token_manager.get_stored()
     if not (token and token.is_valid()) and not os.environ.get("F1_USERNAME"):
         # without this check FastF1 would sit at a password prompt nobody sees
-        remind_to_sign_in(len(due))
-        return 2
+        if not sign_in_in_browser(cache, len(due)):
+            log("not signed in; trying again on the next run")
+            return 2
+        log("signed in")
 
     added = failed = 0
     for year, rnd, name, key in due:
