@@ -2,7 +2,7 @@
 import asyncio
 from typing import Any, Dict, List, Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.rate_limit import rate_limit
@@ -21,6 +21,9 @@ SessionName = Literal["Race", "Sprint"]
 # Only LLM-written summaries are cached. A template summary is cheap to rebuild, and
 # caching it would keep serving the fallback after an API key is configured.
 _SUMMARY_CACHE = LruCache(maxsize=32)
+# AI-written debriefs a visitor can start per hour. Past that they get the template, not an error,
+# so browsing races never breaks; it only stops anyone spending the AI quota without limit.
+AI_SUMMARIES_PER_HOUR = 20
 
 
 async def _load_frames(year: int, gp: str, session: str) -> SessionFrames:
@@ -39,6 +42,7 @@ async def _load_frames(year: int, gp: str, session: str) -> SessionFrames:
 
 @router.get("/debrief")
 async def race_debrief_endpoint(
+    request: Request,
     year: int = Query(ge=MIN_YEAR, le=MAX_YEAR),
     gp: str = Query(min_length=1, max_length=100),
     session: SessionName = "Race",
@@ -53,10 +57,15 @@ async def race_debrief_endpoint(
     except race_debrief.NoResultsError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    key = (year, gp.strip().lower(), session)
+    # Keyed by the race the name resolved to, so "Belgium" and "Belgian GP" share one summary.
+    key = (year, frames.event_name, session)
     cached = _SUMMARY_CACHE.get(key)
     if cached is not None:
         return {"facts": facts, **cached}
+    try:
+        rate_limit("debrief-ai", AI_SUMMARIES_PER_HOUR, 3600)(request)
+    except HTTPException:
+        return {"facts": facts, "summary": race_debrief.render_template_debrief(facts), "source": "template"}
 
     written = await race_debrief.generate_debrief(facts, ai_engineer)
     if written["source"] == "ai":
