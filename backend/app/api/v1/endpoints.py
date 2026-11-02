@@ -465,15 +465,18 @@ class AIChatRequest(BaseModel):
     session_key: int
     question: str
 
-@router.post("/ai/chat", dependencies=[Depends(rate_limit("ai", 20, 3600))])
+@router.post("/ai/chat", dependencies=[Depends(rate_limit("ai", 20, 3600)), Depends(get_current_user)])
 async def ai_chat(req: AIChatRequest):
-    """Ask the AI Race Engineer a question about the active session."""
+    """Ask the AI Race Engineer a question about the active session.
+
+    Signed-in only, like /ask: every question spends API credits."""
     try:
         from app.services.ai_engineer import answer_question
         response = await answer_question(req.question, req.session_key)
         return {"response": response}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"The race engineer failed: {e!r}")
+        raise HTTPException(status_code=500, detail="The race engineer couldn't answer. Try again shortly.")
 
 @router.get("/sessions/{session_key}/strategy")
 async def get_session_strategy(session_key: int):

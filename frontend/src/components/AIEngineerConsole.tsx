@@ -125,14 +125,11 @@ export default function AIEngineerConsole() {
       .then((res) => {
         setChatLog((prev) => [...prev, { sender: "ai", text: res.data.response }]);
       })
-      .catch(() => {
-        setChatLog((prev) => [
-          ...prev,
-          {
-            sender: "ai",
-            text: "Couldn't reach the race engineer. Check that the backend is running and that an AI key (ANTHROPIC_API_KEY or OPENAI_API_KEY) is set.",
-          },
-        ]);
+      .catch((err) => {
+        const text = axios.isAxiosError(err) && err.response?.status === 401
+          ? "Log in to ask the race engineer: every question uses AI credits."
+          : "Couldn't reach the race engineer. Check that the backend is running and that an AI key is set in its .env.";
+        setChatLog((prev) => [...prev, { sender: "ai", text }]);
       })
       .finally(() => {
         setChatLoading(false);
