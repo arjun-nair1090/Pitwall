@@ -4,6 +4,7 @@ One place turns a (year, race, session) request into a loaded FastF1 session and
 facts the UI needs to build its pickers: who actually took part, in which team colours, how long
 the race was, and what strategy each driver ran.
 """
+import os
 import time
 from typing import Any, Dict, Optional, Tuple
 
@@ -52,12 +53,16 @@ def archive_locked(year: int) -> bool:
 
 
 def _no_data_error(message: str, year: int, label: str) -> SessionDataError:
-    if archive_locked(year):
-        return SessionDataError(
-            f"Formula 1's timing archive needs an F1 TV sign-in to download {label} {year}. "
-            f"Sign in once on the machine running the backend with: {ARCHIVE_SIGN_IN}"
-        )
-    return SessionDataError(message)
+    if not archive_locked(year):
+        return SessionDataError(message)
+    if os.getenv("RUNNING_LOCALLY") != "true":
+        # The deployed server can't download from the archive at all; races are copied to it from a
+        # signed-in laptop, so a visitor can only wait.
+        return SessionDataError(f"{label} {year} isn't on Pitwall yet. New races are added a few hours after they finish.")
+    return SessionDataError(
+        f"Formula 1's timing archive needs an F1 TV sign-in to download {label} {year}. "
+        f"Sign in once on this machine with: {ARCHIVE_SIGN_IN}"
+    )
 
 
 def load_session(
@@ -75,6 +80,7 @@ def load_session(
         session = fastf1.get_session(year, event, session_name)
     except Exception as e:
         raise SessionDataError(f"Couldn't find the {session_name} session for {label} {year}.") from e
+    label = session.event.get("EventName") or label  # "Mexico City Grand Prix" reads better than "round 19"
 
     try:
         session.load(laps=True, telemetry=telemetry, weather=False, messages=False)
