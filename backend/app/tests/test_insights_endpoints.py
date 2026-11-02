@@ -75,6 +75,23 @@ def test_debrief_uses_and_caches_a_grounded_ai_summary(frames, engineer):
     assert engineer.calls == 1          # the second request was served from the cache
 
 
+def test_debrief_caches_by_the_race_not_by_how_its_name_was_typed(frames, engineer):
+    engineer.text = "Verstappen won a dominant race at Spa."
+    for gp in ("Belgian Grand Prix", "Belgium", "spa", "Belgian GP"):  # all resolve to the same session
+        assert client.get("/api/v1/debrief", params={"year": 2023, "gp": gp}).json()["source"] == "ai"
+    assert engineer.calls == 1
+
+
+def test_debrief_falls_back_to_the_template_once_a_visitor_has_used_their_ai_budget(frames, engineer):
+    from app.api.v1 import insights_endpoints
+    engineer.text = "Verstappen won."
+    with patch.object(insights_endpoints, "AI_SUMMARIES_PER_HOUR", 2):
+        sources = [client.get("/api/v1/debrief", params={"year": year, "gp": "Belgian Grand Prix"}).json()["source"]
+                   for year in (2021, 2022, 2023)]
+    assert sources == ["ai", "ai", "template"]
+    assert engineer.calls == 2
+
+
 def test_debrief_does_not_cache_the_template_so_a_later_llm_can_take_over(frames, engineer):
     client.get("/api/v1/debrief", params={"year": 2023, "gp": "Belgian Grand Prix"})
     engineer.text = "Verstappen won."
