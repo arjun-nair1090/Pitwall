@@ -309,3 +309,13 @@ def test_score_uses_real_official_results_for_a_real_race(schedule):
 
     # VER and PER are on the real podium, HAM is not: 2 x 10 = 20.
     assert c.get("/api/v1/predictions/me", params={"year": 2023}).json()[0]["points_awarded"] == 20
+
+
+def test_score_is_limited_to_10_calls_an_hour(schedule):
+    # Public on purpose (it can't change an outcome), but each call fetches results and writes every
+    # user's points, so it can't be spammed.
+    for _ in range(10):
+        assert _score(1970).status_code == 400  # race not started: still counts
+    response = _score(1970)
+    assert response.status_code == 429
+    assert int(response.headers["Retry-After"]) > 0
