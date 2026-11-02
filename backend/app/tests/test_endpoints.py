@@ -132,3 +132,14 @@ def test_race_strategy_is_not_live_when_the_feed_is_not_covering_the_session():
     response = client.get("/api/v1/sessions/123/race-strategy")
     assert response.status_code == 200
     assert response.json() == {"live": False}
+
+def test_api_docs_are_hidden_in_production():
+    # Settings are read at import, so import the app fresh with production's setting.
+    import os, subprocess, sys
+    script = "from app.main import app; print(app.docs_url, app.redoc_url, app.openapi_url)"
+    env = {**os.environ, "RUNNING_LOCALLY": "false"}
+    result = subprocess.run([sys.executable, "-c", script], env=env, capture_output=True, text=True, check=True)
+    assert result.stdout.split() == ["None", "None", "None"]
+
+def test_api_docs_are_served_on_a_developers_machine():
+    assert client.get("/docs").status_code == 200
