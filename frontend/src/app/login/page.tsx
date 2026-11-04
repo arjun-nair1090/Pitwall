@@ -57,12 +57,12 @@ export default function LoginPage() {
           <input
             type="password" placeholder="Password" aria-label="Password" value={password}
             onChange={(e) => setPassword(e.target.value)} required
-            minLength={mode === "signup" ? 8 : undefined}
+            minLength={mode === "signup" ? 10 : undefined}
             autoComplete={mode === "signup" ? "new-password" : "current-password"}
             className="w-full bg-kerb border border-edge text-chalk rounded-panel px-4 py-2"
           />
           {mode === "signup" && (
-            <p className="text-faint text-xs mt-1.5">At least 8 characters.</p>
+            <p className="text-faint text-xs mt-1.5">At least 10 characters. Passwords found in known data breaches are refused.</p>
           )}
         </div>
         {error && <p className="text-live-text text-sm" role="alert">{error}</p>}

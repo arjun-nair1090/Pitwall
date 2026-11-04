@@ -15,19 +15,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import rate_limit
-from app.models.models import PredictionModel, UserModel
-from app.services import predictions_service
-from app.services.auth_service import (
-    DEFAULT_EXPIRY,
-    MAX_PASSWORD_BYTES,
-    create_access_token,
-    decode_access_token,
-    get_token_jti,
-    hash_password,
-    is_token_revoked,
-    revoke_token,
-    verify_password,
-)
+from app.models.models import PredictionModel, SessionModel, UserModel
+from app.services import auth_service, predictions_service
+from app.services.auth_service import MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, hash_password, verify_password
 
 router = APIRouter()
 
@@ -48,6 +38,20 @@ def _normalize_email(value: str) -> str:
     # Emails are case-insensitive in practice; store and compare one canonical
     # form so "A@x.com" and "a@x.com" can't become two accounts.
     return value.strip().lower()
+
+
+def _check_password_length(v: str) -> str:
+    if len(v) < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters long")
+    # bcrypt's limit is 72 *bytes*, not characters.
+    if len(v.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        raise ValueError(f"Password must be at most {MAX_PASSWORD_BYTES} bytes long (some characters use more than one byte)")
+    return v
+
+
+async def _refuse_breached(password: str) -> None:
+    if await auth_service.password_is_breached(password):
+        raise HTTPException(status_code=400, detail="That password has appeared in a data breach. Choose a different one.")
 
 
 class SignupRequest(BaseModel):
@@ -76,12 +80,7 @@ class SignupRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def password_length(cls, v: str) -> str:
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters long")
-        # bcrypt's limit is 72 *bytes*, not characters.
-        if len(v.encode("utf-8")) > MAX_PASSWORD_BYTES:
-            raise ValueError(f"Password must be at most {MAX_PASSWORD_BYTES} bytes long (some characters use more than one byte)")
-        return v
+        return _check_password_length(v)
 
 
 class LoginRequest(BaseModel):
@@ -92,6 +91,25 @@ class LoginRequest(BaseModel):
     @classmethod
     def normalize_email(cls, v: str) -> str:
         return _normalize_email(v)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(max_length=1024)
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def password_length(cls, v: str) -> str:
+        return _check_password_length(v)
+
+
+class SessionResponse(BaseModel):
+    id: int
+    created_at: datetime
+    last_seen_at: datetime
+    user_agent: str
+    ip: str
+    current: bool
 
 
 class UserResponse(BaseModel):
@@ -106,28 +124,27 @@ def _dummy_password_hash() -> str:
     return hash_password("timing-equalisation-only-not-a-real-password")
 
 
-def _set_auth_cookies(response: Response, user_id: int) -> None:
+def _start_session(request: Request, response: Response, db: Session, user_id: int) -> None:
+    """Signs this browser in: a new session (never a reused one) and its cookies."""
     secure = os.getenv("RUNNING_LOCALLY") != "true"
-    token = create_access_token(user_id=user_id)
-    csrf_token = secrets.token_urlsafe(32)
-    # Same lifetime as the token itself, so the browser drops the cookies exactly
-    # when the server would reject them (and they survive a browser restart).
-    max_age = int(DEFAULT_EXPIRY.total_seconds())
+    token = auth_service.create_session(db, user_id, user_agent=request.headers.get("user-agent", ""),
+                                        ip=request.client.host if request.client else "")
+    # The session's longest life; the server ends it sooner if it sits unused.
+    max_age = int(auth_service.SESSION_LIFETIME.total_seconds())
     response.set_cookie("session", token, max_age=max_age, httponly=True, samesite="lax", secure=secure)
-    response.set_cookie("csrf_token", csrf_token, max_age=max_age, httponly=False, samesite="lax", secure=secure)
+    response.set_cookie("csrf_token", secrets.token_urlsafe(32), max_age=max_age, httponly=False, samesite="lax", secure=secure)
 
 
-async def get_current_user(request: Request, db: Session = Depends(get_db)) -> UserModel:
+def current_session(request: Request, db: Session = Depends(get_db)) -> SessionModel:
     token = request.cookies.get("session")
-    if not token:
+    session = auth_service.find_session(db, token) if token else None
+    if session is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    user_id = decode_access_token(token)
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    jti = get_token_jti(token)
-    if jti and await is_token_revoked(jti):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    return session
+
+
+async def get_current_user(session: SessionModel = Depends(current_session), db: Session = Depends(get_db)) -> UserModel:
+    user = db.query(UserModel).filter(UserModel.id == session.user_id).first()
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
@@ -136,7 +153,7 @@ async def get_current_user(request: Request, db: Session = Depends(get_db)) -> U
 def verify_csrf(request: Request) -> None:
     cookie_value = request.cookies.get("csrf_token")
     header_value = request.headers.get("X-CSRF-Token")
-    if not cookie_value or not header_value or cookie_value != header_value:
+    if not cookie_value or not header_value or not secrets.compare_digest(cookie_value, header_value):
         raise HTTPException(status_code=403, detail="CSRF check failed")
 
 
@@ -159,10 +176,11 @@ def verify_origin(request: Request) -> None:
 
 
 @router.post("/auth/signup", response_model=UserResponse, dependencies=[Depends(verify_origin), Depends(rate_limit("signup", 5, 3600))])
-async def signup(req: SignupRequest, response: Response, db: Session = Depends(get_db)):
+async def signup(req: SignupRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     existing = db.query(UserModel).filter(UserModel.email == req.email).first()
     if existing:
         raise HTTPException(status_code=409, detail="Email already registered")
+    await _refuse_breached(req.password)
 
     user = UserModel(
         email=req.email,
@@ -173,20 +191,29 @@ async def signup(req: SignupRequest, response: Response, db: Session = Depends(g
     db.commit()
     db.refresh(user)
 
-    _set_auth_cookies(response, user.id)
+    _start_session(request, response, db, user.id)
     return user
 
 
 @router.post("/auth/login", response_model=UserResponse, dependencies=[Depends(verify_origin), Depends(rate_limit("login", 10, 900))])
-async def login(req: LoginRequest, response: Response, db: Session = Depends(get_db)):
+async def login(req: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
+    locked = auth_service.seconds_locked(req.email)
+    if locked:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many wrong passwords for this account. Try again in {max(1, round(locked / 60))} min.",
+            headers={"Retry-After": str(locked)},
+        )
     user = db.query(UserModel).filter(UserModel.email == req.email).first()
     # Always run a real bcrypt comparison -- against a throwaway hash when the
     # email is unknown -- so response time doesn't reveal which emails exist.
     password_ok = verify_password(req.password, user.password_hash if user else _dummy_password_hash())
     if not user or not password_ok:
+        auth_service.record_failure(req.email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    _set_auth_cookies(response, user.id)
+    auth_service.clear_failures(req.email)
+    _start_session(request, response, db, user.id)
     return user
 
 
@@ -194,14 +221,11 @@ async def login(req: LoginRequest, response: Response, db: Session = Depends(get
 async def logout(
     request: Request,
     response: Response,
-    _current_user: UserModel = Depends(get_current_user),
+    _session: SessionModel = Depends(current_session),
     _csrf: None = Depends(verify_csrf),
+    db: Session = Depends(get_db),
 ):
-    token = request.cookies.get("session")
-    if token:
-        jti = get_token_jti(token)
-        if jti:
-            await revoke_token(jti, ttl_seconds=int(DEFAULT_EXPIRY.total_seconds()))
+    auth_service.end_session(db, request.cookies["session"])
     response.delete_cookie("session")
     response.delete_cookie("csrf_token")
     return {"status": "logged out"}
@@ -210,6 +234,45 @@ async def logout(
 @router.get("/auth/me", response_model=UserResponse)
 async def me(current_user: UserModel = Depends(get_current_user)):
     return current_user
+
+
+@router.get("/auth/sessions", response_model=List[SessionResponse])
+async def list_sessions(session: SessionModel = Depends(current_session), db: Session = Depends(get_db)):
+    """The browsers signed in to this account, most recently used first."""
+    return [SessionResponse(id=s.id, created_at=s.created_at, last_seen_at=s.last_seen_at, user_agent=s.user_agent,
+                            ip=s.ip, current=s.id == session.id)
+            for s in auth_service.user_sessions(db, session.user_id)]
+
+
+@router.delete("/auth/sessions/{session_id}")
+async def sign_out_device(session_id: int, session: SessionModel = Depends(current_session),
+                          _csrf: None = Depends(verify_csrf), db: Session = Depends(get_db)):
+    deleted = db.query(SessionModel).filter(SessionModel.id == session_id, SessionModel.user_id == session.user_id).delete()
+    db.commit()
+    if not deleted:
+        raise HTTPException(status_code=404, detail="No such signed-in device")
+    return {"status": "signed out"}
+
+
+@router.post("/auth/sessions/sign-out-others")
+async def sign_out_other_devices(session: SessionModel = Depends(current_session),
+                                 _csrf: None = Depends(verify_csrf), db: Session = Depends(get_db)):
+    auth_service.end_other_sessions(db, session.user_id, keep_id=session.id)
+    return {"status": "signed out"}
+
+
+@router.post("/auth/password", dependencies=[Depends(rate_limit("password", 10, 3600))])
+async def change_password(req: PasswordChangeRequest, session: SessionModel = Depends(current_session),
+                          _csrf: None = Depends(verify_csrf), db: Session = Depends(get_db)):
+    """Changes the password and signs out every other device, in case someone else had it."""
+    user = db.query(UserModel).filter(UserModel.id == session.user_id).first()
+    if not verify_password(req.current_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Your current password is incorrect.")
+    await _refuse_breached(req.new_password)
+    user.password_hash = hash_password(req.new_password)
+    db.commit()
+    auth_service.end_other_sessions(db, user.id, keep_id=session.id)
+    return {"status": "password changed"}
 
 
 class PredictionRequest(BaseModel):

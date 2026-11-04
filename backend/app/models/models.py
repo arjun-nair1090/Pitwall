@@ -11,6 +11,20 @@ class UserModel(Base):
     password_hash = Column(String(255), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+class SessionModel(Base):
+    """One signed-in browser. The cookie holds a random token; only its SHA-256 is stored, so a copy of
+    this table can't be used to sign in."""
+    __tablename__ = "user_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String(64), unique=True, nullable=False, index=True)
+    created_at = Column(DateTime, nullable=False)  # naive UTC, like the other session times
+    last_seen_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    user_agent = Column(String(200), nullable=False, default="")
+    ip = Column(String(45), nullable=False, default="")
+
 class PredictionModel(Base):
     __tablename__ = "predictions"
 
