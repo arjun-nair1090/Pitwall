@@ -17,6 +17,8 @@ from app.models.models import SessionModel
 # it's a byte limit, not a character limit -- "é" is 2 bytes.
 MAX_PASSWORD_BYTES = 72
 MIN_PASSWORD_LENGTH = 10
+# Stored for accounts that sign in with Google only: not a bcrypt hash, so no password ever matches it.
+UNUSABLE_PASSWORD = "!"
 
 
 def hash_password(password: str) -> str:

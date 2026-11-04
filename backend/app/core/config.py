@@ -29,6 +29,11 @@ class Settings(BaseModel):
         return url
 
     CORS_ALLOWED_ORIGINS: list[str] = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    # The site's public address, where Google sends people back after signing in.
+    SITE_URL: str = os.getenv("SITE_URL", CORS_ALLOWED_ORIGINS[0])
+    # Sign in with Google is offered when both are set; from Google Cloud's OAuth client (a "Web application").
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
     SECRET_KEY: str = os.getenv("SECRET_KEY")
     if not SECRET_KEY:
         raise ValueError("SECRET_KEY must be set in environment variables")
