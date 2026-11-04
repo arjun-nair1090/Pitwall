@@ -45,5 +45,16 @@ def _offline_archive_check(monkeypatch):
 def _fresh_rate_limits():
     """Every test starts with no requests counted, so limits never leak between tests."""
     from app.core import rate_limit
+    from app.services import auth_service
 
     rate_limit.reset()
+    auth_service.reset_lockouts()
+
+
+@pytest.fixture(autouse=True)
+def _offline_breach_check(monkeypatch):
+    """Tests never ask Have I Been Pwned; every password counts as unbreached unless a test says otherwise."""
+    import httpx
+    from app.services import auth_service
+
+    monkeypatch.setattr(auth_service, "_PWNED_TRANSPORT", httpx.MockTransport(lambda request: httpx.Response(200, text="")))

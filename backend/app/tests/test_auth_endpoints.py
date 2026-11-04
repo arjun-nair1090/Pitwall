@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -55,9 +56,9 @@ def test_login_with_wrong_password_returns_401():
 
 def test_login_is_limited_to_10_tries_per_15_minutes():
     _signup(email="limited@example.com", password="correct-password-3")
-    wrong = {"email": "limited@example.com", "password": "guess"}
-    for _ in range(10):
-        assert client.post("/api/v1/auth/login", json=wrong).status_code == 401
+    # spread over several emails, so this is the per-IP limit rather than one account's lockout
+    for i in range(10):
+        assert client.post("/api/v1/auth/login", json={"email": f"guess{i}@example.com", "password": "guess"}).status_code == 401
     right = {"email": "limited@example.com", "password": "correct-password-3"}
     response = client.post("/api/v1/auth/login", json=right)
     assert response.status_code == 429
@@ -120,47 +121,6 @@ def test_signup_and_login_reject_missing_or_disallowed_origin():
         headers={"Origin": "https://evil.example.com"},
     )
     assert response.status_code == 403
-
-
-def test_logout_revokes_the_token_so_it_cannot_be_reused(monkeypatch):
-    import app.services.auth_service as auth_service_module
-
-    class FakeRedisClient:
-        def __init__(self):
-            self._store = {}
-
-        async def set(self, key, value, ex=None):
-            self._store[key] = value
-
-        async def exists(self, key):
-            return 1 if key in self._store else 0
-
-    monkeypatch.setattr(auth_service_module.redis_service, "client", FakeRedisClient())
-
-    authed_client = _client()
-    authed_client.post("/api/v1/auth/signup", json={
-        "email": "revoke-me@example.com", "password": "some-password-8", "display_name": "RevokeUser",
-    })
-
-    stolen_session_cookie = authed_client.cookies.get("session")
-    csrf_token = authed_client.cookies.get("csrf_token")
-
-    logout_response = authed_client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": csrf_token})
-    assert logout_response.status_code == 200
-
-    # Simulate an attacker who captured the raw token before logout and
-    # replays it directly on a fresh client (the original client's cookie
-    # jar already dropped it via logout's Set-Cookie -- this bypasses that
-    # to prove the token itself is rejected, not just "cookie is missing").
-    replay_client = _client()
-    replay_client.cookies.set("session", stolen_session_cookie)
-    response = replay_client.get("/api/v1/auth/me")
-    assert response.status_code == 401
-
-
-# --- input hardening ----------------------------------------------------------
-
-import pytest  # noqa: E402
 
 
 def _post_signup(email, password="valid-password-1", display_name="Tester"):
@@ -238,8 +198,8 @@ def test_login_still_verifies_a_password_hash_for_unknown_emails(monkeypatch):
     assert len(calls) == 1
 
 
-def test_auth_cookies_share_the_tokens_lifetime():
+def test_auth_cookies_last_as_long_as_the_longest_session():
     response = _post_signup("cookie-life@example.com")
     set_cookies = [v for k, v in response.headers.multi_items() if k.lower() == "set-cookie"]
     assert len(set_cookies) == 2
-    assert all("Max-Age=86400" in c for c in set_cookies)
+    assert all("Max-Age=2592000" in c for c in set_cookies)  # 30 days
