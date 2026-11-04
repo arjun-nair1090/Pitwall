@@ -330,6 +330,44 @@ def test_every_call_asks_for_prompt_caching():
     assert client.calls[0]["cache_control"] == {"type": "ephemeral"}
 
 
+def test_the_prompt_names_the_latest_race_so_the_model_never_guesses_it(monkeypatch):
+    # Asked "how did Verstappen win the last race", Gemini picked a 2024 race from its own memory.
+    from datetime import datetime
+    seen = []
+
+    def races(year, now):
+        seen.append(year)
+        return [{"year": 2026, "round": 20, "event_name": "Mexico City Grand Prix", "start": datetime(2026, 10, 25, 20)},
+                {"year": 2026, "round": 19, "event_name": "United States Grand Prix", "start": datetime(2026, 10, 18, 19)}]
+
+    monkeypatch.setattr(data_assistant, "_list_races", races)
+    client = FakeClient(reply(text("Verstappen won.")))
+    go("How did Verstappen win the last race?", client)
+    system = client.calls[0]["system"]
+    assert "most recent race was the 2026 Mexico City Grand Prix, round 20" in system
+    assert "round 19 United States Grand Prix (2026-10-18)" in system
+    assert "names no season means" in system
+    go("Again?", FakeClient(reply(text("Yes."))))
+    assert len(seen) == 1  # memoised
+
+
+def test_early_in_the_year_the_calendar_is_last_seasons(monkeypatch):
+    from datetime import datetime
+    last = [{"year": 2026, "round": 24, "event_name": "Abu Dhabi Grand Prix", "start": datetime(2026, 12, 6, 13)}]
+    monkeypatch.setattr(data_assistant, "_list_races", lambda year, now: last if year == 2026 else [])
+    text_ = data_assistant.season_calendar(datetime(2027, 1, 10))
+    assert "2026 Abu Dhabi Grand Prix, round 24" in text_ and "names no season means 2027" in text_
+
+
+def test_an_unreadable_calendar_leaves_the_prompt_as_it_was(monkeypatch):
+    def broken(year, now):
+        raise ConnectionError("offline")
+    monkeypatch.setattr(data_assistant, "_list_races", broken)
+    client = FakeClient(reply(text("Hm.")))
+    go("Last race?", client)
+    assert "most recent race" not in client.calls[0]["system"]
+
+
 def test_the_client_has_a_timeout_and_retries(monkeypatch):
     import asyncio
     import anthropic

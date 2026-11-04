@@ -5,7 +5,9 @@ most) and the model may only report what those summaries say. Every call made is
 the answer so the page can link to the analysis behind it."""
 import asyncio
 import json
-from datetime import date
+import threading
+import time
+from datetime import date, datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException
@@ -40,7 +42,7 @@ _TRUNCATED = " ...(cut short)"
 _SERVICE_ERRORS = (PitWindowInputError, SessionDataError, ChampionshipError, NoResultsError)
 
 
-def system_prompt() -> str:
+def system_prompt(calendar: str = "") -> str:
     return (
         "You answer questions about Formula 1 using only the results of the tools provided. "
         "Never use outside knowledge for numbers, results or facts. If the tools can't answer, say so plainly.\n"
@@ -50,7 +52,44 @@ def system_prompt() -> str:
         "Keep answers under 150 words, in plain sentences, no tables. Name drivers by surname. "
         "Round times to 0.1 s unless a smaller gap matters.\n"
         f"Today's date is {date.today().isoformat()}."
+        + (f"\n{calendar}" if calendar else "")
     )
+
+
+# ---- the season so far, so "the last race" needs no lookup and no guess from the model's memory ----
+
+CALENDAR_TTL_S = 600
+_list_races: Callable[[int, datetime], List[Dict[str, Any]]] = latest_result.finished_races  # tests swap it
+_calendar_lock = threading.Lock()
+_calendar_memo: Dict[str, Any] = {}
+
+
+def season_calendar(now: Optional[datetime] = None) -> str:
+    """The races finished this season (last season's early in the year), newest first, for the system
+    prompt. Memoised for ten minutes; "" if the schedule can't be read. Blocking: call it in a thread."""
+    with _calendar_lock:
+        hit = _calendar_memo.get("text")
+        if hit is not None and time.monotonic() - hit[0] < CALENDAR_TTL_S:
+            return hit[1]
+    now = now or datetime.now(timezone.utc).replace(tzinfo=None)
+    try:
+        races = _list_races(now.year, now) or _list_races(now.year - 1, now)
+    except Exception as e:
+        print(f"Ask the data: couldn't read the race calendar: {e!r}")
+        return ""
+    text = ""
+    if races:
+        latest = races[0]
+        done = "; ".join(f"round {r['round']} {r['event_name']} ({r['start']:%Y-%m-%d})" for r in races)
+        text = (
+            f"The most recent race was the {latest['year']} {latest['event_name']}, round {latest['round']}: "
+            f"\"the last race\" means that one, and a question that names no season means {now.year}. "
+            f"Races finished in {latest['year']}, newest first: {done}.\n"
+            "Your own memory of F1 stops before today: never take a season, round or result from it."
+        )
+    with _calendar_lock:
+        _calendar_memo["text"] = (time.monotonic(), text)
+    return text
 
 
 # ---- the condensers: a payload in, a small summary out ----
@@ -316,8 +355,10 @@ def make_client() -> Any:
     from openai import AsyncOpenAI
     clients = []
     if gemini_chat.gemini_key():
+        # with Groq behind it, a busy Gemini hands over at once instead of retrying and waiting first
+        retries = 0 if gemini_chat.groq_key() else CLIENT_RETRIES
         clients.append(gemini_chat.GeminiClient(AsyncOpenAI(api_key=gemini_chat.gemini_key(), base_url=gemini_chat.BASE_URL,
-                                                            timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_RETRIES)))
+                                                            timeout=CLIENT_TIMEOUT_S, max_retries=retries)))
     if gemini_chat.groq_key():
         clients.append(gemini_chat.GroqClient(AsyncOpenAI(api_key=gemini_chat.groq_key(), base_url=gemini_chat.GROQ_BASE_URL,
                                                           timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_RETRIES)))
@@ -340,9 +381,9 @@ def _conversation(question: str, history: List[Dict[str, str]]) -> List[Dict[str
     return messages
 
 
-async def _call(client: Any, messages: List[Dict[str, Any]], forced_text: bool) -> Any:
+async def _call(client: Any, messages: List[Dict[str, Any]], forced_text: bool, calendar: str = "") -> Any:
     kwargs: Dict[str, Any] = dict(
-        model=settings.ANTHROPIC_MODEL, max_tokens=MAX_TOKENS, system=system_prompt(),
+        model=settings.ANTHROPIC_MODEL, max_tokens=MAX_TOKENS, system=system_prompt(calendar),
         messages=messages, tools=TOOLS,
         # the tools and system prompt repeat on every call of the loop, so let them be cached
         cache_control={"type": "ephemeral"},
@@ -407,8 +448,9 @@ async def _ask(question: str, history: List[Dict[str, str]], client: Any) -> Dic
     messages = _conversation(question, history)
     sources: List[Dict[str, Any]] = []
     seen = set()
+    calendar = await asyncio.to_thread(season_calendar)
 
-    response = await _call(client, messages, forced_text=False)
+    response = await _call(client, messages, forced_text=False, calendar=calendar)
     rounds = 0
     calls = 0
     while response.stop_reason == "tool_use" and rounds < MAX_TOOL_ROUNDS:
@@ -429,6 +471,6 @@ async def _ask(question: str, history: List[Dict[str, str]], client: Any) -> Dic
                 sources.append(source)
         messages.append({"role": "assistant", "content": response.content})
         messages.append({"role": "user", "content": [result for result, _ in outcomes]})
-        response = await _call(client, messages, forced_text=rounds >= MAX_TOOL_ROUNDS)
+        response = await _call(client, messages, forced_text=rounds >= MAX_TOOL_ROUNDS, calendar=calendar)
 
     return {"answer": _answer(response), "sources": sources}

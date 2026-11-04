@@ -52,6 +52,16 @@ def _fresh_rate_limits():
 
 
 @pytest.fixture(autouse=True)
+def _offline_assistant(monkeypatch):
+    """Ask the data reads no real race calendar, and no provider starts out resting."""
+    from app.services import data_assistant, gemini_chat
+
+    monkeypatch.setattr(data_assistant, "_list_races", lambda year, now: [])
+    data_assistant._calendar_memo.clear()
+    gemini_chat._resting.clear()
+
+
+@pytest.fixture(autouse=True)
 def _offline_breach_check(monkeypatch):
     """Tests never ask Have I Been Pwned; every password counts as unbreached unless a test says otherwise."""
     import httpx

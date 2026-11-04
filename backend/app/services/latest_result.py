@@ -105,8 +105,10 @@ def finished_races(
         start = start.to_pydatetime()
         if start + RACE_DURATION_BUFFER > now:
             continue
+        round_number = row.get("RoundNumber")
         races.append({
             "year": year,
+            "round": int(round_number) if pd.notna(round_number) else None,
             "event_name": str(row["EventName"]),
             "country": str(row.get("Country", "")),
             "start": start,
