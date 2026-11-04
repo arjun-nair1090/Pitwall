@@ -140,6 +140,32 @@ def test_the_last_provider_being_rate_limited_still_reaches_the_caller():
         asyncio.run(client.messages.create(max_tokens=10, system="s", messages=[{"role": "user", "content": "q"}]))
 
 
+def test_after_a_rate_limit_the_next_questions_go_straight_to_groq():
+    gemini = RateLimitedOpenAI()
+    first = gemini_chat.FallbackClient(gemini_chat.GeminiClient(gemini), gemini_chat.GroqClient(FakeOpenAI(completion({"content": "a"}))))
+    asyncio.run(first.messages.create(max_tokens=10, system="s", messages=[{"role": "user", "content": "q"}]))
+    fresh_gemini = FakeOpenAI(completion({"content": "from gemini"}))
+    groq = FakeOpenAI(completion({"content": "from groq"}))
+    second = gemini_chat.FallbackClient(gemini_chat.GeminiClient(fresh_gemini), gemini_chat.GroqClient(groq))
+    r = asyncio.run(second.messages.create(max_tokens=10, system="s", messages=[{"role": "user", "content": "q"}]))
+    assert r.content[0].text == "from groq" and fresh_gemini.calls == []
+
+
+def test_a_gemini_outage_also_hands_over_to_groq():
+    import httpx
+    import openai
+
+    class Down(FakeOpenAI):
+        async def create(self, **kwargs):
+            raise openai.APIConnectionError(request=httpx.Request("POST", "https://gemini.example"))
+
+    groq = FakeOpenAI(completion({"content": "from groq"}))
+    client = gemini_chat.FallbackClient(gemini_chat.GeminiClient(Down()), gemini_chat.GroqClient(groq))
+    r = asyncio.run(client.messages.create(max_tokens=10, system="s", messages=[{"role": "user", "content": "q"}]))
+    assert r.content[0].text == "from groq"
+    assert gemini_chat._resting == {}  # an outage isn't a used-up allowance: the next question tries Gemini again
+
+
 def test_make_client_falls_back_from_gemini_to_groq(monkeypatch):
     monkeypatch.setattr(data_assistant.settings, "ANTHROPIC_API_KEY", "")
     monkeypatch.setattr(data_assistant.settings, "GEMINI_API_KEY", "")
@@ -153,6 +179,7 @@ def test_make_client_falls_back_from_gemini_to_groq(monkeypatch):
     client = data_assistant.make_client()
     try:
         assert isinstance(client, gemini_chat.FallbackClient)
+        assert client._clients[0]._chat.max_retries == 0  # a busy Gemini hands over at once
     finally:
         asyncio.run(client.close())
 

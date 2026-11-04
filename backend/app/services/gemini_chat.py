@@ -3,6 +3,7 @@ loop calls: ``await client.messages.create(...)`` returns text and tool_use bloc
 loop's Anthropic-style messages (tool_use blocks out, tool_result blocks back) are translated both ways.
 FallbackClient moves on to Groq once Gemini's free daily allowance runs out."""
 import json
+import time
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
@@ -95,13 +96,22 @@ class GroqClient(ChatClient):
         super().__init__(chat, settings.GROQ_MODEL, reasoning_effort=effort)
 
 
+REST_S = 600
+# Providers that refused recently, by class name, and until when (monotonic). Each question builds a new
+# client, so without this every one would wait on a used-up Gemini before reaching Groq.
+# ponytail: per process, like the rate limits; fine with one worker.
+_resting: Dict[str, float] = {}
+
+
 class FallbackClient:
-    """Asks the first client until it's rate limited (a used-up free tier, say), then the next one, for
-    that call and the rest of the conversation."""
+    """Asks the first client until it's rate limited (a used-up free tier, say), down or unreachable, then
+    the next one, for that call, the rest of the conversation and, for rate limits, the next ten minutes."""
 
     def __init__(self, *clients: ChatClient):
         self._clients = list(clients)
-        self._current = 0
+        now = time.monotonic()
+        self._current = next((i for i, c in enumerate(self._clients[:-1])
+                              if _resting.get(type(c).__name__, 0) <= now), len(self._clients) - 1)
         self.messages = self
 
     async def create(self, **kwargs: Any) -> Any:
@@ -109,10 +119,12 @@ class FallbackClient:
         while True:
             try:
                 return await self._clients[self._current].messages.create(**kwargs)
-            except openai.RateLimitError as e:
+            except (openai.RateLimitError, openai.InternalServerError, openai.APIConnectionError) as e:
                 if self._current == len(self._clients) - 1:
                     raise
-                print(f"The assistant was rate limited ({e}); trying the next provider.")
+                if isinstance(e, openai.RateLimitError):
+                    _resting[type(self._clients[self._current]).__name__] = time.monotonic() + REST_S
+                print(f"The assistant's provider failed ({e!r}); trying the next one.")
                 self._current += 1
 
     async def close(self) -> None:
