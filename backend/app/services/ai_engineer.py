@@ -5,7 +5,7 @@ from datetime import datetime
 from app.core.config import settings
 from app.services.f1_data_service import f1_service
 from app.services import rag_service
-from app.services.gemini_chat import BASE_URL as GEMINI_BASE_URL, gemini_key
+from app.services.gemini_chat import BASE_URL as GEMINI_BASE_URL, GROQ_BASE_URL, gemini_key, groq_key
 from app.services.llm_utils import extract_text, supports_effort
 
 # Define LangGraph state schema
@@ -21,6 +21,7 @@ class AIEngineer:
         self.openai_client = None
         self.anthropic_client = None
         self.gemini_client = None
+        self.groq_client = None
         
         # The SDKs are imported only when a key is set: together they add about a second to startup.
         if settings.OPENAI_API_KEY and "your_openai" not in settings.OPENAI_API_KEY:
@@ -32,6 +33,9 @@ class AIEngineer:
         if gemini_key():
             from openai import OpenAI
             self.gemini_client = OpenAI(api_key=gemini_key(), base_url=GEMINI_BASE_URL)
+        if groq_key():
+            from openai import OpenAI
+            self.groq_client = OpenAI(api_key=groq_key(), base_url=GROQ_BASE_URL)
 
     async def retrieve_race_context(self, session_key: int) -> Dict[str, Any]:
         """Fetch all relevant live context to build the prompt context."""
@@ -98,7 +102,7 @@ class AIEngineer:
         max_tokens: int = 4096,
         effort: str = "low",
     ) -> Optional[str]:
-        """Generate text with Anthropic, falling back to OpenAI, then Gemini. None if none works.
+        """Generate text with Anthropic, falling back to OpenAI, then Gemini, then Groq. None if none works.
 
         The SDK calls are blocking, so they run in a worker thread -- called
         directly they would stall the event loop (and every other request) for the
@@ -124,9 +128,10 @@ class AIEngineer:
             except Exception as e:
                 print(f"Anthropic API Error: {e}")
 
-        # Gemini speaks the OpenAI chat API, so both go through the same call.
+        # Gemini and Groq speak the OpenAI chat API, so all three go through the same call.
         for name, client, model in (("OpenAI", self.openai_client, settings.OPENAI_MODEL),
-                                    ("Gemini", self.gemini_client, settings.GEMINI_MODEL)):
+                                    ("Gemini", self.gemini_client, settings.GEMINI_MODEL),
+                                    ("Groq", self.groq_client, settings.GROQ_MODEL)):
             if not client:
                 continue
             try:

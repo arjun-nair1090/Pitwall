@@ -472,9 +472,10 @@ def test_ask_without_a_key_is_a_503(monkeypatch):
     from app.core.config import settings
     monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "")
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(settings, "GROQ_API_KEY", "")
     response = client.post("/api/v1/ask", json={"question": "Who won?"})
     assert response.status_code == 503
-    assert response.json()["detail"] == "The assistant isn't set up on this server (no Anthropic or Gemini API key)."
+    assert response.json()["detail"] == "The assistant isn't set up on this server (no Anthropic, Gemini or Groq API key)."
 
 
 def test_ask_needs_a_signed_in_visitor(monkeypatch):
