@@ -63,6 +63,8 @@ LOCK_AFTER = 5  # wrong passwords for one email from one address...
 LOCK_WINDOW_S = 15 * 60  # ...within this long lock that pair for this long
 # Keyed by email *and* address: keyed by email alone, anyone could lock a victim out by guessing. Guessing
 # from many addresses is what the per-IP limits and the breached-password check are for.
+# ponytail: no account-wide cap, as one would hand back the lock-out; add a CAPTCHA (Turnstile) past
+# ~50 failures per email per hour if distributed guessing ever shows up in the logs.
 # ponytail: in-process memory like rate_limit, so a restart forgets; move to Redis with more than one worker.
 _failures: dict[tuple[str, str], deque] = defaultdict(deque)
 

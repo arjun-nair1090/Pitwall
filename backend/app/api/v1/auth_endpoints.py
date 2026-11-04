@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.rate_limit import rate_limit
+from app.core.rate_limit import client_key, rate_limit
 from app.models.models import PredictionModel, SessionModel, UserModel
 from app.services import auth_service, predictions_service
 from app.services.auth_service import MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, hash_password, verify_password
@@ -197,7 +197,7 @@ async def signup(req: SignupRequest, request: Request, response: Response, db: S
 
 @router.post("/auth/login", response_model=UserResponse, dependencies=[Depends(verify_origin), Depends(rate_limit("login", 10, 900))])
 async def login(req: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
-    ip = request.client.host if request.client else ""
+    ip = client_key(request)
     locked = auth_service.seconds_locked(req.email, ip)
     if locked:
         raise HTTPException(

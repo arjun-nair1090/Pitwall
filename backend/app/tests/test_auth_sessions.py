@@ -211,3 +211,15 @@ def test_someone_elses_wrong_guesses_dont_lock_the_owner_out():
         attacker.post("/api/v1/auth/login", json={"email": "victim@example.com", "password": "wrong-password"})
     owner = TestClient(app, headers=ORIGIN, client=("198.51.100.7", 50000))
     assert owner.post("/api/v1/auth/login", json={"email": "victim@example.com", "password": "a-strong-password-1"}).status_code == 200
+
+
+def test_stepping_through_an_ipv6_block_doesnt_dodge_the_lock():
+    # Anyone with one IPv6 address has the 2^64 around it, so the lock counts the whole /64 as one visitor.
+    _signed_in("v6@example.com")
+    for i in range(auth_service.LOCK_AFTER):
+        guesser = TestClient(app, headers=ORIGIN, client=(f"2001:db8:1:2::{i + 1}", 50000))
+        guesser.post("/api/v1/auth/login", json={"email": "v6@example.com", "password": "wrong-password"})
+    same_block = TestClient(app, headers=ORIGIN, client=("2001:db8:1:2::ff", 50000))
+    assert same_block.post("/api/v1/auth/login", json={"email": "v6@example.com", "password": "wrong-password"}).status_code == 429
+    elsewhere = TestClient(app, headers=ORIGIN, client=("2001:db8:9:9::1", 50000))
+    assert elsewhere.post("/api/v1/auth/login", json={"email": "v6@example.com", "password": "a-strong-password-1"}).status_code == 200
