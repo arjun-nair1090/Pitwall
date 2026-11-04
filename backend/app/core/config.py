@@ -52,6 +52,8 @@ class Settings(BaseModel):
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     # Used when no Anthropic key is set; free from https://aistudio.google.com/apikey
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    # Takes over when Gemini's free daily allowance runs out; free from https://console.groq.com/keys
+    GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
     # Model IDs are configuration: hardcoded IDs go stale when a model is retired,
     # which silently degrades every AI feature to its fallback.
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
@@ -59,6 +61,8 @@ class Settings(BaseModel):
     # Google's alias for its newest Flash-Lite model, so the default never names a retired one. Lite, because
     # the free tier allows full Flash only 20 requests a day and one question to Ask the data uses several.
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
+    # Must support tool calls for Ask the data; gpt-oss-120b does, on a free allowance of about 1,000 requests a day.
+    GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     FASTF1_CACHE_DIR: str = os.getenv("FASTF1_CACHE_DIR", "data/fastf1_cache")
 
 settings = Settings()

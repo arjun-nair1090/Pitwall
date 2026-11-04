@@ -86,7 +86,7 @@ You need Python 3.12, Node 20+ and Docker (for Postgres and Redis).
 cp .env.example .env
 ```
 
-Set `SECRET_KEY` in `.env` (`python -c "import secrets; print(secrets.token_hex(32))"` makes one) and `RUNNING_LOCALLY=true` if the backend runs on your machine rather than in Docker. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` and `GEMINI_API_KEY` are optional. Gemini has a free tier (get a key at https://aistudio.google.com/apikey); Claude is used first when both keys are set. Without any key, the debrief and race engineer use templates and Ask the data is switched off.
+Set `SECRET_KEY` in `.env` (`python -c "import secrets; print(secrets.token_hex(32))"` makes one) and `RUNNING_LOCALLY=true` if the backend runs on your machine rather than in Docker. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` and `GROQ_API_KEY` are optional. Gemini and Groq have free tiers (keys at https://aistudio.google.com/apikey and https://console.groq.com/keys); with both set, Groq takes over when Gemini's daily allowance runs out. Claude is used first when its key is set. Without any key, the debrief and race engineer use templates and Ask the data is switched off.
 
 ```bash
 docker compose up -d postgres redis

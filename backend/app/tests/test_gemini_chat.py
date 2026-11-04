@@ -95,3 +95,78 @@ def test_the_engineer_writes_with_gemini_when_it_is_the_only_key(monkeypatch):
     monkeypatch.setattr(engineer.gemini_client.chat.completions, "create", create)
     assert asyncio.run(engineer.generate_text("sys", "user")) == "Box this lap."
     assert seen["model"] == ai_engineer.settings.GEMINI_MODEL
+
+
+# ---- Groq takes over when Gemini's free daily allowance runs out ----
+
+def _rate_limited():
+    import httpx
+    import openai
+    request = httpx.Request("POST", "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")
+    return openai.RateLimitError("Quota exceeded: requests per day", response=httpx.Response(429, request=request), body=None)
+
+
+class RateLimitedOpenAI(FakeOpenAI):
+    """Answers the scripted replies, then is rate limited like a used-up free tier."""
+
+    async def create(self, **kwargs):
+        if not self.scripted:
+            raise _rate_limited()
+        return await super().create(**kwargs)
+
+
+def test_groq_takes_over_mid_question_when_gemini_is_rate_limited(monkeypatch):
+    monkeypatch.setitem(data_assistant._IMPLEMENTATIONS, "race_pace", lambda **_: {"leader": "VER"})
+    gemini = RateLimitedOpenAI(completion({"content": None, "tool_calls": [CALL]}, "tool_calls"))
+    groq = FakeOpenAI(completion({"content": "Verstappen had the best pace."}))
+    client = gemini_chat.FallbackClient(gemini_chat.GeminiClient(gemini), gemini_chat.GroqClient(groq))
+
+    out = asyncio.run(data_assistant.ask("Pace at Spa 2024?", [], client=client))
+
+    assert out["answer"] == "Verstappen had the best pace."
+    assert groq.calls[0]["model"] == gemini_chat.settings.GROQ_MODEL
+    # Gemini's private signature field isn't sent to Groq; the standard parts of the call are
+    replayed = groq.calls[0]["messages"][-2]["tool_calls"][0]
+    assert replayed == {"id": "call_1", "type": "function", "function": CALL["function"]}
+    asyncio.run(client.close())
+    assert gemini.closed and groq.closed
+
+
+def test_the_last_provider_being_rate_limited_still_reaches_the_caller():
+    import openai
+    import pytest
+    client = gemini_chat.FallbackClient(gemini_chat.GeminiClient(RateLimitedOpenAI()), gemini_chat.GroqClient(RateLimitedOpenAI()))
+    with pytest.raises(openai.RateLimitError):
+        asyncio.run(client.messages.create(max_tokens=10, system="s", messages=[{"role": "user", "content": "q"}]))
+
+
+def test_make_client_falls_back_from_gemini_to_groq(monkeypatch):
+    monkeypatch.setattr(data_assistant.settings, "ANTHROPIC_API_KEY", "")
+    monkeypatch.setattr(data_assistant.settings, "GEMINI_API_KEY", "")
+    monkeypatch.setattr(data_assistant.settings, "GROQ_API_KEY", "test-not-real")
+    client = data_assistant.make_client()
+    try:
+        assert isinstance(client, gemini_chat.GroqClient)
+    finally:
+        asyncio.run(client.close())
+    monkeypatch.setattr(data_assistant.settings, "GEMINI_API_KEY", "test-not-real")
+    client = data_assistant.make_client()
+    try:
+        assert isinstance(client, gemini_chat.FallbackClient)
+    finally:
+        asyncio.run(client.close())
+
+
+def test_the_engineer_writes_with_groq_when_gemini_fails(monkeypatch):
+    for key in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY"):
+        monkeypatch.setattr(ai_engineer.settings, key, "")
+    monkeypatch.setattr(ai_engineer.settings, "GEMINI_API_KEY", "test-not-real")
+    monkeypatch.setattr(ai_engineer.settings, "GROQ_API_KEY", "test-not-real")
+    engineer = ai_engineer.AIEngineer()
+
+    def quota_used_up(**kwargs):
+        raise _rate_limited()
+
+    monkeypatch.setattr(engineer.gemini_client.chat.completions, "create", quota_used_up)
+    monkeypatch.setattr(engineer.groq_client.chat.completions, "create", lambda **kwargs: completion({"content": "Box."}))
+    assert asyncio.run(engineer.generate_text("sys", "user")) == "Box."

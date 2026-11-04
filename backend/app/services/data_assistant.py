@@ -307,17 +307,23 @@ def _run_clean(name: str, clean: Dict[str, Any]) -> Tuple[str, bool]:
 # ---- the loop ----
 
 def make_client() -> Any:
-    """A fresh async client built from settings: Claude if its key is set, else Gemini, else None. Build
-    one per request and close it afterwards."""
+    """A fresh async client built from settings: Claude if its key is set, else Gemini falling back to Groq
+    (either alone if only one key is set), else None. Build one per request and close it afterwards."""
     key = settings.ANTHROPIC_API_KEY
     if key and "your_anthropic" not in key:
         from anthropic import AsyncAnthropic
         return AsyncAnthropic(api_key=key, timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_RETRIES)
+    from openai import AsyncOpenAI
+    clients = []
     if gemini_chat.gemini_key():
-        from openai import AsyncOpenAI
-        return gemini_chat.GeminiClient(AsyncOpenAI(api_key=gemini_chat.gemini_key(), base_url=gemini_chat.BASE_URL,
-                                                    timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_RETRIES))
-    return None
+        clients.append(gemini_chat.GeminiClient(AsyncOpenAI(api_key=gemini_chat.gemini_key(), base_url=gemini_chat.BASE_URL,
+                                                            timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_RETRIES)))
+    if gemini_chat.groq_key():
+        clients.append(gemini_chat.GroqClient(AsyncOpenAI(api_key=gemini_chat.groq_key(), base_url=gemini_chat.GROQ_BASE_URL,
+                                                          timeout=CLIENT_TIMEOUT_S, max_retries=CLIENT_RETRIES)))
+    if not clients:
+        return None
+    return clients[0] if len(clients) == 1 else gemini_chat.FallbackClient(*clients)
 
 
 def _conversation(question: str, history: List[Dict[str, str]]) -> List[Dict[str, Any]]:
