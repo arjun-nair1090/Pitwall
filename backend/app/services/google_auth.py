@@ -62,6 +62,14 @@ def check_state(cookie: Optional[str], state: Optional[str]) -> Tuple[str, str]:
     return nonce, verifier
 
 
+def owns_email(claims: Dict[str, Any]) -> bool:
+    """Whether Google vouches for who holds the address now, not just that it was verified once: a Google
+    account made with a work address keeps it after its owner leaves. Gmail addresses, and Workspace
+    accounts (`hd`) whose domain Google manages, are the ones Google says to trust for linking accounts."""
+    email = claims["email"].lower()
+    return email.endswith("@gmail.com") or (bool(claims.get("hd")) and email.endswith("@" + claims["hd"].lower()))
+
+
 def _signing_key(id_token: str) -> Any:
     global _jwks
     if _jwks is None:

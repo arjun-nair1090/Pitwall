@@ -212,8 +212,11 @@ async def login(req: LoginRequest, request: Request, response: Response, db: Ses
     user = db.query(UserModel).filter(UserModel.email == req.email).first()
     # Always run a real bcrypt comparison -- against a throwaway hash when the
     # email is unknown -- so response time doesn't reveal which emails exist.
-    password_ok = verify_password(req.password, user.password_hash if user else _dummy_password_hash())
-    if not user or not password_ok:
+    # Accounts without a password (Google only) compare against the dummy too, so they answer as slowly as
+    # any other wrong password, and never match even its throwaway password.
+    usable = user is not None and user.password_hash != UNUSABLE_PASSWORD
+    password_ok = verify_password(req.password, user.password_hash if usable else _dummy_password_hash()) and usable
+    if not password_ok:
         auth_service.record_failure(req.email, ip)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -266,13 +269,16 @@ async def google_start():
     return response
 
 
-def _user_for_google(db: Session, claims: dict) -> UserModel:
-    """The user this Google account signs in as, linking or creating one the first time."""
+def _user_for_google(db: Session, claims: dict) -> Optional[UserModel]:
+    """The user this Google account signs in as, linking or creating one the first time. None when an
+    account already has the email but Google can't vouch for who holds that address now."""
     identity = db.query(IdentityModel).filter(IdentityModel.provider == "google", IdentityModel.subject == claims["sub"]).first()
     if identity:
         return db.query(UserModel).filter(UserModel.id == identity.user_id).first()
     email = _normalize_email(claims["email"])
     user = db.query(UserModel).filter(UserModel.email == email).first()
+    if user and not google_auth.owns_email(claims):
+        return None
     if user:
         # Nothing proved that whoever set this account's password owns the address, and Google just did. So
         # that password and every session made with it stop working: an account registered in advance with
@@ -313,6 +319,8 @@ async def google_callback(request: Request, code: Optional[str] = None, state: O
         return back_to_login("google")
 
     user = _user_for_google(db, claims)
+    if user is None:
+        return back_to_login("google_exists")
     response = RedirectResponse(_site("/predictions"), status_code=303)
     response.delete_cookie(google_auth.COOKIE, path=_GOOGLE_COOKIE_PATH)
     _start_session(request, response, db, user.id)

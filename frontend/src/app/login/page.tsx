@@ -24,6 +24,7 @@ export default function LoginPage() {
     const reason = new URLSearchParams(window.location.search).get("error");
     if (reason === "google") setError("Google sign-in didn't work. Try again, or use your email and password.");
     if (reason === "google_cancelled") setError("Google sign-in was cancelled.");
+    if (reason === "google_exists") setError("An account already uses this email. Log in with its password.");
   }, []);
 
   const submit = async (e: React.FormEvent) => {

@@ -169,3 +169,44 @@ def test_cancelling_at_google_comes_back_to_the_login_page():
     response = browser.get("/api/v1/auth/google/callback", params={"error": "access_denied", "state": params["state"][0]},
                            follow_redirects=False)
     assert response.headers["location"] == f"{SITE}/login?error=google_cancelled"
+
+
+def test_a_non_gmail_google_account_doesnt_take_over_an_existing_account(google):
+    # Google verified this address once, but a Google account keeps a work address after its owner has
+    # left, so only the password holder keeps the account.
+    owner = TestClient(app, headers=ORIGIN)
+    owner.post("/api/v1/auth/signup", json={"email": "ann@company.example", "password": "owners-pass-12", "display_name": "Ann"})
+    browser, response = _sign_in_with_google(google, sub="ex-employee", email="ann@company.example")
+    assert response.headers["location"] == f"{SITE}/login?error=google_exists"
+    assert browser.get("/api/v1/auth/me").status_code == 401
+    assert owner.get("/api/v1/auth/me").status_code == 200
+    db = _TestingSessionLocal()
+    try:
+        assert db.query(IdentityModel).filter(IdentityModel.subject == "ex-employee").count() == 0
+    finally:
+        db.close()
+
+
+def test_a_workspace_account_on_its_own_domain_links(google):
+    TestClient(app, headers=ORIGIN).post("/api/v1/auth/signup", json={"email": "bo@team.example", "password": "owners-pass-12", "display_name": "Bo"})
+    browser, response = _sign_in_with_google(google, sub="workspace-sub", email="bo@team.example", hd="team.example")
+    assert response.headers["location"] == f"{SITE}/predictions"
+    assert browser.get("/api/v1/auth/me").json()["email"] == "bo@team.example"
+
+
+def test_a_new_non_gmail_google_account_still_gets_its_own_account(google):
+    browser, response = _sign_in_with_google(google, sub="new-elsewhere", email="cy@elsewhere.example")
+    assert response.headers["location"] == f"{SITE}/predictions"
+    assert browser.get("/api/v1/auth/me").json()["email"] == "cy@elsewhere.example"
+
+
+def test_a_google_only_account_refuses_passwords_as_slowly_as_any_other(google, monkeypatch):
+    from app.api.v1 import auth_endpoints
+    _sign_in_with_google(google, sub="google-only", email="go@gmail.com")
+    compared = []
+    real = auth_endpoints.verify_password
+    monkeypatch.setattr(auth_endpoints, "verify_password", lambda pw, h: compared.append(h) or real(pw, h))
+    for password in ["anything-at-all-1", "timing-equalisation-only-not-a-real-password"]:
+        login = TestClient(app, headers=ORIGIN).post("/api/v1/auth/login", json={"email": "go@gmail.com", "password": password})
+        assert login.status_code == 401
+    assert all(h.startswith("$2") for h in compared)  # a real bcrypt comparison every time
