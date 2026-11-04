@@ -56,8 +56,9 @@ class Settings(BaseModel):
     # which silently degrades every AI feature to its fallback.
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-5")
     OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
-    # Google's alias for its newest Flash model, so the default never names a retired one.
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+    # Google's alias for its newest Flash-Lite model, so the default never names a retired one. Lite, because
+    # the free tier allows full Flash only 20 requests a day and one question to Ask the data uses several.
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
     FASTF1_CACHE_DIR: str = os.getenv("FASTF1_CACHE_DIR", "data/fastf1_cache")
 
 settings = Settings()

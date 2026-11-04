@@ -589,13 +589,15 @@ def _raising(monkeypatch, error):
     return boom
 
 
-def test_ask_maps_a_rate_limit_to_429(monkeypatch):
+def test_ask_maps_a_rate_limit_to_429(monkeypatch, capsys):
     import anthropic
     _raising(monkeypatch, _status_error(anthropic.RateLimitError, 429))
     response = client.post("/api/v1/ask", json={"question": "Who won?"})
     assert response.status_code == 429
     assert response.json()["detail"] == "The assistant is busy. Try again in a minute."
     assert "secret" not in response.text and "sk-123" not in response.text
+    # The provider's reason (per-minute burst or used-up daily quota) goes to the server log only.
+    assert "secret upstream detail" in capsys.readouterr().out
 
 
 def test_ask_maps_an_api_error_to_502(monkeypatch):
