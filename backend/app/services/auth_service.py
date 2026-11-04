@@ -59,28 +59,30 @@ async def password_is_breached(password: str) -> bool:
 
 # ---- per-account lockout ----
 
-LOCK_AFTER = 5  # wrong passwords for one email...
-LOCK_WINDOW_S = 15 * 60  # ...within this long lock it for this long
+LOCK_AFTER = 5  # wrong passwords for one email from one address...
+LOCK_WINDOW_S = 15 * 60  # ...within this long lock that pair for this long
+# Keyed by email *and* address: keyed by email alone, anyone could lock a victim out by guessing. Guessing
+# from many addresses is what the per-IP limits and the breached-password check are for.
 # ponytail: in-process memory like rate_limit, so a restart forgets; move to Redis with more than one worker.
-_failures: dict[str, deque] = defaultdict(deque)
+_failures: dict[tuple[str, str], deque] = defaultdict(deque)
 
 
-def seconds_locked(email: str) -> int:
-    """How long sign-in for this email stays locked, 0 if it isn't. Counted for unknown emails too, so a
-    lock never reveals whether an account exists."""
+def seconds_locked(email: str, ip: str) -> int:
+    """How long sign-in for this email from this address stays locked, 0 if it isn't. Counted for unknown
+    emails too, so a lock never reveals whether an account exists."""
     now = time.monotonic()
-    failures = _failures[email]
+    failures = _failures[(email, ip)]
     while failures and failures[0] <= now - LOCK_WINDOW_S:
         failures.popleft()
     return int(failures[0] + LOCK_WINDOW_S - now) + 1 if len(failures) >= LOCK_AFTER else 0
 
 
-def record_failure(email: str) -> None:
-    _failures[email].append(time.monotonic())
+def record_failure(email: str, ip: str) -> None:
+    _failures[(email, ip)].append(time.monotonic())
 
 
-def clear_failures(email: str) -> None:
-    _failures.pop(email, None)
+def clear_failures(email: str, ip: str) -> None:
+    _failures.pop((email, ip), None)
 
 
 def reset_lockouts() -> None:

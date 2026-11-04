@@ -197,7 +197,8 @@ async def signup(req: SignupRequest, request: Request, response: Response, db: S
 
 @router.post("/auth/login", response_model=UserResponse, dependencies=[Depends(verify_origin), Depends(rate_limit("login", 10, 900))])
 async def login(req: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
-    locked = auth_service.seconds_locked(req.email)
+    ip = request.client.host if request.client else ""
+    locked = auth_service.seconds_locked(req.email, ip)
     if locked:
         raise HTTPException(
             status_code=429,
@@ -209,10 +210,10 @@ async def login(req: LoginRequest, request: Request, response: Response, db: Ses
     # email is unknown -- so response time doesn't reveal which emails exist.
     password_ok = verify_password(req.password, user.password_hash if user else _dummy_password_hash())
     if not user or not password_ok:
-        auth_service.record_failure(req.email)
+        auth_service.record_failure(req.email, ip)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    auth_service.clear_failures(req.email)
+    auth_service.clear_failures(req.email, ip)
     _start_session(request, response, db, user.id)
     return user
 

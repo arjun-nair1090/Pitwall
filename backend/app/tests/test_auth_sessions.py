@@ -201,3 +201,13 @@ async def test_the_breach_check_sends_only_the_first_five_hash_characters(monkey
 async def test_the_breach_check_lets_signups_through_when_the_service_is_down(monkeypatch):
     monkeypatch.setattr(auth_service, "_PWNED_TRANSPORT", _pwned_api(fail=True))
     assert await auth_service.password_is_breached("anything-at-all-9") is False
+
+
+def test_someone_elses_wrong_guesses_dont_lock_the_owner_out():
+    # The lock counts failures per email and address, so an attacker can't lock a victim out by guessing.
+    _signed_in("victim@example.com")
+    attacker = TestClient(app, headers=ORIGIN, client=("203.0.113.66", 50000))
+    for _ in range(auth_service.LOCK_AFTER + 1):
+        attacker.post("/api/v1/auth/login", json={"email": "victim@example.com", "password": "wrong-password"})
+    owner = TestClient(app, headers=ORIGIN, client=("198.51.100.7", 50000))
+    assert owner.post("/api/v1/auth/login", json={"email": "victim@example.com", "password": "a-strong-password-1"}).status_code == 200
