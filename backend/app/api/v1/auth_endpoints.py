@@ -6,7 +6,9 @@ import secrets
 from datetime import datetime, timezone
 from typing import List, Optional
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func as sa_func
 from sqlalchemy.exc import IntegrityError
@@ -15,9 +17,11 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import client_key, rate_limit
-from app.models.models import PredictionModel, SessionModel, UserModel
-from app.services import auth_service, predictions_service
-from app.services.auth_service import MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, hash_password, verify_password
+from app.models.models import IdentityModel, PredictionModel, SessionModel, UserModel
+from app.services import auth_service, google_auth, predictions_service
+from app.services.auth_service import (
+    MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, UNUSABLE_PASSWORD, hash_password, verify_password,
+)
 
 router = APIRouter()
 
@@ -208,8 +212,11 @@ async def login(req: LoginRequest, request: Request, response: Response, db: Ses
     user = db.query(UserModel).filter(UserModel.email == req.email).first()
     # Always run a real bcrypt comparison -- against a throwaway hash when the
     # email is unknown -- so response time doesn't reveal which emails exist.
-    password_ok = verify_password(req.password, user.password_hash if user else _dummy_password_hash())
-    if not user or not password_ok:
+    # Accounts without a password (Google only) compare against the dummy too, so they answer as slowly as
+    # any other wrong password, and never match even its throwaway password.
+    usable = user is not None and user.password_hash != UNUSABLE_PASSWORD
+    password_ok = verify_password(req.password, user.password_hash if usable else _dummy_password_hash()) and usable
+    if not password_ok:
         auth_service.record_failure(req.email, ip)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
@@ -235,6 +242,89 @@ async def logout(
 @router.get("/auth/me", response_model=UserResponse)
 async def me(current_user: UserModel = Depends(get_current_user)):
     return current_user
+
+
+@router.get("/auth/providers")
+async def sign_in_providers():
+    """Which other ways to sign in this server offers, so the login page shows only working buttons."""
+    return {"google": google_auth.configured()}
+
+
+def _site(path: str) -> str:
+    return f"{settings.SITE_URL.rstrip('/')}{path}"
+
+
+_GOOGLE_COOKIE_PATH = "/api/v1/auth/google"
+
+
+@router.get("/auth/google/start", dependencies=[Depends(rate_limit("google", 30, 900))])
+async def google_start():
+    if not google_auth.configured():
+        raise HTTPException(status_code=404, detail="Google sign-in isn't set up on this server")
+    url, cookie = google_auth.start()
+    response = RedirectResponse(url, status_code=302)
+    # Lax, so it comes back with the top-level redirect from Google; only the callback can read it.
+    response.set_cookie(google_auth.COOKIE, cookie, max_age=google_auth.COOKIE_MAX_AGE, httponly=True, samesite="lax",
+                        secure=os.getenv("RUNNING_LOCALLY") != "true", path=_GOOGLE_COOKIE_PATH)
+    return response
+
+
+def _user_for_google(db: Session, claims: dict) -> Optional[UserModel]:
+    """The user this Google account signs in as, linking or creating one the first time. None when an
+    account already has the email but Google can't vouch for who holds that address now."""
+    identity = db.query(IdentityModel).filter(IdentityModel.provider == "google", IdentityModel.subject == claims["sub"]).first()
+    if identity:
+        return db.query(UserModel).filter(UserModel.id == identity.user_id).first()
+    email = _normalize_email(claims["email"])
+    user = db.query(UserModel).filter(UserModel.email == email).first()
+    if user and not google_auth.owns_email(claims):
+        return None
+    if user:
+        # Nothing proved that whoever set this account's password owns the address, and Google just did. So
+        # that password and every session made with it stop working: an account registered in advance with
+        # someone else's email can't be used to watch theirs. They can set a new password later.
+        user.password_hash = UNUSABLE_PASSWORD
+        db.query(SessionModel).filter(SessionModel.user_id == user.id).delete()
+    else:
+        name = (claims.get("name") or "").strip() or email.split("@")[0]
+        user = UserModel(email=email, display_name=name[:MAX_DISPLAY_NAME_LENGTH], password_hash=UNUSABLE_PASSWORD)
+        db.add(user)
+        db.flush()
+    db.add(IdentityModel(user_id=user.id, provider="google", subject=claims["sub"]))
+    db.commit()
+    return user
+
+
+@router.get("/auth/google/callback", dependencies=[Depends(rate_limit("google", 30, 900))])
+async def google_callback(request: Request, code: Optional[str] = None, state: Optional[str] = None,
+                          error: Optional[str] = None, db: Session = Depends(get_db)):
+    """Where Google sends the browser back. Every failure lands on the login page with a short reason."""
+    if not google_auth.configured():
+        raise HTTPException(status_code=404, detail="Google sign-in isn't set up on this server")
+
+    def back_to_login(reason: str) -> RedirectResponse:
+        response = RedirectResponse(_site(f"/login?error={reason}"), status_code=303)
+        response.delete_cookie(google_auth.COOKIE, path=_GOOGLE_COOKIE_PATH)
+        return response
+
+    if error:  # cancelled at Google, or Google refused
+        return back_to_login("google_cancelled")
+    try:
+        nonce, verifier = google_auth.check_state(request.cookies.get(google_auth.COOKIE), state)
+        if not code:
+            raise google_auth.GoogleSignInError("no code")
+        claims = await google_auth.finish(code, nonce, verifier)
+    except (google_auth.GoogleSignInError, httpx.HTTPError) as e:
+        print(f"Google sign-in refused: {e}")
+        return back_to_login("google")
+
+    user = _user_for_google(db, claims)
+    if user is None:
+        return back_to_login("google_exists")
+    response = RedirectResponse(_site("/predictions"), status_code=303)
+    response.delete_cookie(google_auth.COOKIE, path=_GOOGLE_COOKIE_PATH)
+    _start_session(request, response, db, user.id)
+    return response
 
 
 @router.get("/auth/sessions", response_model=List[SessionResponse])

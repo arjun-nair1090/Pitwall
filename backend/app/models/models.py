@@ -25,6 +25,17 @@ class SessionModel(Base):
     user_agent = Column(String(200), nullable=False, default="")
     ip = Column(String(45), nullable=False, default="")
 
+class IdentityModel(Base):
+    """A sign-in from another provider (Google) linked to a user: `subject` is that provider's stable user id."""
+    __tablename__ = "user_identities"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String(20), nullable=False)
+    subject = Column(String(255), nullable=False)
+
+    __table_args__ = (UniqueConstraint("provider", "subject", name="uq_provider_subject"),)
+
 class PredictionModel(Base):
     __tablename__ = "predictions"
 

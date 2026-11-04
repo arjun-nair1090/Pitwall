@@ -88,6 +88,8 @@ cp .env.example .env
 
 Set `SECRET_KEY` in `.env` (`python -c "import secrets; print(secrets.token_hex(32))"` makes one) and `RUNNING_LOCALLY=true` if the backend runs on your machine rather than in Docker. `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY` and `GROQ_API_KEY` are optional. Gemini and Groq have free tiers (keys at https://aistudio.google.com/apikey and https://console.groq.com/keys); with both set, Groq takes over when Gemini's daily allowance runs out. Claude is used first when its key is set. Without any key, the debrief and race engineer use templates and Ask the data is switched off.
 
+**Sign in with Google** is optional. In Google Cloud Console, under APIs & Services > Credentials, create an OAuth client ID of type "Web application" with the authorised redirect URI `<your site>/api/v1/auth/google/callback`. Then set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `SITE_URL` (the site's address) in the backend's `.env`. The login page shows the button once both Google values are set. A Google account whose email matches an existing account signs in to that account when Google vouches for the address (Gmail, or a Workspace account on its own domain; otherwise the person is asked to log in with their password): its password and sessions stop working, because Google has proved who owns the address and the password never did.
+
 ```bash
 docker compose up -d postgres redis
 
