@@ -251,7 +251,7 @@ def _archive_results() -> pd.DataFrame:
 
 
 def test_race_results_adds_points_and_team_colours_to_the_classification():
-    result = latest_result.race_results(2024, 14, load_results=lambda year, event: _archive_results())
+    result = latest_result.race_results(2024, 14, load_results=lambda year, event, session="R": _archive_results())
     assert result["year"] == 2024 and result["round"] == 14
     first, _, _, _, last = result["classification"]
     assert (first["code"], first["points"], first["color"]) == ("VER", 25.0, "#3671C6")
@@ -259,14 +259,14 @@ def test_race_results_adds_points_and_team_colours_to_the_classification():
 
 
 def test_race_results_handles_a_missing_points_column():
-    result = latest_result.race_results(2024, 14, load_results=lambda year, event: _results())
+    result = latest_result.race_results(2024, 14, load_results=lambda year, event, session="R": _results())
     assert all(row["points"] is None for row in result["classification"])
 
 
 def test_race_results_asks_for_the_round_and_is_cached():
     calls = []
 
-    def load(year, event):
+    def load(year, event, session="R"):
         calls.append((year, event))
         return _archive_results()
 
@@ -275,9 +275,30 @@ def test_race_results_asks_for_the_round_and_is_cached():
     assert calls == [(2023, 5)]
 
 
+def test_a_sprint_result_is_loaded_and_cached_apart_from_the_race():
+    calls = []
+
+    def load(year, event, session="R"):
+        calls.append(session)
+        return _archive_results()
+
+    latest_result.race_results(2023, 6, load_results=load)
+    latest_result.race_results(2023, 6, "S", load_results=load)
+    latest_result.race_results(2023, 6, "S", load_results=load)
+    assert calls == ["R", "S"]
+
+
+def test_a_round_without_a_sprint_says_so():
+    def load(year, event, session="R"):
+        raise ValueError("Session type 'S' does not exist for this event")
+
+    with pytest.raises(NoResultsError, match="There's no sprint at round 1 in 2026."):
+        latest_result.race_results(2026, 1, "S", load_results=load)
+
+
 def test_race_results_raises_when_unpublished():
     with pytest.raises(NoResultsError):
-        latest_result.race_results(2026, 24, load_results=lambda year, event: pd.DataFrame())
+        latest_result.race_results(2026, 24, load_results=lambda year, event, session="R": pd.DataFrame())
 
 
 def test_results_endpoint_returns_the_classification():
@@ -304,7 +325,7 @@ def test_results_endpoint_needs_year_and_round():
 
 
 def test_race_results_reports_an_unknown_round_as_missing_not_as_an_outage():
-    def load(year, event):
+    def load(year, event, session="R"):
         raise ValueError("Invalid round: 24")
 
     with pytest.raises(NoResultsError, match="round 24"):
@@ -312,7 +333,7 @@ def test_race_results_reports_an_unknown_round_as_missing_not_as_an_outage():
 
 
 def test_race_results_lets_real_failures_through():
-    def load(year, event):
+    def load(year, event, session="R"):
         raise ConnectionError("network down")
 
     with pytest.raises(ConnectionError):

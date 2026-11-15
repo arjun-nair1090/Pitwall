@@ -117,10 +117,10 @@ def finished_races(
     return races
 
 
-def _load_results(year: int, event_name: str) -> pd.DataFrame:
+def _load_results(year: int, event_name: Any, session_name: str = "R") -> pd.DataFrame:
     import fastf1
 
-    session = fastf1.get_session(year, event_name, "Race")
+    session = fastf1.get_session(year, event_name, session_name)
     session.load(laps=False, telemetry=False, weather=False, messages=False)
     return session.results
 
@@ -178,22 +178,25 @@ def latest_classification(
 def race_results(
     year: int,
     round_number: int,
+    session: str = "R",
     *,
-    load_results: Callable[[int, Any], pd.DataFrame] = _load_results,
+    load_results: Callable[[int, Any, str], pd.DataFrame] = _load_results,
 ) -> Dict[str, Any]:
-    """Final classification of any race (by round), with points and team colours, for the archive.
-    Finished results never change, so they are cached. Blocking -- call via asyncio.to_thread."""
+    """Final classification of any race, or its sprint with session "S" (by round), with points and team
+    colours, for the archive. Finished results never change, so they are cached. Blocking -- call via
+    asyncio.to_thread."""
     from app.services.session_info import FALLBACK_COLOR, team_colour
 
-    key = ("round", year, round_number)
+    key = ("round", year, round_number, session)
     cached = _RESULTS_CACHE.get(key)
     if cached is not None:
         return cached
 
     try:
-        results = load_results(year, round_number)
-    except ValueError as e:  # FastF1 rejects a round the season doesn't have
-        raise NoResultsError(f"There's no round {round_number} in {year}.") from e
+        results = load_results(year, round_number, session)
+    except ValueError as e:  # FastF1 rejects a round the season doesn't have, or a sprint it didn't run
+        what = "sprint at round" if session == "S" else "round"
+        raise NoResultsError(f"There's no {what} {round_number} in {year}.") from e
     classification = build_classification(results)  # raises NoResultsError when unpublished
 
     by_code = {str(r["Abbreviation"]): r for _, r in results.iterrows()}
