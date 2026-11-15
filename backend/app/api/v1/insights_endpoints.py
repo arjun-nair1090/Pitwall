@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.rate_limit import rate_limit
-from app.services import race_debrief, whatif, whatif_graph
+from app.services import race_debrief, saved_analyses, whatif, whatif_graph
 from app.services.ai_engineer import ai_engineer
 from app.services.session_frames import LruCache, SessionFrames, load_session_frames
 from app.services.session_info import SessionDataError
@@ -60,6 +60,10 @@ async def race_debrief_endpoint(
     # Keyed by the race the name resolved to, so "Belgium" and "Belgian GP" share one summary.
     key = (year, frames.event_name, session)
     cached = _SUMMARY_CACHE.get(key)
+    if cached is None:  # written before a restart: kept on disk, so it costs no second AI request
+        cached = saved_analyses.peek("debrief_summary", year, key)
+        if cached is not None:
+            _SUMMARY_CACHE.set(key, cached)
     if cached is not None:
         return {"facts": facts, **cached}
     try:
@@ -70,6 +74,7 @@ async def race_debrief_endpoint(
     written = await race_debrief.generate_debrief(facts, ai_engineer)
     if written["source"] == "ai":
         _SUMMARY_CACHE.set(key, written)
+        saved_analyses.store("debrief_summary", year, key, written)
     return {"facts": facts, **written}
 
 

@@ -80,3 +80,12 @@ def test_older_code_versions_are_pruned(saving):
     analysis(2026, "", "R", 20)
     saved_analyses.prune_old_versions()
     assert [p.name for p in saving.iterdir()] == [saved_analyses.VERSION]
+
+
+def test_a_stored_value_can_be_peeked_at_and_nothing_is_kept_when_off(saving, monkeypatch):
+    assert saved_analyses.peek("debrief_summary", 2026, (2026, "São Paulo Grand Prix", "Race")) is None
+    saved_analyses.store("debrief_summary", 2026, (2026, "São Paulo Grand Prix", "Race"), {"source": "ai"})
+    assert saved_analyses.peek("debrief_summary", 2026, (2026, "São Paulo Grand Prix", "Race")) == {"source": "ai"}
+    monkeypatch.setattr(settings, "SAVED_ANALYSES_DIR", "")
+    saved_analyses.store("debrief_summary", 2026, ("x",), 1)
+    assert saved_analyses.peek("debrief_summary", 2026, ("x",)) is None

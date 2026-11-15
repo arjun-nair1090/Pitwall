@@ -20,6 +20,7 @@ from app.services.championship_sim import ChampionshipError
 from app.services.llm_utils import extract_text, supports_effort
 from app.services.pit_window import PitWindowInputError
 from app.services.race_debrief import NoResultsError
+from app.services.session_frames import LruCache
 from app.services.session_info import SessionDataError
 
 MAX_TOOL_ROUNDS = 6
@@ -29,13 +30,27 @@ MAX_CALLS_PER_REQUEST = 12
 MAX_TOKENS = 2048
 MAX_RESULT_CHARS = 4000
 FIRST_YEAR = 2018
-CLIENT_TIMEOUT_S = 60.0
+# Gemini answers in 1-3 s; one that hasn't in 25 s is stuck, so hand over to the next provider sooner.
+CLIENT_TIMEOUT_S = 25.0
+# The site cuts a request off at 120 s. Past this budget a lookup still running is reported as such
+# instead, and carries on in the background: the analyses are saved, so asking again is quick.
+TOOL_BUDGET_S = 75.0
+STILL_WORKING = ("That analysis is still being worked out (the first look at a race takes a minute or two) "
+                 "and carries on in the background. Tell the user to ask again in a minute.")
 CLIENT_RETRIES = 2
 NO_ANSWER = "Sorry, I couldn't put an answer together. Try rephrasing the question."
 FAILED = "That analysis failed to load."
 CAPPED = "Too many lookups; answer with what you have."
 CUT_SHORT = " (cut short)"
 _TRUNCATED = " ...(cut short)"
+# Answers already given, by question, history and system prompt. The prompt names today's date and the
+# latest race, so an answer is reused only until either changes. Free tiers cap requests, not answers.
+_ANSWERS = LruCache(maxsize=256)
+
+
+def clear_cache() -> None:
+    global _ANSWERS
+    _ANSWERS = LruCache(maxsize=256)
 
 # Errors whose message is written for a reader (win probability raises PitWindowInputError too). Any
 # other exception, a bare ValueError from pandas included, becomes FAILED.
@@ -314,7 +329,7 @@ _IMPLEMENTATIONS: Dict[str, Callable[..., Any]] = {
 
 
 def _dump(result: Any) -> str:
-    out = json.dumps(result)
+    out = json.dumps(result, separators=(",", ":"))  # no padding: every character is a token the model reads
     if len(out) > MAX_RESULT_CHARS:
         out = out[: MAX_RESULT_CHARS - len(_TRUNCATED)] + _TRUNCATED
     return out
@@ -395,8 +410,10 @@ async def _call(client: Any, messages: List[Dict[str, Any]], forced_text: bool, 
     return await client.messages.create(**kwargs)
 
 
-async def _run_block(block: Any, capped: bool = False) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
-    """(the tool_result block, the source it came from or None). A capped call is answered, not run."""
+async def _run_block(block: Any, capped: bool = False,
+                     deadline: Optional[float] = None) -> Tuple[Dict[str, Any], Optional[Dict[str, Any]]]:
+    """(the tool_result block, the source it came from or None). A capped call is answered, not run;
+    one still running at `deadline` (time.monotonic()) is answered with STILL_WORKING."""
     name, args = block.name, block.input
     if capped:
         text, ok, source = CAPPED, False, None
@@ -408,7 +425,11 @@ async def _run_block(block: Any, capped: bool = False) -> Tuple[Dict[str, Any], 
         except ValueError as e:
             text, ok, source = str(e), False, None
         else:
-            text, ok = await asyncio.to_thread(_run_clean, name, clean)
+            left = None if deadline is None else max(1.0, deadline - time.monotonic())
+            try:
+                text, ok = await asyncio.wait_for(asyncio.to_thread(_run_clean, name, clean), left)
+            except asyncio.TimeoutError:  # the thread can't be stopped; it finishes and saves its result
+                text, ok = STILL_WORKING, False
             source = {"tool": name, "input": clean, "ok": ok}
     result: Dict[str, Any] = {"type": "tool_result", "tool_use_id": block.id, "content": text}
     if not ok:
@@ -445,10 +466,15 @@ async def ask(question: str, history: List[Dict[str, str]], client: Any = None) 
 
 
 async def _ask(question: str, history: List[Dict[str, str]], client: Any) -> Dict[str, Any]:
+    deadline = time.monotonic() + TOOL_BUDGET_S
     messages = _conversation(question, history)
     sources: List[Dict[str, Any]] = []
     seen = set()
     calendar = await asyncio.to_thread(season_calendar)
+    asked = (" ".join(question.lower().split()), json.dumps(history, sort_keys=True), system_prompt(calendar))
+    seen_before = _ANSWERS.get(asked)
+    if seen_before is not None:
+        return {"answer": seen_before["answer"], "sources": list(seen_before["sources"])}
 
     response = await _call(client, messages, forced_text=False, calendar=calendar)
     rounds = 0
@@ -461,7 +487,8 @@ async def _ask(question: str, history: List[Dict[str, str]], client: Any) -> Dic
         # every tool_use needs a tool_result, so calls over a cap are answered with CAPPED, not dropped
         allowed = max(0, min(MAX_CALLS_PER_ROUND, MAX_CALLS_PER_REQUEST - calls))
         calls += min(len(blocks), allowed)
-        outcomes = await asyncio.gather(*(_run_block(b, capped=i >= allowed) for i, b in enumerate(blocks)))
+        outcomes = await asyncio.gather(*(_run_block(b, capped=i >= allowed, deadline=deadline)
+                                         for i, b in enumerate(blocks)))
         for _, source in outcomes:
             if source is None:
                 continue
@@ -473,4 +500,7 @@ async def _ask(question: str, history: List[Dict[str, str]], client: Any) -> Dic
         messages.append({"role": "user", "content": [result for result, _ in outcomes]})
         response = await _call(client, messages, forced_text=rounds >= MAX_TOOL_ROUNDS, calendar=calendar)
 
-    return {"answer": _answer(response), "sources": sources}
+    out = {"answer": _answer(response), "sources": sources}
+    if out["answer"] not in (NO_ANSWER,) and not out["answer"].endswith(CUT_SHORT) and all(s["ok"] for s in sources):
+        _ANSWERS.set(asked, out)  # a failed or still-running lookup is asked again next time
+    return {"answer": out["answer"], "sources": list(out["sources"])}

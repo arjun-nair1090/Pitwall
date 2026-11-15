@@ -12,6 +12,7 @@ import fastf1
 import pandas as pd
 
 from app.services import fastf1_fixes  # noqa: F401  (patches FastF1 on import)
+from app.services.saved_analyses import saved
 
 FALLBACK_COLOR = "#9AA3B2"
 _CACHE_TTL_SECONDS = 600
@@ -75,7 +76,18 @@ def load_session(
     *,
     telemetry: bool = False,
 ):
-    """Load a session by round number when known (exact) or by name (FastF1 fuzzy-matches)."""
+    """Load a session by round number when known (exact) or by name (FastF1 fuzzy-matches).
+
+    A session named by its round and loaded without telemetry is kept once loaded (see
+    saved_analyses): FastF1 reprocesses the timing on every load, 4-15 s, while the loaded session
+    is 0.2 MB and reads back in a hundredth of a second. With telemetry it runs to hundreds of MB."""
+    if gp or telemetry or not round_number:
+        return _load_session(year, gp, session_name, round_number, telemetry=telemetry)
+    return saved("session", year, (session_name, round_number),
+                 lambda: _load_session(year, gp, session_name, round_number))
+
+
+def _load_session(year: int, gp: str, session_name: str, round_number: Optional[int], *, telemetry: bool = False):
     event = round_number if round_number else gp
     label = f"round {round_number}" if round_number else gp
     try:

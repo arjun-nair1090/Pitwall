@@ -56,7 +56,8 @@ class FakeClient:
 
 @pytest.fixture(autouse=True)
 def _clean(monkeypatch):
-    for module in (race_pace, race_battles, pit_window, win_probability, championship_data, latest_result):
+    for module in (race_pace, race_battles, pit_window, win_probability, championship_data, latest_result,
+                   data_assistant):
         getattr(module, "clear_cache", getattr(module, "reset_caches", lambda: None))()
     monkeypatch.setattr(championship_sim, "_current_year", lambda: 2026)
     monkeypatch.setattr(data_assistant.settings, "ANTHROPIC_MODEL", "claude-opus-5")
@@ -101,6 +102,53 @@ def test_answers_without_tools():
     assert "using only the results of the tools" in call["system"]
 
 
+def test_a_lookup_past_the_time_budget_says_it_is_still_working(monkeypatch):
+    # the site cuts a request off at 120 s, so a slow first look at a race is answered, not waited on
+    import threading
+    release = threading.Event()
+
+    def slow(**kwargs):
+        release.wait(2)
+        return {"drivers": []}
+
+    monkeypatch.setitem(data_assistant._IMPLEMENTATIONS, "race_pace", slow)
+    monkeypatch.setattr(data_assistant, "TOOL_BUDGET_S", 0.0)
+    client = FakeClient(
+        reply(tool_use("t1", "race_pace", {"year": 2024, "round": 14}), stop="tool_use"),
+        reply(text("Still being worked out; ask again in a minute.")),
+    )
+    try:
+        out = go("Who had the best pace at Spa?", client)
+    finally:
+        release.set()
+    assert out["sources"] == [{"tool": "race_pace", "input": {"year": 2024, "round": 14, "session": "R"}, "ok": False}]
+    [result] = tool_results(client.calls[1])
+    assert result["content"] == data_assistant.STILL_WORKING and result["is_error"] is True
+
+
+def test_a_repeated_question_is_answered_without_asking_the_model_again(monkeypatch):
+    stub(monkeypatch, "race_pace", {"drivers": [{"code": "NOR", "pace_gap_s": 0.0}]})
+    client = FakeClient(
+        reply(tool_use("t1", "race_pace", {"year": 2024, "round": 14}), stop="tool_use"),
+        reply(text("Norris was fastest.")),
+    )
+    first = go("Who had the best pace at Spa?", client)
+    again = go("  who had the best pace at SPA? ", FakeClient())  # no scripted replies: it must not be called
+    assert again == first and len(client.calls) == 2
+
+
+def test_an_answer_built_on_a_failed_lookup_is_not_reused(monkeypatch):
+    stub(monkeypatch, "race_pace", error=si.SessionDataError("Not here yet."))
+    script = lambda: FakeClient(  # noqa: E731
+        reply(tool_use("t1", "race_pace", {"year": 2024, "round": 14}), stop="tool_use"),
+        reply(text("That race isn't available.")),
+    )
+    go("Who had the best pace at Spa?", script())
+    retry = script()
+    go("Who had the best pace at Spa?", retry)
+    assert len(retry.calls) == 2
+
+
 def test_runs_a_tool_and_feeds_the_result_back(monkeypatch):
     calls = stub(monkeypatch, "race_pace", {"drivers": [{"code": "NOR", "pace_gap_s": 0.0}]})
     client = FakeClient(
@@ -117,7 +165,7 @@ def test_runs_a_tool_and_feeds_the_result_back(monkeypatch):
     assert results["role"] == "user"
     assert results["content"] == [{
         "type": "tool_result", "tool_use_id": "t1",
-        "content": json.dumps({"drivers": [{"code": "NOR", "pace_gap_s": 0.0}]}),
+        "content": json.dumps({"drivers": [{"code": "NOR", "pace_gap_s": 0.0}]}, separators=(",", ":")),
     }]
 
 
@@ -382,7 +430,7 @@ def test_the_client_has_a_timeout_and_retries(monkeypatch):
     client = data_assistant.make_client()
     try:
         assert isinstance(client, anthropic.AsyncAnthropic)
-        assert client.timeout == 60.0
+        assert client.timeout == 25.0
         assert client.max_retries == 2
     finally:
         asyncio.run(client.close())
