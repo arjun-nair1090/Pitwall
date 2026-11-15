@@ -1,4 +1,5 @@
 import fastf1
+import pandas as pd
 
 from app.services import fastf1_fixes
 
@@ -19,3 +20,23 @@ def test_other_pages_pass_through_untouched():
 
 def test_fastf1_uses_the_patched_fetch():
     assert fastf1._api.fetch_page.__wrapped__ is not None
+
+
+def test_a_stand_in_with_none_for_a_team_gets_the_team_mates_team_and_a_blank_name():
+    # F1's driver list for Hirakawa at the 2026 Mexico City GP; only Ergast's TeamId was real.
+    results = pd.DataFrame({
+        "Abbreviation": ["BEA", "HIR", "ALB"],
+        "FullName": ["Oliver Bearman", "None None", "Alexander Albon"],
+        "TeamName": ["Haas F1 Team", "None", "Williams"],
+        "TeamColor": ["9C9FA2", "None", "1868DB"],
+        "TeamId": ["haas", "haas", "williams"],
+    })
+    out = fastf1_fixes.fill_placeholders(results).set_index("Abbreviation")
+    assert out.loc["HIR", "TeamName"] == "Haas F1 Team"
+    assert out.loc["HIR", "TeamColor"] == "9C9FA2"
+    assert pd.isna(out.loc["HIR", "FullName"])
+    assert out.loc["ALB", "TeamName"] == "Williams"
+
+
+def test_fastf1_uses_the_cleaned_results():
+    assert fastf1.core.Session._load_drivers_results.pitwall_cleaned
