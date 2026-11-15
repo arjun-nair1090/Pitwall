@@ -49,7 +49,7 @@ def test_the_assistant_loop_runs_on_gemini(monkeypatch):
     assert first["tools"][0]["function"]["name"] == "season_schedule"
     assistant, tool = second["messages"][-2:]
     assert assistant["tool_calls"][0]["extra_content"] == CALL["extra_content"]
-    assert tool == {"role": "tool", "tool_call_id": "call_1", "content": '{"leader": "VER"}'}
+    assert tool == {"role": "tool", "tool_call_id": "call_1", "content": '{"leader":"VER"}'}
 
 
 def test_unreadable_arguments_go_back_to_the_model_as_an_error(monkeypatch):

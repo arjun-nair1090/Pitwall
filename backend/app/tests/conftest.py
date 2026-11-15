@@ -59,6 +59,7 @@ def _offline_assistant(monkeypatch):
     monkeypatch.setattr(data_assistant, "_list_races", lambda year, now: [])
     data_assistant._calendar_memo.clear()
     gemini_chat._resting.clear()
+    data_assistant.clear_cache()  # answers already given never carry over to the next test
 
 
 @pytest.fixture(autouse=True)

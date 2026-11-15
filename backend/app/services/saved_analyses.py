@@ -34,24 +34,39 @@ def _root() -> Optional[Path]:
     return Path(settings.SAVED_ANALYSES_DIR) if settings.SAVED_ANALYSES_DIR else None
 
 
-def saved(name: str, year: int, args: Any, compute: Callable[[], Any]) -> Any:
-    """The saved result of `name` for (year, args), or compute() saved for next time. Errors aren't saved."""
+_MISSING = object()
+
+
+def _path(name: str, year: int, args: Any) -> Optional[Path]:
     root = _root()
     if root is None:
-        return compute()
+        return None
     # Pickle, so a result comes back exactly as computed (JSON would turn int keys and tuples into
     # strings and lists). Only this backend writes these files, inside the volume that already holds
     # FastF1's own pickled cache; nothing a visitor sends ever reaches them.
     key = hashlib.sha256(repr(args).encode()).hexdigest()[:24]
-    path = root / VERSION / str(int(year)) / f"{name}-{key}.pkl"
+    return root / VERSION / str(int(year)) / f"{name}-{key}.pkl"
+
+
+def peek(name: str, year: int, args: Any, default: Any = None) -> Any:
+    """What was saved for `name` at (year, args), else `default`."""
+    path = _path(name, year, args)
+    if path is None:
+        return default
     try:
         with path.open("rb") as f:
             return pickle.load(f)
     except FileNotFoundError:
-        pass
+        return default
     except Exception as e:  # a torn or unreadable file is worked out again and overwritten
         print(f"Saved {name} unreadable, recomputing: {e!r}")
-    value = compute()
+        return default
+
+
+def store(name: str, year: int, args: Any, value: Any) -> None:
+    path = _path(name, year, args)
+    if path is None:
+        return
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
@@ -60,6 +75,17 @@ def saved(name: str, year: int, args: Any, compute: Callable[[], Any]) -> Any:
         os.replace(tmp, path)  # atomic, so a reader never sees half a file
     except OSError as e:
         print(f"Couldn't save {name}: {e!r}")
+
+
+def saved(name: str, year: int, args: Any, compute: Callable[[], Any]) -> Any:
+    """The saved result of `name` for (year, args), or compute() saved for next time. Errors aren't saved."""
+    if _root() is None:
+        return compute()
+    found = peek(name, year, args, _MISSING)
+    if found is not _MISSING:
+        return found
+    value = compute()
+    store(name, year, args, value)
     return value
 
 
