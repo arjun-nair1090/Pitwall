@@ -462,8 +462,12 @@ def win_probability_replay(year: int, gp: str, session_name: str, round_number: 
     lap = _check_lap(lap, total)  # a bad lap is refused before the laps are worked out
     key = (year, round_number or gp, session_name)
     sprint = session_name == "S"
-    # The odds of every lap are the slow part: kept apart, so another lap of the race reuses them.
-    history = saved("odds_history", year, key, lambda: _history_for(key, session, year, number, sprint))
+    def odds() -> Dict[str, Any]:
+        return _history_for(key, session, year, number, sprint)
+
+    # The odds of every lap are the slow part: kept apart, so another lap of the race reuses them
+    # (only for a race named by its round, as saved_analysis does).
+    history = odds() if gp else saved("odds_history", year, key, odds)
     at = _at(session, lap, year, number, sprint)
     return {"year": year, "round": number, "session": session_name, "total_laps": total,
             "sims": N_SIMS, "sc_laps": history["sc_laps"], "laps": _agreeing(history["laps"], at),

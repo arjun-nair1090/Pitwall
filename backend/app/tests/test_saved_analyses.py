@@ -31,6 +31,15 @@ def test_an_analysis_is_worked_out_once_and_comes_back_exactly(saving):
     assert list((saving / saved_analyses.VERSION / "2026").glob("*.pkl"))
 
 
+def test_a_race_named_by_text_is_never_saved(saving):
+    # any spelling FastF1 can match would otherwise get its own file
+    analysis, calls = _counting()
+    analysis(2026, "Brazil", "R")
+    analysis(2026, "Brazil", "R")
+    assert len(calls) == 2
+    assert not list(saving.rglob("*.pkl"))
+
+
 def test_nothing_is_saved_when_it_is_switched_off(monkeypatch):
     monkeypatch.setattr(settings, "SAVED_ANALYSES_DIR", "")
     analysis, calls = _counting()
@@ -43,16 +52,16 @@ def test_a_failure_is_not_saved(saving):
     calls = []
 
     @saved_analyses.saved_analysis
-    def flaky(year):
+    def flaky(year, gp, session):
         calls.append(year)
         if len(calls) == 1:
             raise ValueError("not synced yet")
         return "ok"
 
     with pytest.raises(ValueError):
-        flaky(2026)
-    assert flaky(2026) == "ok"
-    assert flaky(2026) == "ok"
+        flaky(2026, "", "R")
+    assert flaky(2026, "", "R") == "ok"
+    assert flaky(2026, "", "R") == "ok"
     assert len(calls) == 2
 
 

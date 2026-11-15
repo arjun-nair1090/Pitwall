@@ -64,10 +64,16 @@ def saved(name: str, year: int, args: Any, compute: Callable[[], Any]) -> Any:
 
 
 def saved_analysis(fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Decorates an analysis of one finished session whose first argument is the year."""
+    """Decorates an analysis of one finished session called as fn(year, gp, session, round, ...).
+
+    Only a race named by its round is saved. FastF1 matches nearly any text to some race, so saving
+    by name would give every spelling a visitor tries its own file; the pages and the chatbot always
+    send the round, and every other argument is checked before anything is saved."""
     @functools.wraps(fn)
-    def wrapper(year: int, *args: Any, **kwargs: Any) -> Any:
-        return saved(fn.__name__, year, (args, sorted(kwargs.items())), lambda: fn(year, *args, **kwargs))
+    def wrapper(year: int, gp: str = "", *args: Any, **kwargs: Any) -> Any:
+        if gp:
+            return fn(year, gp, *args, **kwargs)
+        return saved(fn.__name__, year, (args, sorted(kwargs.items())), lambda: fn(year, gp, *args, **kwargs))
     return wrapper
 
 
