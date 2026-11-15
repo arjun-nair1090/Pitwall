@@ -197,8 +197,8 @@ _SPECS: Dict[str, Dict[str, Any]] = {
         "required": ["year"],
     },
     "race_result": {
-        **_race_tool("The final classification of a race: every car's position, team, points and "
-                     "finishing status.", session=False),
+        **_race_tool("The final classification of a race or its sprint: every car's position, team, points "
+                     "and finishing status."),
         "required": ["year", "round"],
     },
     "championship_odds": {
@@ -278,8 +278,8 @@ def _season_schedule(year: int) -> Any:
     return condense_season_schedule(championship_data.season_frames(year)[2])
 
 
-def _race_result(year: int, round: int) -> Any:
-    return condense_race_result(latest_result.race_results(year, round))
+def _race_result(year: int, round: int, session: str = "R") -> Any:
+    return condense_race_result(latest_result.race_results(year, round, session))
 
 
 def _championship_odds(year: int, after_round: Optional[int] = None) -> Any:

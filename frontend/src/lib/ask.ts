@@ -82,7 +82,7 @@ export function sourceLabel({ tool, input }: AskSource): string {
     case "championship_odds":
       return named("Championship odds", yearPart, after === null ? null : `after round ${after}`);
     case "race_result":
-      return race("Result");
+      return race(input.session === "S" ? "Sprint result" : "Result");
     case "season_schedule":
       return named("Calendar", yearPart);
     default:

@@ -161,6 +161,13 @@ def test_every_service_error_keeps_its_own_message(monkeypatch, error):
     assert ok is False and text_out == str(error)
 
 
+def test_race_result_takes_the_sprint_and_defaults_to_the_race(monkeypatch):
+    calls = stub(monkeypatch, "race_result", result=[])
+    data_assistant.run_tool("race_result", {"year": 2026, "round": 9, "session": "S"})
+    data_assistant.run_tool("race_result", {"year": 2026, "round": 9})
+    assert calls == [{"year": 2026, "round": 9, "session": "S"}, {"year": 2026, "round": 9, "session": "R"}]
+
+
 def test_an_http_exception_gives_its_detail(monkeypatch):
     from fastapi import HTTPException
     stub(monkeypatch, "race_result", error=HTTPException(status_code=404, detail="Nothing there."))
@@ -413,7 +420,7 @@ def test_tool_list_is_exactly_the_seven_tools():
     sessions = data_assistant.TOOLS[3]["input_schema"]["properties"]["session"]
     assert sessions["enum"] == ["R", "S"]
     with_session = [t for t in data_assistant.TOOLS if "session" in t["input_schema"]["properties"]]
-    assert [t["name"] for t in with_session] == ["race_pace", "overtakes", "pit_window", "win_probability"]
+    assert [t["name"] for t in with_session] == ["race_result", "race_pace", "overtakes", "pit_window", "win_probability"]
     assert all(t["input_schema"]["properties"]["session"]["default"] == "R" for t in with_session)
 
 
@@ -546,7 +553,7 @@ def race_rows():
 
 
 def test_race_result_condenser():
-    payload = latest_result.race_results(2024, 14, load_results=lambda y, r: race_rows())
+    payload = latest_result.race_results(2024, 14, load_results=lambda y, r, s="R": race_rows())
     out = data_assistant.condense_race_result(payload)
     assert [r["position"] for r in out] == list(range(1, 21))  # the whole field, finishers and not
     assert set(out[0]) == {"position", "code", "team", "points", "status"}
@@ -690,8 +697,8 @@ def test_win_probability_condenser_with_a_long_race():
 # ---- each tool end to end through run_tool, with only the loader replaced ----
 
 def test_run_tool_wraps_each_service(monkeypatch):
-    payload = latest_result.race_results(2024, 14, load_results=lambda y, r: race_rows())
-    monkeypatch.setattr(latest_result, "race_results", lambda year, rnd: payload)
+    payload = latest_result.race_results(2024, 14, load_results=lambda y, r, s="R": race_rows())
+    monkeypatch.setattr(latest_result, "race_results", lambda year, rnd, session: payload)
     text_out, ok = data_assistant.run_tool("race_result", {"year": 2024, "round": 14})
     assert ok and json.loads(text_out)[0]["code"] == "D01"
 

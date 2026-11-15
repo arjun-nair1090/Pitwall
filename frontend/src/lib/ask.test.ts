@@ -44,6 +44,7 @@ describe("sourceLabel", () => {
     expect(sourceLabel(s("win_probability", { year: 2024, round: 14, session: "R", lap: 22 }))).toBe("Win probability · 2024 round 14, lap 22");
     expect(sourceLabel(s("win_probability", { year: 2024, round: 14, session: "R" }))).toBe("Win probability · 2024 round 14");
     expect(sourceLabel(s("race_result", { year: 2024, round: 14 }))).toBe("Result · 2024 round 14");
+    expect(sourceLabel(s("race_result", { year: 2026, round: 9, session: "S" }))).toBe("Sprint result · 2026 round 9");
     expect(sourceLabel(s("season_schedule", { year: 2024 }))).toBe("Calendar · 2024");
   });
   it("falls back to the tool name for an unknown tool", () => expect(sourceLabel(s("mystery", {}))).toBe("mystery"));
