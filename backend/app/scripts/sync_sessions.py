@@ -73,6 +73,19 @@ def copy_to_server(cache: Path, session_dir: Path, server: str, key_file: str):
     raise RuntimeError(f"copy to server failed for {rel}")
 
 
+def refresh_saved(years, server: str, key_file: str):
+    """Drop what the server saved for these seasons, then work the pages out again in the background.
+    A request that came in mid-upload could have saved an analysis of half a session."""
+    repo = os.environ.get("PITWALL_REPO", "~/Pitwall")
+    clear = " ".join(f"{VOLUME}/_saved/*/{y}" for y in years)
+    warm = " ".join(str(y) for y in years)
+    result = subprocess.run(["ssh", "-i", key_file, "-o", "BatchMode=yes", server,
+                             f"sudo rm -rf {clear}; cd {repo} && docker compose -f docker-compose.prod.yml "
+                             f"exec -d -T backend nice -n 19 python -m app.scripts.warm_saved {warm}"])
+    if result.returncode:
+        log(f"couldn't refresh the saved analyses (ssh exit {result.returncode})")
+
+
 def fetch(cache: Path, year: int, rnd: int, name: str, server: str, key_file: str):
     while True:
         try:
@@ -140,6 +153,7 @@ def main() -> int:
         log("signed in")
 
     added = failed = 0
+    uploaded = set()
     for year, rnd, name, key in due:
         try:
             fetch(cache, year, rnd, name, server, key_file)
@@ -152,8 +166,11 @@ def main() -> int:
         with synced.open("a") as f:
             f.write(key + "\n")
         added += 1
+        uploaded.add(year)
         log("added", key)
     log(f"done: {added} added, {failed} failed")
+    if uploaded:
+        refresh_saved(sorted(uploaded), server, key_file)
     return 1 if failed else 0
 
 

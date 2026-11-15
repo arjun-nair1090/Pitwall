@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 
 from app.services.corner_analysis import clean_laps
+from app.services.saved_analyses import saved_analysis
 from app.services.session_info import SessionDataError, driver_profile, load_session
 
 # Lap time lost per kilogram of fuel carried.
@@ -171,6 +172,7 @@ def compound_degradation(stints_by_compound: Dict[str, List[pd.DataFrame]]) -> L
     return out
 
 
+@saved_analysis
 def race_pace_payload(year: int, gp: str, session_name: str, round_number: Optional[int] = None) -> Dict[str, Any]:
     """Every driver's fuel-corrected pace and stints, plus the field's degradation per compound."""
     if session_name not in DISTANCE_FACTOR:
