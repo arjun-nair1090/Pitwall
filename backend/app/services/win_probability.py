@@ -26,6 +26,7 @@ import pandas as pd
 from app.services import corner_analysis, pit_strategy, pit_window
 from app.services.pit_window import PitWindowInputError
 from app.services.race_battles import SESSIONS
+from app.services.saved_analyses import saved, saved_analysis
 from app.services.session_info import driver_profile
 
 N_SIMS = 4_000
@@ -444,6 +445,7 @@ def _history_for(key: Tuple, session: Any, year: int, round_number: int, sprint:
     return history
 
 
+@saved_analysis
 def win_probability_replay(year: int, gp: str, session_name: str, round_number: Optional[int],
                            lap: Optional[int]) -> Dict[str, Any]:
     """Load (or reuse) the session and answer: the odds of every lap come from the memo."""
@@ -460,7 +462,12 @@ def win_probability_replay(year: int, gp: str, session_name: str, round_number: 
     lap = _check_lap(lap, total)  # a bad lap is refused before the laps are worked out
     key = (year, round_number or gp, session_name)
     sprint = session_name == "S"
-    history = _history_for(key, session, year, number, sprint)
+    def odds() -> Dict[str, Any]:
+        return _history_for(key, session, year, number, sprint)
+
+    # The odds of every lap are the slow part: kept apart, so another lap of the race reuses them
+    # (only for a race named by its round, as saved_analysis does).
+    history = odds() if gp else saved("odds_history", year, key, odds)
     at = _at(session, lap, year, number, sprint)
     return {"year": year, "round": number, "session": session_name, "total_laps": total,
             "sims": N_SIMS, "sc_laps": history["sc_laps"], "laps": _agreeing(history["laps"], at),

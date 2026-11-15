@@ -69,5 +69,7 @@ class Settings(BaseModel):
     # Must support tool calls for Ask the data; gpt-oss-120b does, on a free allowance of about 1,000 requests a day.
     GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
     FASTF1_CACHE_DIR: str = os.getenv("FASTF1_CACHE_DIR", "data/fastf1_cache")
+    # Where finished races' analyses are kept once worked out; empty means always compute.
+    SAVED_ANALYSES_DIR: str = os.getenv("SAVED_ANALYSES_DIR", "")
 
 settings = Settings()

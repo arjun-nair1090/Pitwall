@@ -13,6 +13,7 @@ from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from app.services.saved_analyses import saved_analysis
 from app.services.session_info import SessionDataError, driver_profile, load_session, neutralised_laps
 
 # A chaser this close to the car ahead at the end of a lap is inside the DRS window.
@@ -226,6 +227,7 @@ def _results_by_code(session: Any) -> Dict[str, _Result]:
     return out
 
 
+@saved_analysis
 def race_battles_payload(year: int, gp: str, session_name: str, round_number: Optional[int] = None) -> Dict[str, Any]:
     """The lap chart, every on-track pass and every battle of a race or sprint."""
     if session_name not in SESSIONS:

@@ -27,6 +27,7 @@ from app.services import pit_strategy
 from app.services.pit_strategy import DRY_COMPOUNDS, DriverState, TyreModel
 from app.services.race_battles import SESSIONS
 from app.services.race_pace import fuel_distance
+from app.services.saved_analyses import saved_analysis
 from app.services.session_info import driver_profile, load_session, neutralised_laps
 from app.services.strategy_simulator import (
     DEFAULT_PIT_LOSS_SECONDS,
@@ -313,6 +314,7 @@ def _loaded(year: int, gp: str, session_name: str, round_number: Optional[int]) 
     return session
 
 
+@saved_analysis
 def pit_window_replay(year: int, gp: str, session_name: str, round_number: Optional[int], lap: int) -> Dict[str, Any]:
     """Load (or reuse) the session and answer for one lap."""
     if session_name not in SESSIONS:
