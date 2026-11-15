@@ -170,6 +170,12 @@ def test_fuel_effect_is_not_invented_when_it_cannot_be_separated_from_wear():
     assert stats["MEDIUM"]["deg_rate"] == pytest.approx(0.1, abs=0.01)
 
 
+def test_a_drying_track_is_not_taken_for_fuel_burn():
+    # Laps a second quicker every lap is the track drying, not fuel: no car burns that much.
+    stats = compute_compound_stats(_race(fuel=-1.0))
+    assert stats["MEDIUM"]["fuel_rate"] == 0.0
+
+
 def test_simulation_applies_the_fuel_effect_across_the_race():
     stats = {"MEDIUM": {"base_pace": 90.0, "deg_rate": 0.0, "fuel_rate": -0.1, "sample_size": 10}}
     result = simulate_stint_plan(stats, [{"compound": "MEDIUM", "laps": 3}], pit_loss_seconds=22.0)

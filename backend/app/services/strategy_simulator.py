@@ -17,6 +17,7 @@ VALID_COMPOUNDS = set(FALLBACK_DEGRADATION_RATES.keys())
 MIN_SAMPLES_FOR_FIT = 5
 FUEL_MIN_LAPS = 30  # fewer clean laps than this can't separate fuel burn from tyre wear
 FUEL_MAX_CONDITION = 1e5  # design-matrix conditioning above this means wear and fuel are entangled
+MAX_FUEL_RATE = 0.15  # s/lap; burning fuel is worth ~0.03-0.07, so a steeper slope is the track drying or rubbering in
 DEFAULT_PIT_LOSS_SECONDS = 22.0
 
 
@@ -63,7 +64,8 @@ def _estimate_fuel_rate(fit: pd.DataFrame) -> float:
     if np.linalg.matrix_rank(design) < design.shape[1] or np.linalg.cond(design) > FUEL_MAX_CONDITION:
         return 0.0
     coefficients, *_ = np.linalg.lstsq(design, seconds, rcond=None)
-    return float(min(coefficients[-1], 0.0))
+    rate = float(min(coefficients[-1], 0.0))
+    return rate if rate >= -MAX_FUEL_RATE else 0.0
 
 
 def compute_compound_stats(laps: pd.DataFrame) -> Dict[str, Dict[str, float]]:
