@@ -156,3 +156,20 @@ def test_an_empty_season_is_a_404(monkeypatch):
     assert e.value.status == 404
     assert str(e.value) == "No races have been run in 2024 yet."
     cd.clear_cache()
+
+
+def test_a_stale_season_is_served_while_it_is_fetched_again(monkeypatch):
+    cd.clear_cache()
+    loads = []
+    monkeypatch.setattr(cd, "load_season", lambda year: loads.append(year) or ("season", len(loads)))
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(cd.time, "time", lambda: clock["now"])
+    assert cd.season_frames(2026) == ("season", 1)  # nothing in hand: waits for it
+    started = []
+    real_thread = cd.threading.Thread
+    monkeypatch.setattr(cd.threading, "Thread", lambda **kw: started.append(real_thread(**kw)) or started[-1])
+    clock["now"] += cd._CACHE_TTL_SECONDS + 1
+    assert cd.season_frames(2026) == ("season", 1)  # stale: served straight away...
+    started[0].join(2)
+    assert cd.season_frames(2026) == ("season", 2)  # ...and replaced by the fresh fetch
+    assert loads == [2026, 2026]

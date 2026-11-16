@@ -1,5 +1,6 @@
 """Loads a season's race results, sprint results and calendar from the Ergast mirror, and serves
 the championship odds built from them. The simulator itself lives in championship_sim."""
+import threading
 import time
 from typing import Any, Dict, Optional, Tuple
 
@@ -81,13 +82,34 @@ def load_season(year: int, ergast=None) -> Tuple[pd.DataFrame, pd.DataFrame, pd.
 
 
 def season_frames(year: int) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """load_season's (races, sprints, schedule), memoised for ten minutes."""
+    """load_season's (races, sprints, schedule). After ten minutes it is fetched again in the background
+    while the copy in hand is still served, so only the first load after a restart waits on the mirror."""
     cached = _season_cache.get(year)
-    if cached and time.time() - cached[0] < _CACHE_TTL_SECONDS:
+    if cached:
+        if time.time() - cached[0] >= _CACHE_TTL_SECONDS:
+            with _refresh_lock:
+                start = year not in _refreshing
+                _refreshing.add(year)
+            if start:
+                threading.Thread(target=_refresh, args=(year,), daemon=True).start()
         return cached[1]
     season = load_season(year)
     _season_cache[year] = (time.time(), season)
     return season
+
+
+_refresh_lock = threading.Lock()
+_refreshing: set = set()
+
+
+def _refresh(year: int) -> None:
+    try:
+        _season_cache[year] = (time.time(), load_season(year))
+    except Exception as e:  # the mirror is down or limiting: keep serving what we have, retry next call
+        print(f"Couldn't refresh the {year} season: {e!r}")
+    finally:
+        with _refresh_lock:
+            _refreshing.discard(year)
 
 
 def championship_odds(year: int, after_round: Optional[int]) -> Dict[str, Any]:
