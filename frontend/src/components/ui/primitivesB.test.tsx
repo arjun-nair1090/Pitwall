@@ -16,6 +16,12 @@ describe("Select", () => {
     expect(screen.getByLabelText("Season")).toBeInTheDocument();
     expect(screen.getByText("Season")).toHaveClass("sr-only");
   });
+  it("spins without a translate, which the spin keyframes would override", () => {
+    const { container } = render(<Select label="Driver" loading><option>Loading</option></Select>);
+    const spinner = container.querySelector("svg.animate-spin");
+    expect(spinner).not.toBeNull();
+    expect(spinner!.getAttribute("class")).not.toMatch(/translate/);
+  });
 });
 
 function Harness() {

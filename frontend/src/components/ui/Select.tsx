@@ -27,9 +27,11 @@ export default function Select({ label, hideLabel = false, id, className, select
         >
           {children}
         </select>
-        {loading
-          ? <Loader2 aria-hidden className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-mute" />
-          : <ChevronDown aria-hidden className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-mute" />}
+        {/* Centred by flex, not translate: animate-spin's keyframes set transform too, and would
+            replace the translate, so the icon slid up and down instead of turning. */}
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-mute">
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronDown className="h-4 w-4" />}
+        </span>
       </div>
     </div>
   );
