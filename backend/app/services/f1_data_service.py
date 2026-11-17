@@ -302,9 +302,13 @@ class F1DataService:
         During a live weekend this year's race has no data yet, so the outline comes from the most
         recent earlier year that raced at the same venue (the coordinates are in the same frame)."""
         error = None
+        race = gp
         for attempt_year in (year, year - 1, year - 2):
             try:
-                session = fastf1.get_session(attempt_year, gp, session_type)
+                session = fastf1.get_session(attempt_year, race, session_type)
+                # Earlier years are found by the race's name: a venue's can change ("Yas Marina" in
+                # 2026 was "Yas Island" in 2025), so only the first year is matched by what was sent.
+                race = session.event["EventName"]
                 # An outline costs a whole race's telemetry, so each is worked out once and kept. Keyed
                 # by the round FastF1 matched, not the text sent, so every spelling shares one file.
                 return saved("circuit_layout", attempt_year, (int(session.event["RoundNumber"]), session_type),
@@ -318,7 +322,21 @@ class F1DataService:
     def _outline(session) -> Dict[str, Any]:
         with TELEMETRY_LOAD_LOCK:
             session.load(telemetry=True, laps=True, weather=False)
-        telemetry = session.laps.pick_fastest().get_telemetry()
+        laps = session.laps
+
+        def candidates():  # the fastest lap, then the next quickest
+            yield laps.pick_fastest()
+            for _, lap in laps.sort_values("LapTime").head(10).iterlaps():
+                yield lap
+
+        for lap in candidates():
+            try:
+                telemetry = lap.get_telemetry()
+                break
+            except Exception:
+                continue  # F1 sent no position data for this lap (2026 Monaco's fastest)
+        else:
+            raise ValueError("No lap of this session has position data.")
         return {
             "circuit_name": session.event["OfficialEventName"],
             "location": session.event["Location"],

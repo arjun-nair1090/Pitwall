@@ -27,7 +27,8 @@ def test_layout_falls_back_to_an_earlier_year_when_this_years_race_has_not_run(m
         return SimpleNamespace(
             load=load,
             laps=SimpleNamespace(pick_fastest=lambda: _Lap()),
-            event={"OfficialEventName": f"{year} Singapore", "Location": "Marina Bay", "RoundNumber": 18},
+            event={"OfficialEventName": f"{year} Singapore", "Location": "Marina Bay", "RoundNumber": 18,
+                   "EventName": "Singapore Grand Prix"},
         )
 
     monkeypatch.setattr(f1_data_service.fastf1, "get_session", fake_get_session)
@@ -35,6 +36,45 @@ def test_layout_falls_back_to_an_earlier_year_when_this_years_race_has_not_run(m
     assert calls == [2026, 2025]
     assert layout["x"] == [1.0, 2.0]
     assert layout["location"] == "Marina Bay"
+
+
+def test_an_earlier_year_is_found_by_the_race_not_the_venue_name(monkeypatch):
+    # FastF1 calls Abu Dhabi's venue "Yas Marina" in 2026 but "Yas Island" in 2025: only the race's
+    # name finds last year's while this year's hasn't run.
+    calls = []
+
+    def fake_get_session(year, gp, session_type):
+        calls.append((year, gp))
+        if year == 2025 and gp != "Abu Dhabi Grand Prix":
+            raise ValueError("Found no match for 'yasmarina'")
+
+        def load(**kwargs):
+            if year == 2026:
+                raise ValueError("no data yet")
+
+        return SimpleNamespace(load=load, laps=SimpleNamespace(pick_fastest=lambda: _Lap()),
+                               event={"OfficialEventName": "Abu Dhabi", "Location": "Yas Island", "RoundNumber": 24,
+                                      "EventName": "Abu Dhabi Grand Prix"})
+
+    monkeypatch.setattr(f1_data_service.fastf1, "get_session", fake_get_session)
+    layout = f1_service.get_circuit_layout(2026, "Yas Marina", "Race")
+    assert "error" not in layout
+    assert calls == [(2026, "Yas Marina"), (2025, "Abu Dhabi Grand Prix")]
+
+
+class _NoPositionLap:
+    def get_telemetry(self):
+        raise KeyError("None of ['Date'] are in the columns")  # F1 sent no position data for this lap
+
+
+def test_a_fastest_lap_without_position_data_gives_way_to_the_next_quickest(monkeypatch):
+    # 2026 Monaco: the fastest lap has no position samples, so the outline comes from another lap.
+    others = SimpleNamespace(iterlaps=lambda: iter([(0, _NoPositionLap()), (1, _Lap())]))
+    laps = SimpleNamespace(pick_fastest=lambda: _NoPositionLap(),
+                           sort_values=lambda *a, **k: SimpleNamespace(head=lambda n: others))
+    session = SimpleNamespace(load=lambda **k: None, laps=laps,
+                              event={"OfficialEventName": "Monaco", "Location": "Monte Carlo"})
+    assert f1_service._outline(session)["x"] == [1.0, 2.0]
 
 
 def _counting_session(loads, fail=False):
@@ -47,7 +87,8 @@ def _counting_session(loads, fail=False):
         return SimpleNamespace(
             load=load,
             laps=SimpleNamespace(pick_fastest=lambda: _Lap()),
-            event={"OfficialEventName": "Singapore", "Location": "Marina Bay", "RoundNumber": 18},
+            event={"OfficialEventName": "Singapore", "Location": "Marina Bay", "RoundNumber": 18,
+                   "EventName": "Singapore Grand Prix"},
         )
     return fake_get_session
 
