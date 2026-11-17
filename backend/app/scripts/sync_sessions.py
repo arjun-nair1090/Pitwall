@@ -10,6 +10,7 @@ Usage (from backend/):
     PITWALL_SSH=ubuntu@<server-ip> PITWALL_SSH_KEY=~/.ssh/<key> python -m app.scripts.sync_sessions
     ... python -m app.scripts.sync_sessions --since 2018   # backfill earlier seasons
     ... python -m app.scripts.sync_sessions --analyses 2   # after a deploy: re-send the last 2 sessions' telemetry pages
+    ... python -m app.scripts.sync_sessions --outlines     # after a deploy: re-send this season's circuit outlines
 
 Each new session's telemetry pages (pedals, and corners for every driver) are worked out here, where
 it takes seconds, and uploaded with it: on the 1 GB server each takes a minute and stalls the site.
@@ -56,7 +57,7 @@ REPO = os.environ.get("PITWALL_REPO", "~/Pitwall")
 SESSION_CODES = {"Qualifying": "Q", "Sprint Shootout": "SS", "Sprint Qualifying": "SQ", "Sprint": "S", "Race": "R"}
 # Worked out here rather than on the 1 GB server, where each needs a whole session's telemetry: a
 # minute or more apiece there, stalling every other request, against seconds on this machine.
-TELEMETRY_ANALYSES = ("pedal_behavior_payload", "corner_consistency_payload")
+TELEMETRY_ANALYSES = ("pedal_behavior_payload", "corner_consistency_payload", "circuit_layout")
 
 
 def log(*a):
@@ -116,6 +117,20 @@ def save_telemetry_analyses(year: int, rnd: int, name: str) -> None:
             except Exception as e:
                 log(f"couldn't work out {what} for {year} {rnd} {code}: {e!r}"[:200])
     load.cache_clear()
+    if name == "Race":  # the live map's outline of this circuit, replacing any a visitor saved mid-upload
+        from app.services.f1_data_service import f1_service
+        f1_service.get_circuit_layout(year, rnd, "Race")
+
+
+def save_outlines(year: int) -> None:
+    """Work out the live map's outline for every circuit on the season's calendar, asked for the way
+    the map asks (the session's location); a race not run yet falls back to an earlier year's."""
+    from app.services.f1_data_service import f1_service
+
+    for location in fastf1.get_event_schedule(year, include_testing=False)["Location"]:
+        layout = f1_service.get_circuit_layout(year, str(location), "Race")
+        log(f"outline of {location}: " + ("ready" if "error" not in layout else f"none ({layout['error']})"[:150]))
+        gc.collect()
 
 
 def server_code_version(server: str, key_file: str) -> Optional[str]:
@@ -134,6 +149,19 @@ def staged_for_upload(staging: Path, server_version: Optional[str]) -> List[Path
     return sorted(p for p in (staging / server_version).rglob("*.pkl") if p.name.startswith(TELEMETRY_ANALYSES))
 
 
+def server_refresh_command(years) -> str:
+    """Clear these seasons' saved analyses, unpack the uploaded ones from stdin, then warm the seasons.
+    Circuit outlines are kept: each needs a whole race's telemetry and none depends on a later race."""
+    upload = f"sudo mkdir -p {VOLUME}/_saved && sudo tar -xf - --no-same-owner -C {VOLUME}/_saved"
+    if not years:
+        return upload
+    clear = " ".join(f"{VOLUME}/_saved/*/{y}" for y in years)
+    warm = " ".join(str(y) for y in years)
+    return (f"sudo find {clear} -type f ! -name 'circuit_layout-*' -delete 2>/dev/null; {upload}; "
+            f"cd {REPO} && docker compose -f docker-compose.prod.yml "
+            f"exec -d -T backend nice -n 19 python -m app.scripts.warm_saved {warm}")
+
+
 def refresh_saved(years, server: str, key_file: str, staging: Path):
     """Drop what the server saved for these seasons, add the analyses worked out here, then work the rest
     out on the server in the background. A request that came in mid-upload could have saved an
@@ -147,13 +175,7 @@ def refresh_saved(years, server: str, key_file: str, staging: Path):
     with tarfile.open(fileobj=archive, mode="w") as tar:
         for f in files:
             tar.add(f, arcname=f.relative_to(staging).as_posix())
-    clear = " ".join(f"{VOLUME}/_saved/*/{y}" for y in years)
-    warm = " ".join(str(y) for y in years)
-    result = subprocess.run(["ssh", "-i", key_file, "-o", "BatchMode=yes", server,
-                             f"sudo rm -rf {clear}; sudo mkdir -p {VOLUME}/_saved && "
-                             f"sudo tar -xf - --no-same-owner -C {VOLUME}/_saved; "
-                             f"cd {REPO} && docker compose -f docker-compose.prod.yml "
-                             f"exec -d -T backend nice -n 19 python -m app.scripts.warm_saved {warm}"],
+    result = subprocess.run(["ssh", "-i", key_file, "-o", "BatchMode=yes", server, server_refresh_command(years)],
                             input=archive.getvalue())
     if result.returncode:
         log(f"couldn't refresh the saved analyses (ssh exit {result.returncode})")
@@ -204,6 +226,8 @@ def main() -> int:
     parser.add_argument("--analyses", type=int, metavar="N",
                         help="only work out and upload the telemetry analyses of the N most recently synced "
                              "sessions (a deploy that changes the analysis code starts the server's afresh)")
+    parser.add_argument("--outlines", action="store_true",
+                        help="only work out and upload the live map's outline of every circuit this season")
     args = parser.parse_args()
     server = os.environ.get("PITWALL_SSH")
     if not server:
@@ -217,6 +241,11 @@ def main() -> int:
     done = set(synced.read_text().splitlines()) if synced.exists() else set()
     staging = cache / "_saved_upload"  # analyses worked out here wait here for refresh_saved
     settings.SAVED_ANALYSES_DIR = str(staging)
+
+    if args.outlines:
+        save_outlines(pd.Timestamp.now().year)
+        refresh_saved([], server, key_file, staging)
+        return 0
 
     if args.analyses:
         recent = [parse_key(k) for k in synced.read_text().splitlines()[-args.analyses:]] if synced.exists() else []
