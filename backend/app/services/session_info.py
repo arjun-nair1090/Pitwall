@@ -4,7 +4,9 @@ One place turns a (year, race, session) request into a loaded FastF1 session and
 facts the UI needs to build its pickers: who actually took part, in which team colours, how long
 the race was, and what strategy each driver ran.
 """
+import contextlib
 import os
+import threading
 import time
 from typing import Any, Dict, Optional, Tuple
 
@@ -15,6 +17,10 @@ from app.services import fastf1_fixes  # noqa: F401  (patches FastF1 on import)
 from app.services.saved_analyses import saved
 
 FALLBACK_COLOR = "#9AA3B2"
+# A race's telemetry peaks at ~350 MB while it loads. Two at once outgrow the 1 GB server and swap it
+# to a standstill, stalling every endpoint, so telemetry loads queue behind this one at a time.
+# ponytail: one load at a time; lift it (or make it a semaphore) on a server with more memory.
+TELEMETRY_LOAD_LOCK = threading.Lock()
 _CACHE_TTL_SECONDS = 600
 _cache: Dict[Tuple, Tuple[float, Dict[str, Any]]] = {}
 
@@ -97,7 +103,8 @@ def _load_session(year: int, gp: str, session_name: str, round_number: Optional[
     label = session.event.get("EventName") or label  # "Mexico City Grand Prix" reads better than "round 19"
 
     try:
-        session.load(laps=True, telemetry=telemetry, weather=False, messages=False)
+        with TELEMETRY_LOAD_LOCK if telemetry else contextlib.nullcontext():
+            session.load(laps=True, telemetry=telemetry, weather=False, messages=False)
         laps = session.laps  # raises if the load silently failed
     except Exception as e:
         raise _no_data_error(

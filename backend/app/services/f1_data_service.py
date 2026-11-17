@@ -12,6 +12,8 @@ from urllib.parse import quote
 from app.core.config import settings
 from app.services.redis_service import redis_service
 from app.services.live_timing import live_timing_feed
+from app.services.saved_analyses import saved
+from app.services.session_info import TELEMETRY_LOAD_LOCK
 from app.websocket.manager import manager
 from app.services.live_session import (
     apply_classification, build_leaderboard, driver_entry, fastf1_driver_entries, fastf1_leaderboard, fastf1_race_control,
@@ -303,19 +305,26 @@ class F1DataService:
         for attempt_year in (year, year - 1, year - 2):
             try:
                 session = fastf1.get_session(attempt_year, gp, session_type)
-                session.load(telemetry=True, laps=True, weather=False)
-                fastest_lap = session.laps.pick_fastest()
-                telemetry = fastest_lap.get_telemetry()
-                return {
-                    "circuit_name": session.event["OfficialEventName"],
-                    "location": session.event["Location"],
-                    "x": telemetry['X'].tolist(),
-                    "y": telemetry['Y'].tolist(),
-                }
+                # An outline costs a whole race's telemetry, so each is worked out once and kept. Keyed
+                # by the round FastF1 matched, not the text sent, so every spelling shares one file.
+                return saved("circuit_layout", attempt_year, (int(session.event["RoundNumber"]), session_type),
+                             lambda: self._outline(session))
             except Exception as e:
                 print(f"No circuit layout from {attempt_year} {gp}: {e}")
                 error = e
         return {"error": str(error)}
+
+    @staticmethod
+    def _outline(session) -> Dict[str, Any]:
+        with TELEMETRY_LOAD_LOCK:
+            session.load(telemetry=True, laps=True, weather=False)
+        telemetry = session.laps.pick_fastest().get_telemetry()
+        return {
+            "circuit_name": session.event["OfficialEventName"],
+            "location": session.event["Location"],
+            "x": telemetry['X'].tolist(),
+            "y": telemetry['Y'].tolist(),
+        }
 
     async def stream_live_telemetry(self, session_key: int):
         """Publishes each car's latest position and telemetry for a live session.
