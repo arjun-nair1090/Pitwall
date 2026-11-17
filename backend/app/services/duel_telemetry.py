@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from app.services import corner_analysis
+from app.services.saved_analyses import saved_analysis
 from app.services.session_info import (
     SessionDataError,
     driver_profile,
@@ -77,10 +78,19 @@ def pedal_shares(tel: pd.DataFrame) -> Optional[Dict[str, float]]:
     }
 
 
+def lap_telemetry(lap: pd.Series) -> pd.DataFrame:
+    """lap.get_telemetry() without its DriverAhead columns. Nothing here reads them, and FastF1 works
+    them out by scanning every other car's data: ~70% of the time, past a minute a request on the server."""
+    pos = lap.get_pos_data(pad=1, pad_side="both")
+    car = lap.get_car_data(pad=1, pad_side="both").add_distance().add_relative_distance()
+    car = car[["Date", "SessionTime", "Time", *(c for c in car.columns if c not in ("Date", "SessionTime", "Time"))]]
+    return pos.merge_channels(car).slice_by_lap(lap, interpolate_edges=True)
+
+
 def _lap_telemetry(lap: pd.Series, code: str) -> pd.DataFrame:
     number = int(lap["LapNumber"])
     try:
-        tel = lap.get_telemetry()
+        tel = lap_telemetry(lap)
     except Exception as e:
         raise SessionDataError(f"Telemetry for {code}'s lap {number} isn't available.") from e
     if tel is None or tel.empty:
@@ -134,6 +144,7 @@ def head_to_head_payload(
     }
 
 
+@saved_analysis
 def pedal_behavior_payload(year: int, gp: str, session_name: str, round_number: Optional[int] = None) -> Dict[str, Any]:
     """Pedal-state shares over each driver's fastest lap, quickest first."""
     session = load_session(year, gp, session_name, round_number, telemetry=True)

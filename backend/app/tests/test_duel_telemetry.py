@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -130,3 +132,22 @@ def test_head_to_head_survives_a_corner_analysis_failure(monkeypatch, capsys):
     assert payload["driver1"]["code"] == "VER" and payload["driver2"]["code"] == "NOR"
     assert payload["corners"] == []
     assert "bad corner data" in capsys.readouterr().out
+
+
+def test_pedal_behavior_for_a_round_is_saved(monkeypatch, tmp_path):
+    from app.services import saved_analyses
+
+    monkeypatch.setattr(saved_analyses.settings, "SAVED_ANALYSES_DIR", str(tmp_path))
+    loads = []
+
+    def load_session(*a, **k):
+        loads.append(a)
+        return SimpleNamespace(laps=pd.DataFrame({"Driver": ["VER"]}))
+
+    monkeypatch.setattr(dt, "load_session", load_session)
+    monkeypatch.setattr(dt, "pick_lap", lambda laps, code, number=None: pd.Series({"LapNumber": 3, "LapTime": pd.Timedelta(seconds=90)}))
+    monkeypatch.setattr(dt, "_lap_telemetry", lambda lap, code: _tel([200, 210], throttle=[100, 100]))
+    monkeypatch.setattr(dt, "driver_profile", lambda session, code: {"name": code, "team": "T", "color": "#fff"})
+    first = dt.pedal_behavior_payload(2026, "", "R", 20)
+    assert dt.pedal_behavior_payload(2026, "", "R", 20) == first
+    assert len(loads) == 1

@@ -478,6 +478,18 @@ def test_payload_refuses_when_corner_data_is_missing(monkeypatch):
         ca.corner_consistency_payload(2024, "Belgium", "R", "VER")
 
 
+def test_payload_for_a_round_is_saved_and_survives_a_restart(monkeypatch, tmp_path):
+    # A telemetry analysis ran past a minute on the server: a finished race's is worked out once.
+    from app.services import saved_analyses
+
+    monkeypatch.setattr(saved_analyses.settings, "SAVED_ANALYSES_DIR", str(tmp_path))
+    _patch_session(monkeypatch, [1, 2, 3, 4])
+    first = ca.corner_consistency_payload(2024, "", "R", "VER", 12)
+    ca._cache.clear()  # as after a restart
+    monkeypatch.setattr(ca, "load_session", lambda *a, **k: pytest.fail("should be served from disk"))
+    assert ca.corner_consistency_payload(2024, "", "R", "VER", 12) == first
+
+
 def test_payload_is_memoised(monkeypatch):
     _patch_session(monkeypatch, [1, 2, 3, 4])
     first = ca.corner_consistency_payload(2024, "Belgium", "R", "VER")

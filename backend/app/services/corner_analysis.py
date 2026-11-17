@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+from app.services.saved_analyses import saved_analysis
 from app.services.session_info import SessionDataError, driver_laps, driver_profile, load_session, neutralised_laps
 
 # How far along the lap, either side of a corner's reference distance, a sample may sit and
@@ -283,6 +284,7 @@ def _too_few(code: str, count: int) -> SessionDataError:
     )
 
 
+@saved_analysis
 def corner_consistency_payload(
     year: int, gp: str, session_name: str, driver: str, round_number: Optional[int] = None
 ) -> Dict[str, Any]:
