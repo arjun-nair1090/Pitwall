@@ -78,3 +78,49 @@ def test_nobody_signing_in_gives_up_after_the_wait(monkeypatch, tmp_path, opened
     monkeypatch.setattr(browser, "login_browser", lambda: never.wait())
     monkeypatch.setattr(sync_sessions, "SIGN_IN_WAIT_S", 0.1)
     assert sync_sessions.sign_in_in_browser(tmp_path, waiting=2) is False
+
+
+def test_telemetry_analyses_share_one_load_and_are_saved_for_every_driver(monkeypatch, tmp_path):
+    from app.services import corner_analysis, duel_telemetry, saved_analyses, session_info
+    from app.services.session_info import SessionDataError
+
+    monkeypatch.setattr(saved_analyses.settings, "SAVED_ANALYSES_DIR", str(tmp_path))
+    loads = []
+    monkeypatch.setattr(session_info, "load_session", lambda *a, **k: loads.append(a) or object())
+    monkeypatch.setattr(session_info, "session_info", lambda *a: {"drivers": [{"code": "VER"}, {"code": "NOR"}]})
+
+    @saved_analyses.saved_analysis
+    def pedal_behavior_payload(year, gp, session, rnd):
+        duel_telemetry.load_session(year, gp, session, rnd, telemetry=True)
+        return {"data": []}
+
+    @saved_analyses.saved_analysis
+    def corner_consistency_payload(year, gp, session, driver, rnd):
+        corner_analysis.load_session(year, gp, session, rnd, telemetry=True)
+        if driver == "NOR":
+            raise SessionDataError("NOR has only 2 clean laps")
+        return {"driver": driver}
+
+    monkeypatch.setattr(duel_telemetry, "pedal_behavior_payload", pedal_behavior_payload)
+    monkeypatch.setattr(corner_analysis, "corner_consistency_payload", corner_consistency_payload)
+    sync_sessions.save_telemetry_analyses(2026, 20, "Race")
+    assert len(loads) == 1  # one telemetry load for pedals and every driver
+    names = sorted(p.name.split("-")[0] for p in tmp_path.rglob("*.pkl"))
+    assert names == ["corner_consistency_payload", "pedal_behavior_payload"]  # NOR's failure isn't saved
+    # saved under exactly what the page asks for: session code "R" and the round
+    assert saved_analyses.peek("pedal_behavior_payload", 2026, (("R", 20), [])) == {"data": []}
+
+
+def test_only_telemetry_analyses_for_the_servers_code_are_uploaded(tmp_path):
+    for rel in ["v1/2026/pedal_behavior_payload-a.pkl", "v1/2026/corner_consistency_payload-b.pkl",
+                "v1/2026/session-c.pkl", "v0/2026/pedal_behavior_payload-d.pkl"]:
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_bytes(b"x")
+    picked = sync_sessions.staged_for_upload(tmp_path, "v1")
+    assert sorted(p.name for p in picked) == ["corner_consistency_payload-b.pkl", "pedal_behavior_payload-a.pkl"]
+    assert sync_sessions.staged_for_upload(tmp_path, None) == []  # server's version unknown: send nothing
+
+
+def test_a_synced_key_reads_back_as_year_round_and_session():
+    assert sync_sessions.parse_key("2026 20 São Paulo Grand Prix | Race") == (2026, 20, "Race")
+    assert sync_sessions.parse_key("2023 04 Azerbaijan Grand Prix | Sprint Shootout") == (2023, 4, "Sprint Shootout")
