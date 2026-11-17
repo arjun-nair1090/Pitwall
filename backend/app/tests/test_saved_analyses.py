@@ -89,3 +89,15 @@ def test_a_stored_value_can_be_peeked_at_and_nothing_is_kept_when_off(saving, mo
     monkeypatch.setattr(settings, "SAVED_ANALYSES_DIR", "")
     saved_analyses.store("debrief_summary", 2026, ("x",), 1)
     assert saved_analyses.peek("debrief_summary", 2026, ("x",)) is None
+
+
+def test_the_code_version_ignores_line_endings(tmp_path):
+    # The sync works analyses out on a Windows checkout (CRLF) and the server reads them (LF): the
+    # same code must give the same version, or the server never finds what was uploaded.
+    lf, crlf = tmp_path / "lf", tmp_path / "crlf"
+    lf.mkdir(), crlf.mkdir()
+    (lf / "a.py").write_bytes(b"x = 1\ny = 2\n")
+    (crlf / "a.py").write_bytes(b"x = 1\r\ny = 2\r\n")
+    assert saved_analyses._code_version(lf) == saved_analyses._code_version(crlf)
+    (crlf / "a.py").write_bytes(b"x = 1\r\ny = 3\r\n")
+    assert saved_analyses._code_version(lf) != saved_analyses._code_version(crlf)

@@ -19,11 +19,12 @@ import fastf1
 from app.core.config import settings
 
 
-def _code_version() -> str:
+def _code_version(folder: Path = Path(__file__).parent) -> str:
     digest = hashlib.sha256(fastf1.__version__.encode())
-    for source in sorted(Path(__file__).parent.glob("*.py")):
+    for source in sorted(folder.glob("*.py")):
         digest.update(source.name.encode())
-        digest.update(source.read_bytes())
+        # Line endings ignored: the race sync saves analyses on a Windows checkout for the server to read.
+        digest.update(source.read_bytes().replace(b"\r\n", b"\n"))
     return digest.hexdigest()[:12]
 
 
