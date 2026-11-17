@@ -134,7 +134,7 @@ def test_a_synced_key_reads_back_as_year_round_and_session():
 def test_refreshing_a_season_keeps_its_circuit_outlines():
     # Outlines are worked out once per circuit; clearing a season after each race mustn't lose them.
     command = sync_sessions.server_refresh_command([2026])
-    assert "2026" in command and "! -name 'circuit_layout-*'" in command
+    assert "2026" in command and "! -name 'circuit_layout*'" in command
     assert "warm_saved 2026" in command
 
 

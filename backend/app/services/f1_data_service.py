@@ -301,22 +301,34 @@ class F1DataService:
 
         During a live weekend this year's race has no data yet, so the outline comes from the most
         recent earlier year that raced at the same venue (the coordinates are in the same frame)."""
-        error = None
-        race = gp
+        try:
+            asked = fastf1.get_session(year, gp, session_type)  # matches the race; loads nothing
+            # The answer is kept for the year asked too, whichever year it came from: otherwise every
+            # visit first retries this year's race, a futile download before it has run, or (2026
+            # Monaco) a whole session's telemetry that has no position data.
+            return saved("circuit_layout_asked", year, (int(asked.event["RoundNumber"]), session_type),
+                         lambda: self._layout_from(asked, year, session_type))
+        except Exception as e:
+            print(f"No circuit layout for {year} {gp}: {e}")
+            return {"error": str(e)}
+
+    def _layout_from(self, session, year: int, session_type: str) -> Dict[str, Any]:
+        # Earlier years are found by the race's name: a venue's can change ("Yas Marina" in 2026 was
+        # "Yas Island" in 2025).
+        race = session.event["EventName"]
+        error: Exception = ValueError(f"No circuit layout for {race}.")
         for attempt_year in (year, year - 1, year - 2):
             try:
-                session = fastf1.get_session(attempt_year, race, session_type)
-                # Earlier years are found by the race's name: a venue's can change ("Yas Marina" in
-                # 2026 was "Yas Island" in 2025), so only the first year is matched by what was sent.
-                race = session.event["EventName"]
+                if attempt_year != year:
+                    session = fastf1.get_session(attempt_year, race, session_type)
                 # An outline costs a whole race's telemetry, so each is worked out once and kept. Keyed
                 # by the round FastF1 matched, not the text sent, so every spelling shares one file.
                 return saved("circuit_layout", attempt_year, (int(session.event["RoundNumber"]), session_type),
                              lambda: self._outline(session))
             except Exception as e:
-                print(f"No circuit layout from {attempt_year} {gp}: {e}")
+                print(f"No circuit layout from {attempt_year} {race}: {e}")
                 error = e
-        return {"error": str(error)}
+        raise error  # not saved, so a later visit tries again
 
     @staticmethod
     def _outline(session) -> Dict[str, Any]:

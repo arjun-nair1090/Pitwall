@@ -133,3 +133,26 @@ def test_telemetry_loads_never_overlap(monkeypatch):
     for t in threads:
         t.join()
     assert peak[0] == 1
+
+
+def test_an_outline_from_an_earlier_year_is_kept_for_the_year_asked(monkeypatch, tmp_path):
+    # Otherwise every visit first retries this year's race: a futile download before it has run, or
+    # (2026 Monaco) a whole session's telemetry that turns out to have no position data.
+    monkeypatch.setattr(settings, "SAVED_ANALYSES_DIR", str(tmp_path))
+    loads = []
+
+    def fake_get_session(year, gp, session_type):
+        def load(**kwargs):
+            loads.append(year)
+            if year == 2026:
+                raise ValueError("not run yet")
+
+        return SimpleNamespace(load=load, laps=SimpleNamespace(pick_fastest=lambda: _Lap()),
+                               event={"OfficialEventName": "Las Vegas", "Location": "Las Vegas", "RoundNumber": 22,
+                                      "EventName": "Las Vegas Grand Prix"})
+
+    monkeypatch.setattr(f1_data_service.fastf1, "get_session", fake_get_session)
+    first = f1_service.get_circuit_layout(2026, "Las Vegas", "Race")
+    assert loads == [2026, 2025]
+    assert f1_service.get_circuit_layout(2026, "Las Vegas", "Race") == first
+    assert loads == [2026, 2025]  # nothing loaded the second time

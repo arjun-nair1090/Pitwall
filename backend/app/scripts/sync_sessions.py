@@ -157,7 +157,7 @@ def server_refresh_command(years) -> str:
         return upload
     clear = " ".join(f"{VOLUME}/_saved/*/{y}" for y in years)
     warm = " ".join(str(y) for y in years)
-    return (f"sudo find {clear} -type f ! -name 'circuit_layout-*' -delete 2>/dev/null; {upload}; "
+    return (f"sudo find {clear} -type f ! -name 'circuit_layout*' -delete 2>/dev/null; {upload}; "
             f"cd {REPO} && docker compose -f docker-compose.prod.yml "
             f"exec -d -T backend nice -n 19 python -m app.scripts.warm_saved {warm}")
 
