@@ -648,6 +648,8 @@ async def get_result_card(
 
             fastf1_session = fastf1.get_session(year, gp, session)
             fastf1_session.load(laps=True, weather=False, telemetry=False)
+            # The card prints FastF1's own names: gp is fuzzy-matched, so echoing it would print any text.
+            event_name, session_name = str(fastf1_session.event["EventName"]), str(fastf1_session.name)
             laps = fastf1_session.laps
             driver_laps = laps[laps["Driver"] == driver_code]
             if driver_laps.empty:
@@ -660,7 +662,7 @@ async def get_result_card(
                 pass
 
             summary_text, meta = build_driver_session_summary(
-                laps, driver_code, gp, year, session, race_control
+                laps, driver_code, event_name, year, session_name, race_control
             )
             strategy_sentence = next(
                 (s.strip() for s in summary_text.split(". ") if s.strip().startswith("Strategy:")),
@@ -693,8 +695,8 @@ async def get_result_card(
                 team_color=team_color,
                 position=position,
                 year=year,
-                event_name=gp,
-                session_name=session,
+                event_name=event_name,
+                session_name=session_name,
                 fastest_lap_str=fastest_lap_str,
                 strategy_text=strategy_sentence,
             )

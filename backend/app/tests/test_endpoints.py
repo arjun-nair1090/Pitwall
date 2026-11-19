@@ -59,6 +59,32 @@ def test_result_card_returns_png_or_a_handled_error():
         assert response.content[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_result_card_prints_the_real_event_name_not_what_was_typed(monkeypatch):
+    # FastF1 fuzzy-matches "Monaco - HACKED" to Monaco, so echoing the query would let anyone put
+    # their own words on a Pit Wall card.
+    import types
+    import fastf1
+    import pandas as pd
+    from app.services import card_generator, history_summarizer
+
+    fake = types.SimpleNamespace(
+        event={"EventName": "Monaco Grand Prix"}, name="Race", results=None, race_control_messages=None,
+        laps=pd.DataFrame({"Driver": ["LEC"], "LapTime": [pd.Timedelta(seconds=75)], "Position": [1.0]}),
+        load=lambda **kw: None,
+    )
+    monkeypatch.setattr(fastf1, "get_session", lambda *a: fake)
+    monkeypatch.setattr(history_summarizer, "build_driver_session_summary", lambda *a: ("Strategy: HARD.", {}))
+    drawn = {}
+    monkeypatch.setattr(card_generator, "render_result_card", lambda **kw: drawn.update(kw) or b"png")
+
+    response = client.get("/api/v1/share/result-card", params={
+        "year": 2024, "gp": "Monaco - HACKED", "driver": "LEC", "session": "whatever I like",
+    })
+    assert response.status_code == 200
+    assert drawn["event_name"] == "Monaco Grand Prix"
+    assert drawn["session_name"] == "Race"
+
+
 def test_result_card_rejects_missing_required_params():
     response = client.get("/api/v1/share/result-card", params={"year": 2023})
     assert response.status_code == 422
