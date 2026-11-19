@@ -51,6 +51,14 @@ def test_single_stint_no_pit_stop():
     }
 
 
+def test_a_stint_that_gets_quicker_says_so_instead_of_a_negative_degradation():
+    laps = pd.DataFrame([_lap(n, 1, "HARD", 76.0 - 0.1 * n) for n in range(1, 6)])
+    text, _ = build_driver_session_summary(laps, "VER", "Monaco Grand Prix", 2024, "Race")
+
+    assert "getting faster ~0.10s/lap" in text
+    assert "~-" not in text
+
+
 def test_multi_stint_with_pit_stop_excludes_out_lap_from_trend():
     laps = pd.DataFrame([
         _lap(1, 1, "MEDIUM", 95.0),

@@ -36,7 +36,8 @@ def _describe_stint(stint_number: int, stint_laps: pd.DataFrame) -> str:
         last_time = clean["LapTime"].iloc[-1].total_seconds()
         num_laps = len(clean)
         rate = (last_time - first_time) / (num_laps - 1)
-        trend = f"degrading ~{rate:.2f}s/lap"
+        # Negative when fuel burn outpaces tyre wear: "degrading ~-0.08s/lap" read as nonsense.
+        trend = f"degrading ~{rate:.2f}s/lap" if rate >= 0 else f"getting faster ~{-rate:.2f}s/lap"
 
     return f"{compound} (laps {lap_start}-{lap_end}, {trend})"
 
