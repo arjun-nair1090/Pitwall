@@ -6,6 +6,7 @@ import localFont from "next/font/local";
 import "@/design/tokens.css";
 import "./globals.css";
 import { RAIL_INIT_SCRIPT } from "@/lib/railScript";
+import { Analytics } from "@vercel/analytics/next";
 
 // Self-hosted (see src/fonts/) instead of next/font/google: the Google Fonts fetch at `next build`
 // time has no fallback and hard-fails the build on flaky or blocked networks (corporate proxies,
@@ -60,6 +61,7 @@ export default function RootLayout({
           <LiveAlertBanner />
           <AppShell>{children}</AppShell>
         </AppInitializer>
+        <Analytics />
       </body>
     </html>
   );
