@@ -51,6 +51,8 @@ export const metadata: Metadata = {
   keywords: ["Pitwall", "F1", "Formula 1", "live timing", "telemetry", "FastF1", "race analysis"],
   openGraph: { type: "website", siteName: "Pitwall", url: "/", title: "Pitwall", description: DESCRIPTION },
   twitter: { card: "summary", title: "Pitwall", description: DESCRIPTION },
+  // Google Search Console ownership proof; removing it un-verifies the property.
+  verification: { google: "RvRhfjx7hR80jnjH_bO0IwFSzHSpRD3D46f-KoJGIxY" },
 };
 
 export default function RootLayout({
