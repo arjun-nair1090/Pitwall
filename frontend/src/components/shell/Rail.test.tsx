@@ -77,7 +77,7 @@ describe("Rail", () => {
 
   it("goes home from the brand", () => {
     render(<Rail />);
-    expect(screen.getByRole("link", { name: "Pit Wall home" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Pitwall home" })).toHaveAttribute("href", "/");
   });
 
   describe("live indicator", () => {

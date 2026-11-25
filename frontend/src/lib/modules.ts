@@ -68,7 +68,7 @@ export const MODULES: AppModule[] = [
     description: "Call the podium before lights-out and climb the season leaderboard.",
     keywords: ["podium", "leaderboard", "game", "pick"] },
   { id: "changelog", label: "Changelog", href: "/changelog", group: "More", icon: GitCommit,
-    description: "What changed in Pit Wall, and when.",
+    description: "What changed in Pitwall, and when.",
     keywords: ["updates", "release", "changes"] },
 ];
 

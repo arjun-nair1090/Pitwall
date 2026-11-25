@@ -6,6 +6,7 @@ import localFont from "next/font/local";
 import "@/design/tokens.css";
 import "./globals.css";
 import { RAIL_INIT_SCRIPT } from "@/lib/railScript";
+import { SITE_URL } from "@/lib/site";
 
 // Self-hosted (see src/fonts/) instead of next/font/google: the Google Fonts fetch at `next build`
 // time has no fallback and hard-fails the build on flaky or blocked networks (corporate proxies,
@@ -39,9 +40,17 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+const DESCRIPTION =
+  "Pitwall: free, open-source F1 live timing, telemetry and race analysis for every Grand Prix since 2018.";
+
 export const metadata: Metadata = {
-  title: "F1 Pit Wall",
-  description: "Real-time F1 telemetry dashboard",
+  metadataBase: new URL(SITE_URL),
+  title: { default: "Pitwall: F1 live timing and race analysis", template: "%s | Pitwall" },
+  description: DESCRIPTION,
+  applicationName: "Pitwall",
+  keywords: ["Pitwall", "F1", "Formula 1", "live timing", "telemetry", "FastF1", "race analysis"],
+  openGraph: { type: "website", siteName: "Pitwall", url: "/", title: "Pitwall", description: DESCRIPTION },
+  twitter: { card: "summary", title: "Pitwall", description: DESCRIPTION },
 };
 
 export default function RootLayout({

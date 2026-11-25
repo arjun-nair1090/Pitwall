@@ -86,7 +86,7 @@ export default function Rail() {
       <nav aria-label="Main" onScroll={hideTip} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-3">
         <Link
           href="/"
-          aria-label="Pit Wall home"
+          aria-label="Pitwall home"
           className="mb-3 flex h-11 items-center justify-center gap-3 rounded-control px-2 text-chalk transition-colors hover:bg-raised lg:rail-expanded:justify-start"
         >
           <Mark className="lg:rail-expanded:hidden" />

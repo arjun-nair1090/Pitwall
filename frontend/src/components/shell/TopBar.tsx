@@ -29,7 +29,7 @@ export default function TopBar() {
 
   return (
     <header className="sticky top-0 z-20 flex min-h-12 items-center gap-3 border-b-2 border-live bg-tarmac/95 px-4 backdrop-blur md:px-6">
-      <Link href="/" aria-label="Pit Wall home" className="flex items-center text-chalk md:hidden">
+      <Link href="/" aria-label="Pitwall home" className="flex items-center text-chalk md:hidden">
         <Wordmark className="h-[18px]" />
       </Link>
 

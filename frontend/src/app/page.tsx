@@ -1,13 +1,21 @@
 import Link from "next/link";
 import HeroTower from "@/components/landing/HeroTower";
 import { buttonClass } from "@/components/ui/Button";
+import type { Metadata } from "next";
 import { MODULES } from "@/lib/modules";
+import { SITE_URL } from "@/lib/site";
 
 const INDEX = MODULES.filter((m) => m.group !== "More");
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
+
+// Tells Google the site's name is "Pitwall", which it shows above the result instead of the vercel.app host.
+const JSON_LD = JSON.stringify({ "@context": "https://schema.org", "@type": "WebSite", name: "Pitwall", url: SITE_URL });
 
 export default function LandingPage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-16 py-4 md:py-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON_LD }} />
       <section className="grid items-center gap-10 lg:grid-cols-12">
         <div className="lg:col-span-5">
           {/* The headline is the page's one loud moment: heavy, upper case and set tight, under the

@@ -135,7 +135,7 @@ const CHANGELOG: ChangelogEntry[] = [
 export default function ChangelogPage() {
   return (
     <div className="w-full py-4 md:p-8 max-w-3xl mx-auto space-y-8">
-      <PageHeader title="Changelog" description="What's new on F1 Pit Wall." />
+      <PageHeader title="Changelog" description="What's new on Pitwall." />
 
       <div className="space-y-10">
         {CHANGELOG.map((entry) => (
